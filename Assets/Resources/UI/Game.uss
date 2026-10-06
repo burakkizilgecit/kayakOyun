@@ -1,0 +1,346 @@
+/* Sled Surfers arayüz stili. Ölçüler 1080x1920 referans çözünürlüğüne göredir. */
+
+:root {
+    --ink: #2B2340;
+    --muted: #7D7290;
+    --cream: #FFF6E5;
+    --orange: #FF8F1F;
+    --orange-dark: #D8620A;
+    --green: #3FD15B;
+    --green-dark: #22A03C;
+    --blue: #3FA4FF;
+    --blue-dark: #1E78D0;
+    --gold: #FFC93C;
+    --red: #FF4D3D;
+    --gray: #CFC8BE;
+    --gray-dark: #A89F93;
+
+    -unity-font: url("Fonts/Baloo2-SemiBold.ttf");
+    color: var(--ink);
+    font-size: 34px;
+}
+
+/* ------------------------------------------------------------ yerleşim */
+
+.fill { position: absolute; left: 0px; top: 0px; right: 0px; bottom: 0px; }
+.row { flex-direction: row; align-items: center; }
+.col { flex-direction: column; align-items: center; }
+.grow { flex-grow: 1; }
+.center { justify-content: center; align-items: center; }
+
+.page {
+    position: absolute; left: 0px; top: 0px; right: 0px; bottom: 0px;
+    padding: 36px 36px 40px 36px;
+    transition-property: opacity, translate;
+    transition-duration: 0.22s, 0.34s;
+    transition-timing-function: ease-out-sine, ease-out-back;
+}
+.page.off { opacity: 0; translate: 0 70px; }
+
+.topbar { flex-direction: row; align-items: center; justify-content: space-between; height: 96px; }
+
+/* ------------------------------------------------------------ yazı */
+
+.heavy { -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); }
+
+.outlined {
+    -unity-font: url("Fonts/Baloo2-ExtraBold.ttf");
+    color: #FFFFFF;
+    -unity-text-outline-width: 5px;
+    -unity-text-outline-color: var(--ink);
+    text-shadow: 0 7px 0 rgba(43, 35, 64, 0.55);
+}
+
+.title {
+    font-size: 168px;
+    -unity-text-align: middle-center;
+    color: #FFD84A;
+    -unity-text-outline-width: 9px;
+    margin: -40px 0 -40px 0;
+    text-shadow: 0 14px 0 rgba(43, 35, 64, 0.6);
+}
+.title-2 { color: #FFFFFF; font-size: 150px; }
+
+.ribbon {
+    background-color: var(--orange);
+    border-radius: 22px;
+    border-bottom-width: 8px;
+    border-color: var(--orange-dark);
+    padding: 4px 34px 0 34px;
+    flex-direction: row;
+    align-items: center;
+}
+.ribbon > Label { color: #FFFFFF; font-size: 44px; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); }
+
+.muted { color: var(--muted); }
+
+/* ------------------------------------------------------------ butonlar */
+
+.btn {
+    -unity-font: url("Fonts/Baloo2-ExtraBold.ttf");
+    color: #FFFFFF;
+    font-size: 64px;
+    -unity-text-align: middle-center;
+    -unity-text-outline-width: 3px;
+    -unity-text-outline-color: rgba(0, 0, 0, 0.22);
+    border-radius: 40px;
+    border-width: 0;
+    border-bottom-width: 12px;
+    margin: 0;
+    padding: 6px 34px 0 34px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    transition-property: scale, translate;
+    transition-duration: 0.07s;
+}
+.btn:active { scale: 0.93 0.93; translate: 0 6px; }
+.btn > Label { color: #FFFFFF; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); -unity-text-outline-width: 3px; -unity-text-outline-color: rgba(0, 0, 0, 0.22); }
+
+.btn-green { background-color: var(--green); border-color: var(--green-dark); }
+.btn-orange { background-color: var(--orange); border-color: var(--orange-dark); }
+.btn-blue { background-color: var(--blue); border-color: var(--blue-dark); }
+.btn-white { background-color: #FFFFFF; border-color: #D9CFC2; color: var(--ink); -unity-text-outline-width: 0; }
+.btn-white > Label { color: var(--ink); -unity-text-outline-width: 0; }
+.btn-gray { background-color: var(--gray); border-color: var(--gray-dark); }
+.btn-max { background-color: #E9F7EC; border-color: #BFE3C7; }
+.btn-max > Label { color: var(--green-dark); -unity-text-outline-width: 0; }
+
+.btn-huge { height: 190px; font-size: 92px; border-radius: 56px; border-bottom-width: 16px; }
+.btn-big { height: 160px; font-size: 70px; }
+.btn-mid { height: 130px; font-size: 54px; }
+.btn-round { width: 112px; height: 108px; border-radius: 34px; padding: 0; border-bottom-width: 10px; }
+
+/* ------------------------------------------------------------ hap & kart */
+
+.pill {
+    flex-direction: row;
+    align-items: center;
+    background-color: rgba(43, 35, 64, 0.62);
+    border-radius: 48px;
+    height: 88px;
+    padding: 0 30px 0 12px;
+}
+.pill > Label { color: #FFFFFF; font-size: 46px; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); margin: 6px 0 0 12px; }
+.pill-light { background-color: rgba(255, 255, 255, 0.92); }
+.pill-light > Label { color: var(--ink); }
+
+.card {
+    background-color: #FFFFFF;
+    border-radius: 40px;
+    border-bottom-width: 12px;
+    border-color: rgba(43, 35, 64, 0.16);
+    padding: 26px;
+}
+.card-cream { background-color: var(--cream); }
+
+.dim { background-color: rgba(30, 22, 48, 0.58); }
+
+/* ------------------------------------------------------------ garaj */
+
+.up-card {
+    flex-grow: 1;
+    flex-basis: 0;
+    padding: 20px 20px 22px 20px;
+}
+.up-icon {
+    width: 104px; height: 104px;
+    border-radius: 30px;
+    justify-content: center; align-items: center;
+    margin-right: 16px;
+}
+.up-name { font-size: 42px; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); margin-bottom: -10px; }
+.up-level { font-size: 28px; color: var(--muted); }
+.up-desc { font-size: 26px; color: var(--muted); white-space: normal; height: 72px; margin: 10px 0 8px 0; }
+.pips { flex-direction: row; height: 20px; margin-bottom: 16px; }
+.pip { flex-grow: 1; height: 20px; border-radius: 10px; background-color: #EDE6DC; margin-right: 6px; }
+.pip-on { background-color: var(--orange); }
+.up-card .btn { height: 100px; font-size: 46px; border-radius: 30px; border-bottom-width: 9px; padding: 4px 16px 0 16px; }
+
+/* ------------------------------------------------------------ çubuklar */
+
+.bar {
+    height: 44px;
+    background-color: rgba(43, 35, 64, 0.45);
+    border-radius: 22px;
+    overflow: hidden;
+    border-width: 5px;
+    border-color: rgba(255, 255, 255, 0.85);
+}
+.bar-fill { position: absolute; left: 0px; top: 0px; bottom: 0px; background-color: var(--orange); border-radius: 18px; }
+.marker { position: absolute; top: 0px; width: 12px; height: 62px; margin-left: -6px; background-color: var(--gold); border-radius: 6px; border-width: 3px; border-color: var(--ink); }
+
+.glass-frame {
+    position: absolute;
+    border-width: 10px;
+    border-color: #FFFFFF;
+    border-radius: 30px;
+}
+.milk-pill {
+    position: absolute;
+    height: 70px;
+    border-radius: 35px;
+    background-color: #FFFFFF;
+    border-bottom-width: 7px;
+    border-color: rgba(43, 35, 64, 0.2);
+    flex-direction: row;
+    align-items: center;
+    padding: 0 10px;
+    overflow: hidden;
+}
+.milk-fill { position: absolute; left: 0px; top: 0px; bottom: 0px; border-radius: 30px; background-color: #CDEBFF; }
+.milk-pill > Label { font-size: 38px; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); margin: 6px 0 0 6px; }
+
+/* ------------------------------------------------------------ açılır pencere */
+
+.pop {
+    transition-property: scale, opacity;
+    transition-duration: 0.36s, 0.2s;
+    transition-timing-function: ease-out-back, ease-out-sine;
+}
+.pop.off { scale: 0.6 0.6; opacity: 0; }
+
+.seg { flex-direction: row; background-color: #EDE6DC; border-radius: 34px; padding: 8px; }
+.seg-btn {
+    flex-grow: 1; flex-basis: 0; height: 96px; border-radius: 28px; border-width: 0; margin: 0;
+    background-color: rgba(0, 0, 0, 0); color: var(--muted); font-size: 44px;
+    -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); -unity-text-align: middle-center;
+}
+.seg-btn.on { background-color: var(--orange); color: #FFFFFF; }
+
+/* ------------------------------------------------------------ harita */
+
+.map-card {
+    height: 230px; justify-content: flex-start; padding: 0 30px 0 26px;
+    border-width: 0; border-bottom-width: 12px; border-radius: 44px;
+}
+.map-current { border-width: 7px; border-bottom-width: 14px; border-color: var(--orange); }
+.map-badge {
+    width: 140px; height: 140px; border-radius: 70px;
+    justify-content: center; align-items: center;
+    border-bottom-width: 8px; border-color: rgba(0, 0, 0, 0.18);
+}
+
+/* ------------------------------------------------------------ ana ekran */
+
+.hub-title {
+    background-color: rgba(0, 0, 0, 0); border-width: 0; margin: 6px 0 0 0; padding: 0;
+    flex-direction: column; align-items: center;
+}
+.side-btn { width: 150px; height: 150px; flex-direction: column; border-radius: 38px; padding: 0; margin: 0 0 30px 0; align-self: flex-end; }
+.side-btn > Label { color: var(--ink); font-size: 26px; -unity-text-outline-width: 0; margin-top: -6px; }
+
+.ucard {
+    background-color: #FFFFFF;
+    border-radius: 28px;
+    border-bottom-width: 10px;
+    border-color: rgba(43, 35, 64, 0.22);
+    padding-bottom: 12px;
+}
+.ucard-head {
+    height: 58px; justify-content: center; align-items: center;
+    border-top-left-radius: 28px; border-top-right-radius: 28px;
+}
+.ucard-badge {
+    position: absolute; top: -24px; right: -12px; width: 62px; height: 62px; border-radius: 31px;
+    background-color: var(--ink); color: #FFFFFF; font-size: 32px; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf");
+    -unity-text-align: middle-center; border-width: 4px; border-color: #FFFFFF; padding-top: 4px;
+}
+.ucard-body { height: 148px; justify-content: center; align-items: center; }
+.ucard-sub { font-size: 25px; color: var(--muted); -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); margin-top: -2px; }
+.ucard-bar { height: 12px; border-radius: 6px; background-color: #EDE6DC; margin: 12px 14px 12px 14px; overflow: hidden; }
+.ucard-pips { flex-direction: row; margin: 10px 12px 10px 12px; height: 14px; }
+.ucard-pip { flex-grow: 1; height: 14px; border-radius: 7px; margin: 0 3px 0 3px; background-color: #EDE6DC; }
+.ucard-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px; }
+.ucard-btn {
+    height: 84px; margin: 0 10px; border-radius: 24px; border-bottom-width: 8px; font-size: 34px;
+    padding: 4px 6px 0 6px;
+}
+.ucard-btn > Label { font-size: 34px; }
+
+/* ------------------------------------------------------------ roket butonu */
+
+.gauge-box { position: absolute; bottom: 30px; width: 300px; height: 372px; align-items: center; }
+.gauge { position: absolute; left: 0; top: 0; width: 300px; height: 300px; }
+.gauge-speed { margin-top: 64px; font-size: 92px; color: #FFFFFF; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf");
+               -unity-text-outline-width: 5px; -unity-text-outline-color: var(--ink); -unity-text-align: middle-center; }
+.gauge-unit { margin-top: -26px; font-size: 34px; color: #FFFFFF; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf");
+              -unity-text-outline-width: 4px; -unity-text-outline-color: var(--ink); -unity-text-align: middle-center; }
+.rocket-btn {
+    position: absolute; bottom: 0; left: 82px; width: 136px; height: 136px; border-radius: 68px; padding: 0;
+    background-color: #B8B0A6; border-width: 5px; border-bottom-width: 12px; border-color: #FFFFFF; overflow: hidden;
+    align-items: center; justify-content: center;
+}
+.rocket-fill { position: absolute; left: 0; right: 0; bottom: 0; background-color: #FF6A1A; }
+.rocket-count {
+    position: absolute; right: 26px; top: 22px; font-size: 40px; color: #FFFFFF;
+    -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); -unity-text-outline-width: 4px; -unity-text-outline-color: var(--ink);
+}
+
+/* ------------------------------------------------------------ karakterler */
+
+.avatar-card {
+    flex-grow: 1; flex-basis: 0; height: 214px; flex-direction: column; justify-content: flex-start;
+    padding: 8px 6px 6px 6px; border-radius: 30px;
+}
+.avatar-portrait { width: 120px; height: 136px; -unity-background-scale-mode: scale-to-fit; }
+.avatar-name { font-size: 26px; color: var(--ink); -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); -unity-text-outline-width: 0; margin-top: -4px; }
+.avatar-state { font-size: 24px; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); -unity-text-outline-width: 0; margin-top: -2px; }
+
+/* ------------------------------------------------------------ koşu: dikey ilerleme çubuğu */
+
+.vbar { position: absolute; right: 26px; width: 22px; bottom: 0px; border-radius: 11px;
+        background-color: rgba(30, 40, 60, 0.55); border-width: 3px; border-color: rgba(255, 255, 255, 0.85); overflow: hidden; }
+.vbar-fill { position: absolute; left: 0px; right: 0px; bottom: 0px; background-color: #3EE0F0; }
+.vbar-knob { position: absolute; right: 19px; width: 44px; height: 44px; border-radius: 22px; background-color: white;
+             border-width: 4px; border-color: #1E2A3C; }
+.vbar-best { position: absolute; right: 25px; width: 32px; height: 28px; border-radius: 14px; background-color: #3EE0F0;
+             border-width: 3px; border-color: white; }
+.vbar-label { position: absolute; right: 52px; top: -6px; font-size: 40px; color: white; -unity-text-align: middle-right; white-space: nowrap; }
+
+/* ------------------------------------------------------------ profesyonel yükseltme kartları */
+
+.pcard {
+    background-color: #FFFFFF; border-radius: 30px; overflow: hidden;
+    border-width: 5px; border-bottom-width: 14px; border-color: #FFFFFF; padding-bottom: 12px;
+}
+.pcard-top { height: 196px; border-top-left-radius: 24px; border-top-right-radius: 24px; overflow: hidden;
+             -unity-background-scale-mode: stretch-to-fill; }
+.pcard-glow { position: absolute; left: 6%; right: 6%; top: 4px; height: 170px; -unity-background-scale-mode: stretch-to-fill; }
+.pcard-preview { position: absolute; left: 0; right: 0; top: 0; bottom: 34px; -unity-background-scale-mode: scale-to-fit; }
+.pcard-lvl {
+    position: absolute; left: 8px; top: 8px; width: 56px; height: 62px; border-radius: 16px;
+    border-width: 3px; border-color: #FFFFFF; align-items: center; justify-content: center;
+}
+.pcard-lvl-cap { font-size: 16px; color: #FFFFFF; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); margin: -6px 0 -12px 0;
+                 -unity-text-outline-width: 0; }
+.pcard-lvl-num { font-size: 36px; color: #FFFFFF; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); margin-bottom: -6px;
+                 -unity-text-outline-width: 0; }
+.pcard-count {
+    position: absolute; right: 8px; top: 10px; height: 34px; padding: 2px 10px 0 10px; border-radius: 17px;
+    background-color: rgba(30, 24, 48, 0.55); color: #FFFFFF; font-size: 22px; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf");
+    -unity-text-align: middle-center; -unity-text-outline-width: 0;
+}
+.pcard-name {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 40px; background-color: rgba(30, 24, 48, 0.42);
+    align-items: center; justify-content: center;
+}
+.pcard-stage { font-size: 23px; color: var(--ink); -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); -unity-text-align: middle-center;
+               margin: 8px 6px 0 6px; white-space: nowrap; overflow: hidden; -unity-text-outline-width: 0; }
+.pcard-pips { flex-direction: row; margin: 6px 12px 10px 12px; height: 18px; }
+.pcard-pip { flex-grow: 1; height: 16px; border-radius: 8px; margin: 0 3px 0 3px; border-bottom-width: 4px; }
+.pcard-btn {
+    height: 82px; margin: 0 10px; border-radius: 24px; border-bottom-width: 9px; font-size: 34px; padding: 4px 6px 0 6px;
+    overflow: hidden; -unity-background-scale-mode: stretch-to-fill;
+}
+.pcard-btn > Label { font-size: 34px; }
+.pcard-shine { position: absolute; top: -20px; bottom: -20px; width: 34px; background-color: rgba(255, 255, 255, 0.45); rotate: 20deg; }
+
+.side-card {
+    width: 156px; height: 156px; flex-direction: column; border-radius: 40px; padding: 0; margin: 0 0 28px 0;
+    border-width: 5px; border-bottom-width: 14px; border-color: #FFFFFF; align-self: flex-end; overflow: hidden;
+    -unity-background-scale-mode: stretch-to-fill;
+}
+.side-glow { position: absolute; left: 10%; right: 10%; top: 4px; height: 100px; -unity-background-scale-mode: stretch-to-fill; }
+.side-label { font-size: 26px; color: #FFFFFF; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); margin-top: -6px;
+              -unity-text-outline-width: 3px; -unity-text-outline-color: rgba(30, 24, 48, 0.7); }
