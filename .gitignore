@@ -44,3 +44,7 @@ crashlytics-build.properties
 # İşletim sistemi
 .DS_Store
 Thumbs.db
+
+# Unity çökme kurtarma sahneleri
+/Assets/_Recovery/
+/Assets/_Recovery.meta

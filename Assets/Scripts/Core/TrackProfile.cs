@@ -72,6 +72,11 @@ namespace SledSurfers
         public readonly List<Flock> flocks = new List<Flock>();
         /// Roket tepelerinin zirve z'leri.
         public readonly List<float> rocketHills = new List<float>();
+        /// Havada alınan roket hakkı: pistin %70'inden sonraki ilk rampanın uçuş yolunda, yerden yetişilemeyecek
+        /// yükseklikte (her pistte en fazla bir tane). Kızağın merkezi (konum + 0.6 m) bu yarıçapa girerse alınır.
+        public bool hasRocketPickup;
+        public Vector3 rocketPickup;
+        public const float RocketPickupRadius = 1.5f;
 
         /// Su birikintisinde sürtünmeye eklenen katsayı; buzda ve çimende sürtünme çarpanı.
         public const float PuddleDrag = 0.3f, MudDrag = 0.45f, IceFactor = 0.25f, GrassFactor = 1.5f;

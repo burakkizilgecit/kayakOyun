@@ -6,7 +6,7 @@ namespace SledSurfers
     /// daha koyu tonlar desen verir. Düz renkli yüzeylere çim, toprak ve taş dokusu katar.
     public static class TextureKit
     {
-        static Texture2D grass, dirt, rock;
+        static Texture2D grass, dirt, rock, snow;
 
         public static Texture2D Grass() => grass != null ? grass : grass = Make("Grass", 128, (x, y) =>
         {
@@ -24,6 +24,15 @@ namespace SledSurfers
             float grain = Noise(x, y, 64, 13) * 0.07f;
             float pebble = Mathf.Clamp01((Noise(x, y, 24, 17) - 0.84f) * 8f) * 0.07f;
             return 1f - patches - grain - pebble;
+        });
+
+        public static Texture2D Snow() => snow != null ? snow : snow = Make("Snow", 128, (x, y) =>
+        {
+            // Kar: çok hafif lekeler ve rüzgârın bıraktığı yumuşak dalgacıklar (çim telleri yok)
+            float patches = Noise(x, y, 4, 29) * 0.05f;
+            float ripples = Mathf.Abs(Mathf.Sin((x / 128f * 3f + y / 128f * 9f + Noise(x, y, 8, 31) * 0.6f) * Mathf.PI * 2f)) * 0.035f;
+            float fine = Noise(x, y, 64, 37) * 0.03f;
+            return 1f - patches - ripples - fine;
         });
 
         public static Texture2D Rock() => rock != null ? rock : rock = Make("Rock", 128, (x, y) =>

@@ -18,13 +18,15 @@ namespace SledSurfers
         const float MaxSideGrip = 16f;   // m/s², yana dönüşte en büyük ivme (kıvrımlı patikayı izleyebilsin)
         const float MaxTurnRate = 1.6f;  // rad/s
         const float PitchRate = 1.8f;    // rad/s
-        const float WingCd0 = 0.12f;     // kanadın profil sürükleme katsayısı
+        /// Kanadın profil sürükleme katsayısı. Küçük kanatlarda 0.12; büyük (üst seviye) kanatlar daha ince ve temizdir:
+        /// toplam profil sürüklemesi (Cd0·alan) sabit kalır, böylece büyük kanat kızağı yavaşlatmaz, daha iyi süzülür.
+        static float WingCd0(float area) => Mathf.Min(0.12f, 0.19f / Mathf.Max(area, 0.01f));
 
         static float AspectRatio(float wingArea) => 2f + wingArea;
 
         /// En iyi süzülme oranı (kaldırma/sürükleme): küçük kanatta ~3, en büyükte ~4,8.
         public static float MaxGlideRatio(float wingArea) =>
-            0.5f * Mathf.Sqrt(Mathf.PI * AspectRatio(wingArea) * 0.8f / WingCd0);  // rad, kanatlı kızağın kendiliğinden tuttuğu hücum açısı (en iyi süzülmeye yakın)
+            0.5f * Mathf.Sqrt(Mathf.PI * AspectRatio(wingArea) * 0.8f / WingCd0(wingArea));  // rad, kanatlı kızağın kendiliğinden tuttuğu hücum açısı (en iyi süzülmeye yakın)
         const float MaxPitch = 1.2f;     // rad
         const float WallSlope = 1.4f;    // ~55°, bundan dik yüzey duvardır
         const float HalfWidth = 0.38f;
@@ -47,6 +49,8 @@ namespace SledSurfers
         public float lastImpact;         // son inişin dik hızı (m/s)
         public float rocketTime;         // kalan yanma süresi (s)
         public int rocketCharges;        // kalan ateşleme hakkı
+        public float rocketThrust, rocketBurn;   // takılı roket (havada alınan hak, roketsizse 1. seviye roket verir)
+        public bool rocketPickupTaken;   // pistteki havada alınan roket hakkı alındı mı
         public bool RocketFiring => rocketTime > 0f && end == RunEnd.None;
         public bool CanFireRocket => rocketCharges > 0 && rocketTime <= 0f && !launching && end == RunEnd.None;
 
@@ -93,6 +97,9 @@ namespace SledSurfers
             stillTime = 0f;
             rocketTime = 0f;
             rocketCharges = cfg.rocketCharges;
+            rocketThrust = cfg.rocketThrust;
+            rocketBurn = cfg.rocketBurn;
+            rocketPickupTaken = false;
             maxDistance = 0f;
             topSpeed = 0f;
             clock = 0f;
@@ -104,7 +111,7 @@ namespace SledSurfers
         {
             if (!CanFireRocket) return false;
             rocketCharges--;
-            rocketTime = cfg.rocketBurn;
+            rocketTime = rocketBurn;
             stillTime = 0f;
             return true;
         }
@@ -127,6 +134,7 @@ namespace SledSurfers
             {
                 SideWalls();
                 CheckObstacles();
+                CheckRocketPickup();
             }
 
             acceleration = (velocity - before) / dt;
@@ -156,7 +164,7 @@ namespace SledSurfers
             Vector3 headDir = Vector3.ProjectOnPlane(new Vector3(Mathf.Sin(heading), 0f, Mathf.Cos(heading)), n).normalized;
             if (rocketTime > 0f)
             {
-                a += headDir * (cfg.rocketThrust / m);   // roket kızağın baktığı yöne iter
+                a += headDir * (rocketThrust / m);   // roket kızağın baktığı yöne iter
                 rocketTime -= dt;
             }
             if (launching)
@@ -292,7 +300,7 @@ namespace SledSurfers
                     float q = 0.5f * AirDensity * vzy * vzy;
                     // Kısa, kalın kızak kanadı: profil sürüklemesi yüksek (planör gibi uçmaz). Büyük kanadın açıklığı
                     // daha geniştir (AR = 2 + alan): daha az indüklenmiş sürükleme, daha iyi süzülme.
-                    float cd = WingCd0 + cl * cl / (Mathf.PI * AspectRatio(cfg.wingArea) * 0.8f);
+                    float cd = WingCd0(cfg.wingArea) + cl * cl / (Mathf.PI * AspectRatio(cfg.wingArea) * 0.8f);
                     var liftDir = new Vector3(0f, v.z, -v.y) / vzy;
                     var dragDir = new Vector3(0f, v.y, v.z) / vzy;
                     a += q * cfg.wingArea / m * (cl * liftDir - cd * dragDir);
@@ -301,7 +309,7 @@ namespace SledSurfers
 
             if (rocketTime > 0f)
             {
-                a += Orientation * Vector3.forward * (cfg.rocketThrust / m);
+                a += Orientation * Vector3.forward * (rocketThrust / m);
                 rocketTime -= dt;
             }
 
@@ -361,6 +369,17 @@ namespace SledSurfers
             if (vt.z < 0f) vt.z = 0f;
             velocity = Vector3.ProjectOnPlane(vt, n);
             grounded = true;
+        }
+
+        /// Havada asılı roket hakkı: içinden geçen kızağa bir ateşleme hakkı ekler.
+        void CheckRocketPickup()
+        {
+            if (!track.hasRocketPickup || rocketPickupTaken) return;
+            float r = TrackProfile.RocketPickupRadius;
+            if ((position + new Vector3(0f, 0.6f, 0f) - track.rocketPickup).sqrMagnitude > r * r) return;
+            rocketPickupTaken = true;
+            rocketCharges++;
+            if (rocketThrust <= 0f) { rocketThrust = 92f; rocketBurn = 0.635f; }   // roketsiz kızağa 1. seviye roket
         }
 
         void SideWalls()

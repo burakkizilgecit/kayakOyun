@@ -117,6 +117,17 @@ namespace SledSurfers
             while (!game.DebugInResult && !game.DebugRocketFiring && t < 90f) { t += Time.deltaTime; yield return null; }
             yield return new WaitForSeconds(0.3f);
             yield return Shot("6_rocket");
+            // Havada alınan roket hakkı: rampaya yaklaşırken ve hemen sonra
+            float pz = game.DebugRocketPickupZ;
+            if (pz > 0f)
+            {
+                t = 0f;
+                while (!game.DebugInResult && game.DebugDistance < pz - 22f && t < 90f) { t += Time.deltaTime; yield return null; }
+                yield return Shot("6b_pickup_ahead");
+                t = 0f;
+                while (!game.DebugInResult && game.DebugDistance < pz + 3f && t < 30f) { t += Time.deltaTime; yield return null; }
+                yield return Shot("6c_pickup_taken");
+            }
             t = 0f;
             while (!game.DebugInResult && t < 120f) { t += Time.deltaTime; yield return null; }
             yield return new WaitForSeconds(2.5f);
@@ -159,6 +170,20 @@ namespace SledSurfers
             game.DebugLaunch(1f);
             yield return new WaitForSeconds(8f);
             yield return Shot("11_canyon_run");
+
+            // Karlı Dağ: kar zemin, buz/çamur lekeleri, kar yağışı
+            game.DebugReset(new[] { 20, 20, 20, 20, 20 }, 0);
+            game.DebugTrack(3, 3);
+            yield return new WaitForSeconds(1.5f);
+            yield return Shot("12_snow_hub");
+            game.DebugAim();
+            yield return new WaitForSeconds(0.5f);
+            game.DebugLaunch(1f);
+            yield return new WaitForSeconds(6f);
+            yield return Shot("13_snow_run");
+            t = 0f;
+            while (!game.DebugInResult && game.DebugDistance < 860f && t < 60f) { t += Time.deltaTime; yield return null; }
+            yield return Shot("14_snow_gap");
 
             PlayerPrefs.DeleteAll();
             Application.Quit();

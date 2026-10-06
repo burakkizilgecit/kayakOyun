@@ -19,6 +19,10 @@ namespace SledSurfers
         // Zemin
         public Color grass, grassB, rock, trackA, trackB, kerb, water;
         public float hillHeight = 14f, mountainHeight = 45f, terrace;
+        /// Karlı tema: zemin kar dokusu, kamera önünde kar yağışı.
+        public bool snowy;
+
+        public Texture2D GroundTexture() => snowy ? TextureKit.Snow() : TextureKit.Grass();
 
         // Bitki örtüsü: pistin yanı (yakın), orta bant (ağaçlar), uzak bant
         public string[] near, mid, far;
@@ -67,6 +71,26 @@ namespace SledSurfers
                         far = new[] { "Nature/rock_tallD", "Nature/rock_tallE", "Nature/rock_tallF", "Nature/rock_tallA", "Nature/rock_largeD" },
                         nearHeight = new Vector2(0.4f, 1.3f), midHeight = new Vector2(3f, 9f), farHeight = new Vector2(18f, 45f),
                         nearChance = 0.4f, midStep = 9f, farStep = 18f,
+                    };
+                case 3:   // Karlı Dağ: berrak kış sabahı, karlı zemin, çamlar ve gri kayalar, yüksek dağlar
+                    return new TrackTheme
+                    {
+                        horizon = new Color(0.86f, 0.91f, 0.97f), skyTint = new Color(0.6f, 0.74f, 0.95f), skyGround = new Color(0.82f, 0.86f, 0.92f),
+                        exposure = 1.3f, sunColor = new Color(1f, 0.95f, 0.86f), sunEuler = new Vector3(30f, -40f, 0f), sunIntensity = 1.0f,
+                        ambientSky = new Color(0.72f, 0.8f, 0.94f), ambientEquator = new Color(0.68f, 0.72f, 0.82f), ambientGround = new Color(0.52f, 0.56f, 0.64f),
+                        skyTop = new Color(0.36f, 0.56f, 0.9f), fogStart = 60f, fogEnd = 300f, contrast = 1.07f, saturation = 1.08f, vignette = 0.22f,
+                        gradeTint = new Color(0.97f, 1f, 1.04f),
+                        grass = new Color(0.94f, 0.96f, 0.99f), grassB = new Color(0.86f, 0.9f, 0.97f), rock = new Color(0.5f, 0.53f, 0.6f),
+                        trackA = new Color(0.78f, 0.84f, 0.93f), trackB = new Color(0.72f, 0.79f, 0.9f), kerb = new Color(0.2f, 0.5f, 0.9f),
+                        water = new Color(0.35f, 0.66f, 0.85f, 0.8f), hillHeight = 22f, mountainHeight = 90f, snowy = true,
+                        near = new[] { "Nature/stone_smallA", "Nature/stone_smallB", "Nature/stone_smallC", "Nature/tree_pineSmallA",
+                                       "Nature/tree_pineSmallB" },
+                        mid = new[] { "Nature/tree_pineDefaultA", "Nature/tree_pineDefaultB", "Nature/tree_pineRoundA", "Nature/tree_pineRoundC",
+                                      "Nature/tree_pineRoundE", "Nature/tree_pineTallA", "Nature/tree_pineTallB", "Nature/tree_pineTallC",
+                                      "Nature/stone_largeA", "Nature/stone_largeB", "Nature/stone_tallA" },
+                        far = new[] { "Nature/tree_pineTallA", "Nature/tree_pineTallB", "Nature/tree_pineTallC", "Nature/rock_tallB", "Nature/rock_tallD" },
+                        nearHeight = new Vector2(0.4f, 1.2f), midHeight = new Vector2(5f, 12f), farHeight = new Vector2(10f, 20f),
+                        nearChance = 0.35f, midStep = 5.5f,
                     };
                 default:  // Çayır: parlak öğle, meşeler, çiçekler
                     return new TrackTheme
@@ -141,6 +165,7 @@ namespace SledSurfers
             sun.color = sunColor;
             sun.intensity = sunIntensity;
             sun.transform.rotation = Quaternion.Euler(sunEuler);
+            Snowfall.Set(cam, snowy);
         }
     }
 
@@ -344,7 +369,7 @@ namespace SledSurfers
         void BuildValley()
         {
             int first = Mathf.FloorToInt(track.startZ), last = Mathf.CeilToInt(track.EndZ);
-            var mat = Textured(Mats.Solid(theme.grass, 0.06f), TextureKit.Grass());
+            var mat = Textured(Mats.Solid(theme.grass, 0.06f), theme.GroundTexture());
             int cols = ValleyCols.Length * 2 - 1;
             for (int c0 = first; c0 < last; c0 += 150)
             {
@@ -583,7 +608,7 @@ namespace SledSurfers
             const int rowsPerChunk = 60;
             float z0 = track.startZ - 200f, z1 = track.EndZ + 140f;
             int rows = Mathf.CeilToInt((z1 - z0) / step);
-            var mats = new[] { Textured(Mats.Solid(theme.grass, 0.05f), TextureKit.Grass()), Textured(Mats.Solid(theme.grassB, 0.05f), TextureKit.Grass()),
+            var mats = new[] { Textured(Mats.Solid(theme.grass, 0.05f), theme.GroundTexture()), Textured(Mats.Solid(theme.grassB, 0.05f), theme.GroundTexture()),
                                Textured(Mats.Solid(theme.rock, 0.1f), TextureKit.Rock()) };
 
             for (int side = -1; side <= 1; side += 2)

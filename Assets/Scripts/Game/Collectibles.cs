@@ -27,10 +27,16 @@ namespace SledSurfers
         public int CoinCount { get; }
         public int GemCount { get; }
 
+        // Havada asılı roket hakkı (pistte varsa)
+        Transform rocketPickup;
+        Vector3 rocketHome;
+        float rocketPop = -1f;
+
         public Collectibles(TrackProfile track, Transform parent)
         {
             root = new GameObject("Collectibles").transform;
             root.SetParent(parent, false);
+            if (track.hasRocketPickup) BuildRocketPickup(track.rocketPickup);
             var rng = new System.Random(track.name.GetHashCode() ^ 0x5eed);
             float R(float a, float b) => a + (b - a) * (float)rng.NextDouble();
 
@@ -159,6 +165,40 @@ namespace SledSurfers
             return b;
         }
 
+        /// Altın roket + etrafında parlayan turuncu halka: uzaktan seçilsin diye büyük ve parlak.
+        void BuildRocketPickup(Vector3 pos)
+        {
+            rocketHome = pos;
+            rocketPickup = new GameObject("RocketPickup").transform;
+            rocketPickup.SetParent(root, false);
+            rocketPickup.position = pos;
+            var body = new GameObject("Rocket").transform;
+            body.SetParent(rocketPickup, false);
+            body.localRotation = Quaternion.Euler(-60f, 0f, 0f);   // burnu yukarı-ileri
+            body.localScale = Vector3.one * 2.2f;
+            var tail = PartVisuals.BuildRocket(body, 5, SledModel.RocketMesh());
+            body.localPosition = body.localRotation * (-tail * 0.5f * 2.2f);   // roketin ortası halkanın merkezinde
+            var glow = Mats.Solid(new Color(1f, 0.62f, 0.15f), 0.6f);
+            glow.EnableKeyword("_EMISSION");
+            glow.SetColor("_EmissionColor", new Color(1f, 0.5f, 0.05f) * 1.2f);
+            const int seg = 24;
+            for (int i = 0; i < seg; i++)
+            {
+                float a = i * Mathf.PI * 2f / seg;
+                var bead = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                Object.Destroy(bead.GetComponent<Collider>());
+                bead.transform.SetParent(rocketPickup, false);
+                bead.transform.localPosition = new Vector3(Mathf.Cos(a), Mathf.Sin(a), 0f) * 1.25f;
+                bead.transform.localRotation = Quaternion.Euler(0f, 0f, a * Mathf.Rad2Deg);
+                bead.transform.localScale = new Vector3(0.12f, 0.34f, 0.12f);
+                bead.GetComponent<Renderer>().sharedMaterial = glow;
+            }
+            foreach (var r in rocketPickup.GetComponentsInChildren<Renderer>()) r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        }
+
+        /// Roket hakkı alındı: küçülüp yukarı uçar.
+        public void TakeRocket() { if (rocketPickup != null) rocketPop = 0f; }
+
         /// Yeni atış: hepsi yerine döner.
         /// Çarpma sahnesinde kamera ile karakter arasında kalmasınlar diye yakındaki toplanabilirleri gizler.
         public void HideAround(Vector3 p, float radius)
@@ -170,6 +210,13 @@ namespace SledSurfers
         public void ResetRun()
         {
             coins = gems = 0;
+            if (rocketPickup != null)
+            {
+                rocketPop = -1f;
+                rocketPickup.gameObject.SetActive(true);
+                rocketPickup.position = rocketHome;
+                rocketPickup.localScale = Vector3.one;
+            }
             foreach (var it in items)
             {
                 it.taken = false;
@@ -200,6 +247,22 @@ namespace SledSurfers
         /// Dönme ve süzülme; toplananlar küçülüp yukarı uçar. Sadece kızağın yakınındakiler güncellenir.
         public void Animate(float dt, float sledZ, float time)
         {
+            if (rocketPickup != null && rocketPickup.gameObject.activeSelf)
+            {
+                if (rocketPop >= 0f)
+                {
+                    rocketPop += dt;
+                    float t = rocketPop / 0.4f;
+                    rocketPickup.position = rocketHome + Vector3.up * (3f * t);
+                    rocketPickup.localScale = Vector3.one * Mathf.Max(0f, 1f + 0.5f * t - 1.5f * t * t);
+                    if (t >= 1f) rocketPickup.gameObject.SetActive(false);
+                }
+                else
+                {
+                    rocketPickup.position = rocketHome + Vector3.up * (0.15f * Mathf.Sin(time * 2.2f));
+                    rocketPickup.rotation = Quaternion.Euler(0f, time * 70f, 0f);
+                }
+            }
             foreach (var it in items)
             {
                 if (it.pos.z < sledZ - 20f || it.pos.z > sledZ + 160f) continue;

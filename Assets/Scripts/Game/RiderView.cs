@@ -509,6 +509,13 @@ namespace SledSurfers
         }
 
         /// Yeni atıştan önce roketler kızağa geri takılır.
+        /// Havada alınan roket hakkı: roketler (kopmuşsa yeniden) kızağa takılır.
+        public void RocketPickup()
+        {
+            ResetRockets();
+            foreach (var r in rockets) r.gameObject.SetActive(true);
+        }
+
         public void ResetRockets()
         {
             rocketsDetached = false;
