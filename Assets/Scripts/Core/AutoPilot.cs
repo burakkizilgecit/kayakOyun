@@ -78,6 +78,12 @@ namespace SledSurfers
                 cacheOffset = BestLane(track, sled, aheadZ) - track.PathX(aheadZ);
             }
             float target = track.PathX(aheadZ) + cacheOffset;
+            // Önündeki havada asılı roket hakkına yönel (rampaya onun hizasında gir).
+            if (track.hasRocketPickup && !sled.rocketPickupTaken)
+            {
+                float dz = track.rocketPickup.z - sled.position.z;
+                if (dz > 0f && dz < 50f) target = track.rocketPickup.x;
+            }
             // Havada: önündeki kuş sürüsünün geleceği yerden kaç.
             if (!sled.grounded)
                 foreach (var f in track.flocks)
@@ -90,7 +96,13 @@ namespace SledSurfers
                     float fx = track.FlockCenter(f, sled.clock + tA).x;
                     float xA = sled.position.x + sled.velocity.x * tA;
                     if (Mathf.Abs(fx - xA) < f.radius + 1.5f)
-                        return track.PathX(f.z) >= fx ? 1f : -1f;
+                    {
+                        // Sürünün uzak tarafına değil yakın kenarından kaç; vadi kenarını aşacaksa öbür yandan.
+                        float side = xA >= fx ? 1f : -1f;
+                        float pass = fx + side * (f.radius + 1.5f);
+                        if (Mathf.Abs(pass - track.CenterX(f.z)) > track.halfWidth - 0.8f) side = -side;
+                        return side;
+                    }
                 }
             float desired = Mathf.Clamp(Mathf.Atan2(target - sled.position.x, aheadZ - sled.position.z), -0.7f, 0.7f);
             return Mathf.Clamp((desired - sled.heading) * 4f, -1f, 1f);

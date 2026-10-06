@@ -27,6 +27,7 @@ namespace SledSurfers
         Collectibles loot;
         int pickupStreak;
         float lastPickupTime = -10f;
+        bool rocketPickupShown;   // havada alınan roket hakkının efekti bu atışta oynatıldı mı
 
         // Ücretsiz sandık her ChestMinutes dakikada bir açılır.
         const int ChestMinutes = 20;
@@ -129,6 +130,8 @@ namespace SledSurfers
             sled.maxDistance = track.finishZ;
             sled.ForceEnd(RunEnd.Finished, "Parkur tamamlandı!");
         }
+        public float DebugRocketPickupZ => track != null && track.hasRocketPickup ? track.rocketPickup.z : -1f;
+
         public void DebugTrack(int i, int unlocked)
         {
             save.unlocked = Mathf.Max(save.unlocked, unlocked);
@@ -239,6 +242,7 @@ namespace SledSurfers
             world.ClearFlag();
             resultDelay = 0f;
             loot.ResetRun();
+            rocketPickupShown = false;
             rider.ResetCrash();
             rider.ResetRockets();
             rider.Apply(cfg, save.hand);
@@ -533,6 +537,14 @@ namespace SledSurfers
                 sfx.Pickup(pickupStreak);
             }
             if (gems > 0) sfx.Gem();
+            if (sled.rocketPickupTaken && !rocketPickupShown)
+            {
+                rocketPickupShown = true;
+                loot.TakeRocket();
+                rider.RocketPickup();
+                sfx.Gem();
+                shakeAmount = Mathf.Max(shakeAmount, 0.08f);
+            }
         }
 
         void TryFireRocket()
@@ -796,14 +808,14 @@ namespace SledSurfers
                 lidLeft = lidOpen ? 0f : cfg.lidDistance - (state == State.Run ? sled.position.z : 0f),
                 trackIndex = save.track,
                 trackName = track.name,
-                hasRocket = cfg.rocketCharges > 0,
+                hasRocket = cfg.rocketCharges > 0 || (state == State.Run && (sled.rocketCharges > 0 || sled.RocketFiring)),
                 rocketReady = state == State.Run && sled.CanFireRocket,
                 rocketCharges = sled.rocketCharges,
                 gems = save.gems,
                 runCoins = loot.coins,
                 runGems = loot.gems,
                 chestSeconds = ChestSeconds(),
-                rocketFuel = sled.RocketFiring ? Mathf.Clamp01(sled.rocketTime / Mathf.Max(cfg.rocketBurn, 0.01f)) : 0f,
+                rocketFuel = sled.RocketFiring ? Mathf.Clamp01(sled.rocketTime / Mathf.Max(sled.rocketBurn, 0.01f)) : 0f,
             };
         }
     }

@@ -22,7 +22,7 @@ namespace SledSurfers
             "Daha az sürtünme · 4. seviyede kanat",
             "Her seviye yeni bardak: süt daha zor dökülür",
             "Her atışta daha çok coin",
-            "Koşuda dokun: kısa itiş · 4. seviyede çift atış",
+            "Koşuda bir kez dokun: güçlü itiş · her seviye daha güçlü",
         };
 
         /// Kızağın ana seviyelerinde gelen görünüm (seviye bitince).
@@ -30,14 +30,14 @@ namespace SledSurfers
 
         /// Açılmış en ileri parkura göre en yüksek kademe: 20 kademenin tamamı baştan açıktır (kullanıcı kararı).
         /// Fiyat eğrisi için Çayır kademeleri ilk 8 sayılır.
-        static readonly int[] tierCaps = { 20, 20, 20 };
+        static readonly int[] tierCaps = { 20, 20, 20, 20 };
         const int EarlyLevels = 8;
 
-        static readonly int[] baseCosts = { 40, 50, 300, 60, 120 };
+        public static int[] baseCosts = { 40, 50, 300, 60, 120 };
         // Fiyat büyümesi: Çayır kademelerinde hızlı (ilk kademeler neredeyse her atışta alınır, sonrakiler birkaç atış
         // ister), sonraki parkurlarda daha yavaş (Orman/Kanyon kazancı mesafeyle zaten büyür).
-        static readonly float[] growth = { 1.65f, 1.65f, 1.9f, 1.75f, 1.7f };
-        static readonly float[] laterGrowth = { 1.3f, 1.35f, 1.5f, 1.35f, 1.3f };
+        public static float[] growth = { 1.65f, 1.65f, 1.9f, 1.75f, 1.7f };
+        public static float[] laterGrowth = { 1.3f, 1.35f, 1.5f, 1.35f, 1.3f };
 
         // Kademe başına değerler (0..20). Çayır'ın sonu (8) önceki dengedeki Çayır maksimumuyla aynı güçtedir.
         static readonly float[] slingFactor =
@@ -60,12 +60,12 @@ namespace SledSurfers
         public static int MaxLevel(int type) => Max;
 
         /// Açılmış parkura göre alınabilecek en yüksek kademe.
-        public static int Cap(int type, int tier) => tierCaps[Mathf.Clamp(tier, 0, 2)];
+        public static int Cap(int type, int tier) => tierCaps[Mathf.Clamp(tier, 0, tierCaps.Length - 1)];
 
         /// Bu kademeyi açan parkur (yoksa -1).
         public static int UnlockTier(int type, int level)
         {
-            for (int t = 0; t < 3; t++) if (tierCaps[t] >= level) return t;
+            for (int t = 0; t < tierCaps.Length; t++) if (tierCaps[t] >= level) return t;
             return -1;
         }
 
@@ -108,7 +108,7 @@ namespace SledSurfers
             int r = levels[(int)UpgradeType.Rocket];
             c.rocketThrust = r == 0 ? 0f : 80f + 12f * r;
             c.rocketBurn = r == 0 ? 0f : 0.6f + 0.035f * r;
-            c.rocketCharges = r == 0 ? 0 : r >= 16 ? 2 : 1;   // 4. seviyeden sonra koşu başına iki ateşleme
+            c.rocketCharges = r == 0 ? 0 : 1;   // her koşuda tek ateşleme (kullanıcı kararı); seviye itişi ve süreyi artırır
             c.slingStage = Stage(sl);
             c.runnerStage = Stage(ru);
             c.rocketStage = Stage(r);

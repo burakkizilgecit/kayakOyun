@@ -73,6 +73,7 @@ namespace SledSurfers
         static readonly Color[] TrackColors =
         {
             new Color32(0x5C, 0xC4, 0x5A, 0xFF), new Color32(0x2E, 0x8B, 0x57, 0xFF), new Color32(0xE8, 0x74, 0x3B, 0xFF),
+            new Color32(0x4F, 0x9F, 0xE0, 0xFF),
         };
         static readonly IconKind[] UpgradeIcons =
             { IconKind.Slingshot, IconKind.Runners, IconKind.Glass, IconKind.Income, IconKind.Rocket };

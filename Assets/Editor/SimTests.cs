@@ -10,6 +10,9 @@ namespace SledSurfers.EditorTools
     {
         const float Dt = 1f / 240f;
 
+        /// Komut satırı sayıları sistem dilinden bağımsız okunur (Türkçe Windows'ta "7.5" = 75 olmasın).
+        static float ParseF(string v) => float.Parse(v, System.Globalization.CultureInfo.InvariantCulture);
+
         enum GlassPlayer { Fixed, Skilled }
 
         // Seviye sırası: sapan, kızak, kanat, bardak, gelir, roket
@@ -80,7 +83,14 @@ namespace SledSurfers.EditorTools
         [MenuItem("Sled Surfers/İlerleme Testi")]
         public static void Progression()
         {
-            var sb = new StringBuilder("[SIM] İlerleme (atış: mesafe · süt · seviyeler sapan/kızak/kanat/bardak/gelir/roket · para)\n");
+            // Fiyat tablosu denemesi: base=a,b,c,d,e growth=... later=... (sapan/kızak/bardak/gelir/roket)
+            foreach (var arg in System.Environment.GetCommandLineArgs())
+            {
+                if (arg.StartsWith("base=")) Upgrades.baseCosts = System.Array.ConvertAll(arg.Substring(5).Split(','), int.Parse);
+                if (arg.StartsWith("growth=")) Upgrades.growth = System.Array.ConvertAll(arg.Substring(7).Split(','), ParseF);
+                if (arg.StartsWith("later=")) Upgrades.laterGrowth = System.Array.ConvertAll(arg.Substring(6).Split(','), ParseF);
+            }
+            var sb = new StringBuilder("[SIM] İlerleme (atış: mesafe · süt · seviyeler sapan/kızak/bardak/gelir/roket · para)\n");
             var levels = new int[Upgrades.Count];
             int money = 0, total = 0;
             for (int t = 0; t < TrackLibrary.Count; t++)
@@ -140,7 +150,7 @@ namespace SledSurfers.EditorTools
                 if (arg.StartsWith("sets=")) sets = arg.Substring(5);
                 if (arg.StartsWith("rh="))   // roket tepesi fazlalıkları: çayır,orman,kanyon
                 {
-                    var v = System.Array.ConvertAll(arg.Substring(3).Split(','), float.Parse);
+                    var v = System.Array.ConvertAll(arg.Substring(3).Split(','), ParseF);
                     TrackLibrary.MeadowRocket = v[0];
                     if (v.Length > 1) TrackLibrary.ForestRocket = v[1];
                     if (v.Length > 2) TrackLibrary.CanyonRocket = v[2];
@@ -149,14 +159,23 @@ namespace SledSurfers.EditorTools
                     if (v.Length > 5) TrackLibrary.GapMargin = v[5];
                     if (v.Length > 6) TrackLibrary.CanyonGate = v[6];
                     if (v.Length > 7) TrackLibrary.CanyonGateLength = v[7];
+                    if (v.Length > 8) TrackLibrary.MeadowGate = v[8];
                 }
                 if (arg.StartsWith("gaps="))
                     foreach (var g in arg.Substring(5).Split(','))
                     {
                         var f = g.Split(':');
-                        Gaps(track)[int.Parse(f[0])] = new Vector2(float.Parse(f[1]), -float.Parse(f[2]));
+                        Gaps(track)[int.Parse(f[0])] = new Vector2(ParseF(f[1]), -ParseF(f[2]));
                     }
                 if (arg.StartsWith("sweep=")) sweep = arg.Substring(6);
+                if (arg.StartsWith("snow="))   // karlı dağ: roket,net,kapı,kapıUzunluğu
+                {
+                    var v = System.Array.ConvertAll(arg.Substring(5).Split(','), ParseF);
+                    TrackLibrary.SnowRocket = v[0];
+                    if (v.Length > 1) TrackLibrary.SnowNet = v[1];
+                    if (v.Length > 2) TrackLibrary.SnowGate = v[2];
+                    if (v.Length > 3) TrackLibrary.SnowGateLength = v[3];
+                }
             }
             var sb = new StringBuilder("[SIM] Merdiven " + TrackLibrary.Names[track] + "\n");
             if (sweep == null) LadderRun(sb, track, sets);
@@ -166,7 +185,7 @@ namespace SledSurfers.EditorTools
                 int gi = int.Parse(f[0]);
                 foreach (var d in f[1].Split(','))
                 {
-                    Gaps(track)[gi] = new Vector2(Gaps(track)[gi].x, -float.Parse(d));
+                    Gaps(track)[gi] = new Vector2(Gaps(track)[gi].x, -ParseF(d));
                     sb.AppendLine(" vadi " + gi + " derinlik " + d);
                     LadderRun(sb, track, sets);
                 }
@@ -174,7 +193,7 @@ namespace SledSurfers.EditorTools
             Debug.Log(sb.ToString());
         }
 
-        static Vector2[] Gaps(int track) => track == 2 ? TrackLibrary.CanyonGaps : TrackLibrary.ForestGaps;
+        static Vector2[] Gaps(int track) => track == 3 ? TrackLibrary.SnowGaps : track == 2 ? TrackLibrary.CanyonGaps : TrackLibrary.ForestGaps;
 
         static void LadderRun(StringBuilder sb, int track, string sets)
         {
@@ -283,6 +302,9 @@ namespace SledSurfers.EditorTools
                 sled.Step(steer, AutoPilot.Pitch(track, sled, cfg), Dt);
                 liquid.lidClosed = sled.position.z < cfg.lidDistance;
                 liquid.Step(sled.acceleration, sled.Orientation * Quaternion.Euler(glassPitch, 0f, -glassRoll), Dt);
+                if (trace && track.hasRocketPickup && Mathf.Abs(sled.position.z - track.rocketPickup.z) < 12f && Mathf.Repeat(t, 0.05f) < Dt)
+                    sb.AppendLine(string.Format("    {0,6:F1} m  hak yakını: kızak x {1:F2} y {2:F2}  hak x {3:F2} y {4:F2}", sled.position.z,
+                        sled.position.x, sled.position.y + 0.6f, track.rocketPickup.x, track.rocketPickup.y));
                 if (trace && !sled.grounded && Mathf.Repeat(t, 0.25f) < Dt)
                     sb.AppendLine(string.Format("    {0,6:F1} m  dümen {1:F2}  vx {2:F1}", sled.position.z, steer, sled.velocity.x));
                 if (trace)
@@ -319,6 +341,10 @@ namespace SledSurfers.EditorTools
                 t += Dt;
             }
 
+            if (track.hasRocketPickup)
+                sb.AppendLine(string.Format("    havada roket hakkı: z {0:F0} x {1:F1} y {2:F1} (zemin {3:F1}) · {4}", track.rocketPickup.z,
+                    track.rocketPickup.x, track.rocketPickup.y, track.Height(track.rocketPickup.x, track.rocketPickup.z),
+                    sled.rocketPickupTaken ? "alındı" : "alınmadı"));
             sb.AppendLine(string.Format(
                 "  {0,-30} {1,6:F0} m  {2,-22} çıkış {3,5:F1} m/s  maks {4,5:F1} m/s  sıvı: çıkışta %{5:F0}, sonda %{6:F0}  en uzun uçuş {7:F1} s",
                 label, sled.maxDistance, sled.endReason, launchSpeed, sled.topSpeed,
