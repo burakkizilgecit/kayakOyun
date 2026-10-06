@@ -26,6 +26,7 @@ namespace SledSurfers
         public float glassHeight = 0.12f;      // m
         public float initialFill = 0.075f;     // m, başlangıç sıvı yüksekliği
         public float sloshDamping = 0.12f;     // çalkalanma sönümü (ζ)
+        public float glassReflex = 0.4f;       // karakterin savrulmayı kendiliğinden dengeleme oranı (0..1)
         public int glassModel;                 // görsel: hangi bardak (Upgrades.GlassNames)
         public float lidDistance = 100f;       // m, kapak bu mesafede açılır (fırlatma sarsıntısında dökülmesin)
 

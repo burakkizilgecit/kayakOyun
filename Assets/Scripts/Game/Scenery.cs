@@ -273,7 +273,8 @@ namespace SledSurfers
         /// Vadi mesh'inin yamaçta kapladığı genişlik (taban kenarından); ötesini arazi devralır.
         const float BankTop = 10f;
         // Vadi kesiti: tabandan yamaç tepesine sütunlar (taban kenarından uzaklık; eksi = taban içi)
-        static readonly float[] ValleyCols = { -6.5f, -4.4f, -2.2f, 0f, 0.8f, 1.7f, 2.7f, 3.8f, 5f, 6.3f, 8f, 10f };
+        // Taban içi ~1,1 m aralıklı: yana kaymış tümsekler fizikteki yüzeyle aynı görünsün.
+        static readonly float[] ValleyCols = { -6.5f, -5.4f, -4.3f, -3.2f, -2.2f, -1.1f, 0f, 0.8f, 1.7f, 2.7f, 3.8f, 5f, 6.3f, 8f, 10f };
 
         readonly TrackProfile track;
         readonly TrackTheme theme;
@@ -415,6 +416,8 @@ namespace SledSurfers
         }
 
         /// Vadinin tabanında S çizen toprak patika (normal hız; dışındaki çimen yavaşlatır).
+        const int PathSegs = 4;
+
         void BuildPath()
         {
             var mat = Textured(Mats.Solid(theme.trackA, 0.1f), TextureKit.Dirt());
@@ -433,14 +436,21 @@ namespace SledSurfers
                     float w = TrackProfile.PathHalfWidth * Mathf.Sqrt(1f + dir * dir);
                     float wob = 0.12f * Mathf.Sin(z * 0.9f) + 0.06f * Mathf.Sin(z * 2.3f);   // kenar hafif düzensiz (yumuşak dalga)
                     float xa = px - w - wob, xb = px + w + wob;
-                    verts.Add(new Vector3(xa, track.Height(xa, z) + 0.025f, z));
-                    verts.Add(new Vector3(xb, track.Height(xb, z) + 0.025f, z));
-                    uvs.Add(new Vector2(xa * 0.3f, z * 0.3f));
-                    uvs.Add(new Vector2(xb * 0.3f, z * 0.3f));
-                    if (verts.Count >= 4)
+                    // Şerit enine 4 parça: tümseklerin üstünde zemini izler (gömülmez, havada kalmaz).
+                    for (int k = 0; k <= PathSegs; k++)
                     {
-                        int i = verts.Count - 4;
-                        tris.AddRange(new[] { i, i + 2, i + 1, i + 1, i + 2, i + 3 });
+                        float x = Mathf.Lerp(xa, xb, k / (float)PathSegs);
+                        verts.Add(new Vector3(x, track.Height(x, z) + 0.025f, z));
+                        uvs.Add(new Vector2(x * 0.3f, z * 0.3f));
+                    }
+                    if (verts.Count >= 2 * (PathSegs + 1))
+                    {
+                        int b = verts.Count - 2 * (PathSegs + 1);
+                        for (int k = 0; k < PathSegs; k++)
+                        {
+                            int i = b + k, j = i + PathSegs + 1;
+                            tris.AddRange(new[] { i, j, i + 1, i + 1, j, j + 1 });
+                        }
                     }
                 }
                 var mesh = new Mesh();
@@ -458,74 +468,74 @@ namespace SledSurfers
             }
         }
 
-        /// Su, çamur ve buz lekeleri: her biri kendine özgü dalgalı kenarlı, araziyi izleyen ağ (fizikteki kenarla aynı).
-        /// Su ve çamurun altında biraz daha geniş ıslak toprak ve kenarda çakıllar; buzun çevresinde düzensiz bir kar
-        /// halkası ve etrafa serpilmiş küçük kar lekeleri.
+        /// Su, çamur ve buz lekeleri: yumuşak loblu düzgün ovaller, araziyi izler (fizikteki kenarla aynı).
+        /// Su ve çamur: altındaki zeminin (çimen/patika) koyu tonunda ince kıyı bandı + açık renkli ince kenar parlaması
+        /// + kenarda birkaç çakıl. Buz: ince beyaz don kenarı; yanında birkaç yumuşak, kabarık kar tepeciği.
         void BuildSurfaces()
         {
             if (track.surfaces.Count == 0) return;
-            var puddle = Mats.Water(new Color(0.3f, 0.41f, 0.48f, 0.8f));
-            var mud = Mats.Water(new Color(0.3f, 0.2f, 0.12f, 0.97f));
+            var puddle = Mats.Water(new Color(0.3f, 0.45f, 0.55f, 0.85f));
+            var mud = Mats.Water(new Color(0.33f, 0.22f, 0.13f, 0.97f));
             mud.SetFloat("_Glossiness", 0.7f);
-            var damp = Mats.Solid(new Color(theme.trackA.r * 0.6f, theme.trackA.g * 0.56f, theme.trackA.b * 0.52f), 0.4f);
-            var dampMud = Mats.Solid(new Color(0.36f, 0.26f, 0.17f), 0.35f);
-            var ice = Mats.Solid(new Color(0.78f, 0.9f, 1f), 0.95f);
+            var foam = Mats.Solid(new Color(0.78f, 0.9f, 0.96f), 0.6f);
+            var mudRim = Mats.Solid(new Color(0.5f, 0.36f, 0.24f), 0.35f);
+            var shoreGrass = Mats.Solid(Color.Lerp(theme.grass, Color.black, theme.snowy ? 0.12f : 0.28f), 0.2f);
+            var shorePath = Mats.Solid(Color.Lerp(theme.trackA, Color.black, 0.3f), 0.3f);
+            var ice = Mats.Solid(new Color(0.7f, 0.86f, 1f), 0.95f);
             ice.mainTexture = FrostTexture();
-            var snow = Textured(Mats.Solid(new Color(0.96f, 0.97f, 1f), 0.15f), TextureKit.Dirt());
+            var frost = Mats.Solid(new Color(0.95f, 0.97f, 1f), 0.3f);
+            var snow = Textured(Mats.Solid(new Color(0.97f, 0.98f, 1f), 0.15f), TextureKit.Snow());
             foreach (var zone in track.surfaces)
             {
+                // Lekenin ortası patikada mı (kıyı rengi altındaki zemine uysun)?
+                float pz = zone.cz, px = (zone.onPath ? track.PathX(pz) : track.CenterX(pz)) + zone.cx;
+                bool overPath = zone.onPath || Mathf.Abs(px - track.PathX(pz)) < TrackProfile.PathHalfWidth;
                 switch (zone.type)
                 {
                     case Surface.Puddle:
                     case Surface.Mud:
                         bool isMud = zone.type == Surface.Mud;
-                        Blob(zone, 1.14f, 0.016f, isMud ? dampMud : damp, "Wet Ground");
-                        Blob(zone, 1f, 0.034f, isMud ? mud : puddle, isMud ? "Mud" : "Puddle");
-                        for (int k = 0; k < 3 + rng.Next(4); k++)
+                        Blob(zone, 1.07f, 0.03f, overPath ? shorePath : shoreGrass, "Shore");
+                        Blob(zone, 1f, 0.045f, isMud ? mud : puddle, isMud ? "Mud" : "Puddle");
+                        Ring(zone, 0.9f, 1f, 0.05f, isMud ? mudRim : foam, "Rim");
+                        for (int k = 0; k < 2 + rng.Next(3); k++)
                         {
                             float a = R(0f, 6.28f);
-                            float r = zone.Edge(a) * R(1.05f, 1.2f);
-                            PlaceSurfaceProp(zone, a, r, "Nature/rock_smallA", R(0.04f, 0.08f));   // çakıl: kızağın altından geçer
+                            PlaceSurfaceProp(zone, a, zone.Edge(a) * R(1.05f, 1.12f), "Nature/rock_smallA", R(0.04f, 0.08f));   // çakıl
                         }
                         break;
                     case Surface.Ice:
-                        Blob(zone, 1.22f, 0.02f, snow, "Snow");   // buzun çevresinde kar
-                        Blob(zone, 1f, 0.036f, ice, "Ice");
-                        // Etrafa serpilmiş küçük kar lekeleri
-                        for (int k = 0; k < 4 + rng.Next(5); k++)
+                        Blob(zone, 1f, 0.045f, ice, "Ice");
+                        Ring(zone, 0.93f, 1.05f, 0.05f, frost, "Frost Rim");
+                        if (theme.snowy) break;   // karlı pistte zemin zaten kar
+                        // Buzun yanında birkaç yumuşak kar tepeciği
+                        for (int k = 0; k < 2 + rng.Next(2); k++)
                         {
-                            float a = R(0f, 6.28f), r = zone.Edge(a) * R(1.25f, 1.7f);
-                            var small = SurfaceZone.Blob(Surface.Ice, zone.cz + Mathf.Cos(a) * r * zone.rz, zone.cx + Mathf.Sin(a) * r * zone.rx,
-                                                         R(0.4f, 1.3f), R(0.3f, 0.9f), R(0f, 50f), zone.onPath);
-                            Blob(small, 1f, 0.022f, snow, "Snow Patch");
+                            float a = R(0f, 6.28f), r = zone.Edge(a) * R(1.15f, 1.35f);
+                            var mound = SurfaceZone.Blob(Surface.Ice, zone.cz + Mathf.Cos(a) * r * zone.rz, zone.cx + Mathf.Sin(a) * r * zone.rx,
+                                                         R(0.7f, 1.3f), R(0.6f, 1.1f), R(0f, 50f), zone.onPath);
+                            Blob(mound, 1f, 0.03f, snow, "Snow Mound", R(0.12f, 0.22f));
                         }
                         break;
                 }
             }
         }
 
-        /// Lekenin dalgalı kenarına kadar uzanan, araziyi izleyen dairesel ağ. scale: kenarı büyütür (halka için).
-        void Blob(SurfaceZone zone, float scale, float lift, Material mat, string name)
+        /// Lekenin kenarına kadar uzanan, araziyi izleyen dairesel ağ. scale: kenarı büyütür (kıyı bandı için);
+        /// dome: ortanın kenara göre ne kadar kabarık olduğu (kar tepeciği).
+        void Blob(SurfaceZone zone, float scale, float lift, Material mat, string name, float dome = 0f)
         {
-            const int rings = 6, sectors = 32;
+            const int rings = 6, sectors = 40;
             var verts = new List<Vector3>();
-            var uvs = new List<Vector2>();
             var tris = new List<int>();
-            Vector3 Point(float u, float v)   // u: z yönü, v: yanal (lekenin yarıçap birimiyle)
-            {
-                float z = zone.cz + u * zone.rz;
-                float x = (zone.onPath ? track.PathX(z) : track.CenterX(z)) + zone.cx + v * zone.rx;
-                return new Vector3(x, track.Height(x, z) + lift, z);
-            }
-            verts.Add(Point(0f, 0f));
+            verts.Add(SurfacePoint(zone, 0f, 0f, lift + dome));
             for (int r = 1; r <= rings; r++)
                 for (int j = 0; j < sectors; j++)
                 {
-                    float a = j * 6.2832f / sectors;
-                    float k = scale * zone.Edge(a) * r / rings;
-                    verts.Add(Point(Mathf.Cos(a) * k, Mathf.Sin(a) * k));
+                    float a = j * 6.2832f / sectors, f = r / (float)rings;
+                    float k = scale * zone.Edge(a) * f;
+                    verts.Add(SurfacePoint(zone, Mathf.Cos(a) * k, Mathf.Sin(a) * k, lift + dome * (1f - f * f)));
                 }
-            foreach (var v in verts) uvs.Add(new Vector2(v.x * 0.35f, v.z * 0.35f));
             for (int j = 0; j < sectors; j++)
             {
                 int j2 = (j + 1) % sectors;
@@ -538,6 +548,42 @@ namespace SledSurfers
                     Tri(tris, verts, b, c, d);
                 }
             }
+            SurfaceMesh(verts, tris, mat, name);
+        }
+
+        /// Lekenin kenarı boyunca ince şerit (inner..outer, yarıçap biriminde): kenar parlaması ya da don kenarı.
+        void Ring(SurfaceZone zone, float inner, float outer, float lift, Material mat, string name)
+        {
+            const int sectors = 40;
+            var verts = new List<Vector3>();
+            var tris = new List<int>();
+            for (int j = 0; j < sectors; j++)
+            {
+                float a = j * 6.2832f / sectors, e = zone.Edge(a);
+                verts.Add(SurfacePoint(zone, Mathf.Cos(a) * e * inner, Mathf.Sin(a) * e * inner, lift));
+                verts.Add(SurfacePoint(zone, Mathf.Cos(a) * e * outer, Mathf.Sin(a) * e * outer, lift));
+            }
+            for (int j = 0; j < sectors; j++)
+            {
+                int a = 2 * j, b = 2 * ((j + 1) % sectors);
+                Tri(tris, verts, a, a + 1, b);
+                Tri(tris, verts, b, a + 1, b + 1);
+            }
+            SurfaceMesh(verts, tris, mat, name);
+        }
+
+        /// u: z yönü, v: yanal (lekenin yarıçap biriminde); arazinin lift kadar üstü.
+        Vector3 SurfacePoint(SurfaceZone zone, float u, float v, float lift)
+        {
+            float z = zone.cz + u * zone.rz;
+            float x = (zone.onPath ? track.PathX(z) : track.CenterX(z)) + zone.cx + v * zone.rx;
+            return new Vector3(x, track.Height(x, z) + lift, z);
+        }
+
+        void SurfaceMesh(List<Vector3> verts, List<int> tris, Material mat, string name)
+        {
+            var uvs = new List<Vector2>();
+            foreach (var v in verts) uvs.Add(new Vector2(v.x * 0.35f, v.z * 0.35f));
             var mesh = new Mesh();
             mesh.SetVertices(verts);
             mesh.SetUVs(0, uvs);

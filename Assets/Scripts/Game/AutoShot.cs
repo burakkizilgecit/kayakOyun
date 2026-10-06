@@ -113,6 +113,27 @@ namespace SledSurfers
             while (!game.DebugInResult && game.DebugDistance < 104f && t < 30f) { t += Time.deltaTime; yield return null; }
             yield return new WaitForSeconds(0.25f);
             yield return Shot("5_lid_open");
+            // Yüzeyler: ilk buz ve ilk çamur lekesi (önünden)
+            float iz = game.DebugSurfaceZ(Surface.Ice), dz = game.DebugSurfaceZ(Surface.Mud);
+            foreach (var (z, name) in iz < dz || dz < 0f ? new[] { (iz, "5a_ice"), (dz, "5a_mud") } : new[] { (dz, "5a_mud"), (iz, "5a_ice") })
+            {
+                if (z < 0f) continue;
+                t = 0f;
+                while (!game.DebugInResult && game.DebugDistance < z - 14f && t < 90f) { t += Time.deltaTime; yield return null; }
+                yield return Shot(name);
+            }
+            // Engebe: ilk tümsek dizisi ve ilk zorlu kambur (z sırasıyla)
+            float mz = game.DebugBumpZ(false), hz = game.DebugBumpZ(true);
+            foreach (var (z, name) in mz < hz || hz < 0f ? new[] { (mz, "5b_moguls"), (hz, "5c_hump") } : new[] { (hz, "5c_hump"), (mz, "5b_moguls") })
+            {
+                if (z < 0f) continue;
+                t = 0f;
+                while (!game.DebugInResult && game.DebugDistance < z - 8f && t < 90f) { t += Time.deltaTime; yield return null; }
+                yield return Shot(name);
+                t = 0f;
+                while (!game.DebugInResult && game.DebugDistance < z + 6f && t < 20f) { t += Time.deltaTime; yield return null; }
+                yield return Shot(name + "_on");
+            }
             t = 0f;
             while (!game.DebugInResult && !game.DebugRocketFiring && t < 90f) { t += Time.deltaTime; yield return null; }
             yield return new WaitForSeconds(0.3f);

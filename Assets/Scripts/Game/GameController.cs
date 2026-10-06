@@ -130,6 +130,24 @@ namespace SledSurfers
             sled.maxDistance = track.finishZ;
             sled.ForceEnd(RunEnd.Finished, "Parkur tamamlandı!");
         }
+        /// İlk tümsek dizisinin (big = false) ya da zorlu kamburun (big = true) başladığı z; yoksa -1.
+        public float DebugBumpZ(bool big)
+        {
+            if (track == null) return -1f;
+            foreach (var b in track.bumps)
+                if (b.z0 > 300f && (big ? b.height >= 2f && b.halfWidth > 30f : b.height < 1.5f && b.length < 18f)) return b.z0;
+            return -1f;
+        }
+
+        /// 300 m'den sonraki ilk verilen türde yüzey lekesinin başladığı z; yoksa -1.
+        public float DebugSurfaceZ(Surface type)
+        {
+            if (track == null) return -1f;
+            foreach (var s in track.surfaces)
+                if (s.type == type && s.z0 > 300f) return s.z0;
+            return -1f;
+        }
+
         public float DebugRocketPickupZ => track != null && track.hasRocketPickup ? track.rocketPickup.z : -1f;
 
         public void DebugTrack(int i, int unlocked)
@@ -226,6 +244,7 @@ namespace SledSurfers
             cfg = Upgrades.BuildConfig(save.levels, save.Perk);
             sled = new SledPhysics(track, cfg);
             liquid.Reset(cfg);
+            reflex.Reset();
             rider.Apply(cfg, save.hand);
             pull = aim = lastPull = 0f;
             aimArmed = false;
@@ -303,7 +322,7 @@ namespace SledSurfers
             float income = Upgrades.IncomeMultiplier(save.levels[(int)UpgradeType.Income]) * (save.Perk == Perk.Income ? 1.1f : 1f);
             int bonus = FinishBonus * (save.track + 1);
             int earned = Mathf.RoundToInt((distance * (0.4f + 0.6f * Mathf.Clamp01(fill)) + loot.coins * Collectibles.CoinValue
-                                           + (finished ? bonus : 0)) * income);
+                                           + (finished ? bonus : 0)) * income * TrackLibrary.PayFactors[save.track]);
             save.gems += loot.gems;
             string unlockedName = null;
             if (finished && save.track == save.unlocked && save.unlocked < TrackLibrary.Count - 1)
@@ -500,6 +519,7 @@ namespace SledSurfers
             while (accumulator >= PhysicsStep)
             {
                 accumulator -= PhysicsStep;
+                reflex.Step(sled, cfg.glassReflex, PhysicsStep);
                 if (debugAutopilot)
                 {
                     pilot.StepGlass(sled, PhysicsStep);
@@ -565,8 +585,10 @@ namespace SledSurfers
             }
         }
 
-        float GlassPitch => debugAutopilot ? pilot.glassPitch : input.glassPitch;
-        float GlassRoll => debugAutopilot ? pilot.glassRoll : input.glassRoll;
+        // Otomatik oyuncu tam dengeler; gerçek oyuncunun eğmesi karakterin refleksine eklenir.
+        float GlassPitch => debugAutopilot ? pilot.glassPitch : Mathf.Clamp(reflex.pitch + input.glassPitch, -50f, 50f);
+        float GlassRoll => debugAutopilot ? pilot.glassRoll : Mathf.Clamp(reflex.roll + input.glassRoll, -50f, 50f);
+        readonly GlassReflex reflex = new GlassReflex();
 
         Quaternion GlassRotation() => sled.Orientation * Quaternion.Euler(GlassPitch, 0f, -GlassRoll);
 

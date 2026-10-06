@@ -8,6 +8,7 @@ namespace SledSurfers
     {
         Vector3 felt;
         public float glassPitch, glassRoll;   // derece
+        float prevPitch, prevRoll;
 
         public void Reset()
         {
@@ -19,19 +20,14 @@ namespace SledSurfers
         public void StepGlass(SledPhysics sled, float dt)
         {
             felt = Vector3.Lerp(felt, sled.acceleration, dt / 0.15f);
-            Vector3 local = Quaternion.Inverse(sled.Orientation) * (new Vector3(0f, -SledPhysics.Gravity, 0f) - felt);
-            if (local.magnitude < 0.4f * SledPhysics.Gravity)
+            if (!GlassReflex.Level(sled.Orientation, felt, out glassPitch, out glassRoll))
             {
                 // Ağırlıksızken hissedilecek yön yok: bardağı yavaşça düze getir.
-                glassPitch = Mathf.MoveTowards(glassPitch, 0f, 90f * dt);
-                glassRoll = Mathf.MoveTowards(glassRoll, 0f, 90f * dt);
+                glassPitch = Mathf.MoveTowards(prevPitch, 0f, 90f * dt);
+                glassRoll = Mathf.MoveTowards(prevRoll, 0f, 90f * dt);
             }
-            else
-            {
-                Vector3 up = -local.normalized;
-                glassPitch = Mathf.Clamp(Mathf.Atan2(up.z, up.y) * Mathf.Rad2Deg, -40f, 40f);
-                glassRoll = Mathf.Clamp(Mathf.Atan2(up.x, up.y) * Mathf.Rad2Deg, -40f, 40f);
-            }
+            prevPitch = glassPitch;
+            prevRoll = glassRoll;
         }
 
         /// Roketi ne zaman ateşlemeli: önündeki yokuşu hızıyla çıkamayacağı anlaşılınca
@@ -123,6 +119,7 @@ namespace SledSurfers
                     if (Mathf.Abs(x - track.CenterX(zz)) > track.halfWidth) { score -= 1f; continue; }
                     var type = track.SurfaceAt(zz, x);
                     score += type == Surface.Ice ? 1f : type == Surface.Puddle ? -2f : type == Surface.Mud ? -3f : track.OnPath(zz, x) ? 0.3f : 0f;
+                    score -= track.BumpHeight(x, zz) * 0.6f;   // tümseklerden kaçın (süt çalkalanır, hız kaybı)
                 }
                 // Engelin içinden geçen çizgi elenir.
                 foreach (var o in track.obstacles)
