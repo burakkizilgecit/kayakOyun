@@ -57,10 +57,25 @@ namespace SledSurfers
             upper[0] = B("UpperArm.L"); lower[0] = B("LowerArm.L"); fist[0] = B("Fist.L");
             upper[1] = B("UpperArm.R"); lower[1] = B("LowerArm.R"); fist[1] = B("Fist.R");
 
-            // Oturma pozu: SitDown animasyonunun son karesi.
-            AnimationClip sit = null;
+            // Ayakta durma (Idle ilk karesi) ve sevinç (Victory ortası) pozları: düşüp kalkma sahnesi için saklanır.
+            AnimationClip sit = null, idle = null, cheer = null;
             foreach (var clip in Resources.LoadAll<AnimationClip>("Avatars/" + modelName))
+            {
                 if (clip.name.Contains("SitDown")) sit = clip;
+                else if (clip.name.Contains("Idle")) idle = clip;
+                else if (clip.name.Contains("Victory")) cheer = clip;
+            }
+            if (idle != null)
+            {
+                idle.SampleAnimation(model, 0f);
+                foreach (var t in model.GetComponentsInChildren<Transform>(true)) standPose[t] = (t.localRotation, t.localPosition);
+            }
+            if (cheer != null)
+            {
+                cheer.SampleAnimation(model, cheer.length * 0.45f);
+                foreach (var n in new[] { "UpperArm.L", "LowerArm.L", "Fist.L", "UpperArm.R", "LowerArm.R", "Fist.R" })
+                    if (B(n) != null) cheerArms[B(n)] = B(n).localRotation;
+            }
             if (sit != null) sit.SampleAnimation(model, sit.length);
             else Debug.LogWarning("[AVATAR] SitDown animasyonu yok: " + modelName);
 
@@ -82,7 +97,11 @@ namespace SledSurfers
                 foot.rotation = Quaternion.AngleAxis(-25f, rt) * shin.rotation * footRot;   // ayak uçları yukarı
             }
 
-            foreach (var t in model.GetComponentsInChildren<Transform>(true)) basePose[t] = t.localRotation;
+            foreach (var t in model.GetComponentsInChildren<Transform>(true))
+            {
+                basePose[t] = t.localRotation;
+                basePos[t] = t.localPosition;
+            }
             for (int s = 0; s < 2; s++)
             {
                 thigh[s] = B(s == 0 ? "UpperLeg.L" : "UpperLeg.R");
@@ -277,10 +296,50 @@ namespace SledSurfers
         /// Oturur dururken gerçek oturma yüzeyi (kızaktaki oturuşla aynı payla).
         public float SeatBottom() => Lowest(contact) - seatGap;
 
+        readonly Dictionary<Transform, (Quaternion rot, Vector3 pos)> standPose = new Dictionary<Transform, (Quaternion, Vector3)>();
+        readonly Dictionary<Transform, Quaternion> cheerArms = new Dictionary<Transform, Quaternion>();
+        readonly Dictionary<Transform, Vector3> basePos = new Dictionary<Transform, Vector3>();
+        bool posed;   // StandPose kemik konumlarını değiştirdi: ResetPose geri alır
+
+        /// Oturma pozundan ayakta durma pozuna geçiş (k 0..1). Ayakta durma pozu yoksa oturma pozunda kalır.
+        public void StandPose(float k)
+        {
+            ResetPose();
+            if (standPose.Count == 0) return;
+            foreach (var kv in standPose)
+            {
+                var t = kv.Key;
+                if (!basePose.TryGetValue(t, out var r0)) continue;
+                t.localRotation = Quaternion.Slerp(r0, kv.Value.rot, k);
+                t.localPosition = Vector3.Lerp(basePos[t], kv.Value.pos, k);
+            }
+            posed = true;
+        }
+
+        /// Ayaktayken kolları sevinçle kaldırma (Victory pozuna doğru, k 0..1).
+        public void CheerArms(float k)
+        {
+            foreach (var kv in cheerArms)
+                if (standPose.TryGetValue(kv.Key, out var s)) kv.Key.localRotation = Quaternion.Slerp(s.rot, kv.Value, k);
+        }
+
+        /// Ayaktayken hafif nefes alma ve kafa sallama (canlı dursun).
+        public void Breathe(float t)
+        {
+            Vector3 rt = holder.right, fw = holder.forward;
+            if (torso != null) torso.rotation = Quaternion.AngleAxis(2.5f * Mathf.Sin(t * 2.4f), rt) * torso.rotation;
+            if (head != null) head.rotation = Quaternion.AngleAxis(6f * Mathf.Sin(t * 1.7f), fw) * Quaternion.AngleAxis(4f * Mathf.Sin(t * 2.4f + 1f), rt) * head.rotation;
+        }
+
         /// Temel oturma pozuna döner (kollar, bacaklar ve ayaklar dahil).
         public void ResetPose()
         {
             foreach (var kv in basePose) kv.Key.localRotation = kv.Value;
+            if (posed)
+            {
+                foreach (var kv in basePos) kv.Key.localPosition = kv.Value;
+                posed = false;
+            }
             for (int s = 0; s < 2; s++) if (foot[s] != null) foot[s].localPosition = footHome[s];
         }
 

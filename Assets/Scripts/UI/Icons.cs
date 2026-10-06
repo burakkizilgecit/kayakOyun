@@ -13,7 +13,19 @@ namespace SledSurfers
         static readonly Color GoldDark = new Color32(0xE0, 0x96, 0x10, 0xFF);
         static readonly Color Milk = new Color32(0xFF, 0xFD, 0xF5, 0xFF);
 
-        readonly IconKind kind;
+        IconKind kind;
+
+        /// Çizilen ikon (değişince yeniden çizilir).
+        public IconKind Kind
+        {
+            get => kind;
+            set
+            {
+                if (kind == value) return;
+                kind = value;
+                MarkDirtyRepaint();
+            }
+        }
         Color tint;
         float fill = 0.7f;
 

@@ -19,6 +19,7 @@ namespace SledSurfers
                 if (args[i] != "-autoshot") continue;
                 var shot = game.gameObject.AddComponent<AutoShot>();
                 shot.game = game;
+                game.debugUnlimitedLaunches = true;
                 shot.folder = args[i + 1];
                 Directory.CreateDirectory(shot.folder);
                 return;
@@ -77,6 +78,19 @@ namespace SledSurfers
             yield return Shot("1e_ad");
             yield return new WaitForSeconds(2.6f);
             yield return Shot("1f_chest_x3");
+            // Yüzey yakın çekimleri (Çayır): buz, su, çamur
+            foreach (var (type, name) in new[] { (Surface.Ice, "1i_ice_close"), (Surface.Puddle, "1i_water_close"), (Surface.Mud, "1i_mud_close") })
+            {
+                if (!game.DebugViewSurface(type)) continue;
+                yield return new WaitForSeconds(1.2f);
+                yield return Shot(name);
+            }
+            game.DebugViewSurface(Surface.Ice, false);
+            game.DebugNoLaunches();
+            yield return new WaitForSeconds(1f);
+            yield return Shot("1h_no_launches");
+            game.DebugRestoreLaunches();
+            yield return new WaitForSeconds(0.4f);
 
             game.DebugHideTutorial();   // ipucu kartı kızağı ve karakteri örtmesin
             // Nişan ve koşu
@@ -154,7 +168,7 @@ namespace SledSurfers
             yield return new WaitForSeconds(2.5f);
             yield return Shot("7_finish");
 
-            // Çarpma: pistin ortasında kızak durdurulur; karakter fırlar, yuvarlanır, oturup kahkaha atar.
+            // Çarpma: pistin ortasında kızak durdurulur; karakter fırlar, yuvarlanır, ayağa kalkıp "Tekrar deneyelim!" der.
             game.DebugReset(new[] { 8, 8, 8, 8, 8 }, 0);
             game.debugAutopilot = true;
             yield return new WaitForSeconds(0.5f);
@@ -166,8 +180,12 @@ namespace SledSurfers
             yield return Shot("7b_crash_air");
             yield return new WaitForSeconds(1.1f);
             yield return Shot("7c_crash_roll");
-            yield return new WaitForSeconds(1.3f);
-            yield return Shot("7d_crash_laugh");
+            yield return new WaitForSeconds(1.0f);
+            yield return Shot("7d_crash_getup");
+            yield return new WaitForSeconds(0.9f);
+            yield return Shot("7e_crash_bubble");
+            yield return new WaitForSeconds(1.0f);
+            yield return Shot("7f_crash_bubble2");
 
             // Orman kademesi tam: ana ekranda kanat + roket + yeni bardak
             game.DebugReset(new[] { 16, 16, 12, 16, 16 }, 5000);

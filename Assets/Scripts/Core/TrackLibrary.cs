@@ -10,7 +10,7 @@ namespace SledSurfers
 
         public static readonly string[] Names = { "Çayır", "Orman", "Kanyon", "Karlı Dağ" };
         /// Atış kazancı çarpanı: zor pistler metre başına daha çok öder (son seviyeler pahalı, koşular kısa kalır).
-        public static float[] PayFactors = { 1f, 1f, 2.6f, 2.65f };
+        public static float[] PayFactors = { 0.86f, 1.5f, 4.1f, 5.8f };
 
         public static readonly float[] Lengths = { 3000f, 5000f, 4500f, 4200f };
 
@@ -200,7 +200,7 @@ namespace SledSurfers
         public static float MeadowRocket = 8f, ForestRocket = 0f, CanyonRocket = 20f, MeadowGate = 0f, MeadowBumpy = 1f, MeadowNet = 19f, ForestNet = 18f, ForestGate = 0f, CanyonNet = 18f, GapRun = 16f, GapMargin = 6f,
                             CanyonGate = 0f, CanyonGateLength = 1000f,
                             SnowRocket = 32f, SnowGapMargin = 6f, SnowNet = 20f, SnowGate = 0f, SnowGateLength = 1000f;
-        public static Vector2[] SnowGaps = { new Vector2(70f, -9f), new Vector2(100f, -7f), new Vector2(130f, 3.6f) };   // 2. vadi simle: Kızak 20 ister
+        public static Vector2[] SnowGaps = { new Vector2(70f, -11f), new Vector2(100f, -7f), new Vector2(130f, 3.6f) };   // 2. vadi simle: Kızak 20 ister
         const float Gate = 3.5f;    // kapı basamağında tırmanılan fazla yükseklik
         const float Net = 9.4f;   // basamak başına net iniş: hız korunur; iyi kızak daha yüksek denge hızına ulaşır
 

@@ -474,17 +474,24 @@ namespace SledSurfers
         void BuildSurfaces()
         {
             if (track.surfaces.Count == 0) return;
-            var puddle = Mats.Water(new Color(0.3f, 0.45f, 0.55f, 0.85f));
-            var mud = Mats.Water(new Color(0.33f, 0.22f, 0.13f, 0.97f));
-            mud.SetFloat("_Glossiness", 0.7f);
-            var foam = Mats.Solid(new Color(0.78f, 0.9f, 0.96f), 0.6f);
-            var mudRim = Mats.Solid(new Color(0.5f, 0.36f, 0.24f), 0.35f);
+            // Su: kenarda sığ ve açık, ortada derin ve koyu; ince köpük kenarı.
+            var shallow = Mats.Water(new Color(0.42f, 0.62f, 0.7f, 0.85f));
+            var deep = Mats.Water(new Color(0.18f, 0.34f, 0.48f, 0.9f));
+            var foam = Mats.Solid(new Color(0.86f, 0.95f, 0.98f), 0.6f);
+            // Çamur: kenarı açık kahve, ortası koyu ve ıslak parlak; üstünde birikinti benekleri.
+            var mudOuter = Mats.Solid(new Color(0.46f, 0.32f, 0.2f), 0.35f);
+            var mudCore = Mats.Water(new Color(0.24f, 0.15f, 0.08f, 0.97f));
+            mudCore.SetFloat("_Glossiness", 0.55f);   // ıslak ama parıltı benekleri gürültü olmasın
+            var mudRim = Mats.Solid(new Color(0.58f, 0.43f, 0.28f), 0.3f);
             var shoreGrass = Mats.Solid(Color.Lerp(theme.grass, Color.black, theme.snowy ? 0.12f : 0.28f), 0.2f);
             var shorePath = Mats.Solid(Color.Lerp(theme.trackA, Color.black, 0.3f), 0.3f);
-            var ice = Mats.Solid(new Color(0.7f, 0.86f, 1f), 0.95f);
-            ice.mainTexture = FrostTexture();
-            var frost = Mats.Solid(new Color(0.95f, 0.97f, 1f), 0.3f);
-            var snow = Textured(Mats.Solid(new Color(0.97f, 0.98f, 1f), 0.15f), TextureKit.Snow());
+            // Buz: donmuş göl; dıştan içe koyulaşan mavi, çapraz ışık yansımaları ve ince çatlaklar.
+            var iceTex = IceTexture();
+            var iceOuter = Textured(Mats.Solid(new Color(0.74f, 0.91f, 1f), 0.95f), iceTex);
+            var iceMid = Textured(Mats.Solid(new Color(0.56f, 0.81f, 0.97f), 0.97f), iceTex);
+            var iceCore = Textured(Mats.Solid(new Color(0.42f, 0.7f, 0.93f), 0.98f), iceTex);
+            // Don kenarı: saf beyaz değil, açık buz mavisi (çimenin üstünde beyaz leke gibi durmasın); karlı pistte beyaz.
+            var frost = Mats.Solid(theme.snowy ? new Color(0.96f, 0.98f, 1f) : new Color(0.8f, 0.93f, 1f), 0.5f);
             foreach (var zone in track.surfaces)
             {
                 // Lekenin ortası patikada mı (kıyı rengi altındaki zemine uysun)?
@@ -493,48 +500,63 @@ namespace SledSurfers
                 switch (zone.type)
                 {
                     case Surface.Puddle:
-                    case Surface.Mud:
-                        bool isMud = zone.type == Surface.Mud;
                         Blob(zone, 1.07f, 0.03f, overPath ? shorePath : shoreGrass, "Shore");
-                        Blob(zone, 1f, 0.045f, isMud ? mud : puddle, isMud ? "Mud" : "Puddle");
-                        Ring(zone, 0.9f, 1f, 0.05f, isMud ? mudRim : foam, "Rim");
+                        Blob(zone, 1f, 0.045f, shallow, "Puddle");
+                        Blob(zone, 0.68f, 0.05f, deep, "Puddle Deep");
+                        Ring(zone, 0.94f, 1f, 0.055f, foam, "Foam");
+                        Pebbles(zone);
+                        break;
+                    case Surface.Mud:
+                        Blob(zone, 1.07f, 0.03f, overPath ? shorePath : shoreGrass, "Shore");
+                        Blob(zone, 1f, 0.045f, mudOuter, "Mud");
+                        Blob(zone, 0.72f, 0.05f, mudCore, "Mud Wet");
+                        Ring(zone, 0.93f, 1f, 0.055f, mudRim, "Mud Rim");
+                        // Islak benekler (küçük birikintiler)
                         for (int k = 0; k < 2 + rng.Next(3); k++)
                         {
-                            float a = R(0f, 6.28f);
-                            PlaceSurfaceProp(zone, a, zone.Edge(a) * R(1.05f, 1.12f), "Nature/rock_smallA", R(0.04f, 0.08f));   // çakıl
+                            float a = R(0f, 6.28f), r = zone.Edge(a) * R(0.15f, 0.55f);
+                            var spot = SurfaceZone.Blob(Surface.Mud, zone.cz + Mathf.Cos(a) * r * zone.rz, zone.cx + Mathf.Sin(a) * r * zone.rx,
+                                                        R(0.35f, 0.7f), R(0.3f, 0.6f), R(0f, 50f), zone.onPath);
+                            Blob(spot, 1f, 0.058f, deep, "Mud Spot");
                         }
+                        Pebbles(zone);
                         break;
                     case Surface.Ice:
-                        Blob(zone, 1f, 0.045f, ice, "Ice");
-                        Ring(zone, 0.93f, 1.05f, 0.05f, frost, "Frost Rim");
-                        if (theme.snowy) break;   // karlı pistte zemin zaten kar
-                        // Buzun yanında birkaç yumuşak kar tepeciği
-                        for (int k = 0; k < 2 + rng.Next(2); k++)
-                        {
-                            float a = R(0f, 6.28f), r = zone.Edge(a) * R(1.15f, 1.35f);
-                            var mound = SurfaceZone.Blob(Surface.Ice, zone.cz + Mathf.Cos(a) * r * zone.rz, zone.cx + Mathf.Sin(a) * r * zone.rx,
-                                                         R(0.7f, 1.3f), R(0.6f, 1.1f), R(0f, 50f), zone.onPath);
-                            Blob(mound, 1f, 0.03f, snow, "Snow Mound", R(0.12f, 0.22f));
-                        }
-                        break;
+                        Blob(zone, 1f, 0.045f, iceOuter, "Ice", 0f, true);
+                        Blob(zone, 0.74f, 0.05f, iceMid, "Ice Mid", 0f, true);
+                        Blob(zone, 0.42f, 0.055f, iceCore, "Ice Core", 0f, true);
+                        Ring(zone, 0.97f, 1.03f, 0.058f, frost, "Frost Rim");
+                        break;   // çayırda beyaz kar tepeciği yok (kullanıcı: beyaz lekeler kötü duruyor)
                 }
+            }
+        }
+
+        void Pebbles(SurfaceZone zone)
+        {
+            for (int k = 0; k < 2 + rng.Next(3); k++)
+            {
+                float a = R(0f, 6.28f);
+                PlaceSurfaceProp(zone, a, zone.Edge(a) * R(1.05f, 1.12f), "Nature/rock_smallA", R(0.04f, 0.08f));   // çakıl
             }
         }
 
         /// Lekenin kenarına kadar uzanan, araziyi izleyen dairesel ağ. scale: kenarı büyütür (kıyı bandı için);
         /// dome: ortanın kenara göre ne kadar kabarık olduğu (kar tepeciği).
-        void Blob(SurfaceZone zone, float scale, float lift, Material mat, string name, float dome = 0f)
+        void Blob(SurfaceZone zone, float scale, float lift, Material mat, string name, float dome = 0f, bool localUV = false)
         {
             const int rings = 6, sectors = 40;
             var verts = new List<Vector3>();
             var tris = new List<int>();
+            var luv = localUV ? new List<Vector2>() : null;   // lekeye göre UV: doku leke boyunca bir kez uzanır
             verts.Add(SurfacePoint(zone, 0f, 0f, lift + dome));
+            luv?.Add(new Vector2(0.5f, 0.5f));
             for (int r = 1; r <= rings; r++)
                 for (int j = 0; j < sectors; j++)
                 {
                     float a = j * 6.2832f / sectors, f = r / (float)rings;
                     float k = scale * zone.Edge(a) * f;
                     verts.Add(SurfacePoint(zone, Mathf.Cos(a) * k, Mathf.Sin(a) * k, lift + dome * (1f - f * f)));
+                    luv?.Add(new Vector2(0.5f + 0.42f * Mathf.Sin(a) * k, 0.5f + 0.42f * Mathf.Cos(a) * k));
                 }
             for (int j = 0; j < sectors; j++)
             {
@@ -548,7 +570,7 @@ namespace SledSurfers
                     Tri(tris, verts, b, c, d);
                 }
             }
-            SurfaceMesh(verts, tris, mat, name);
+            SurfaceMesh(verts, tris, mat, name, luv);
         }
 
         /// Lekenin kenarı boyunca ince şerit (inner..outer, yarıçap biriminde): kenar parlaması ya da don kenarı.
@@ -580,10 +602,14 @@ namespace SledSurfers
             return new Vector3(x, track.Height(x, z) + lift, z);
         }
 
-        void SurfaceMesh(List<Vector3> verts, List<int> tris, Material mat, string name)
+        void SurfaceMesh(List<Vector3> verts, List<int> tris, Material mat, string name, List<Vector2> localUV = null)
         {
-            var uvs = new List<Vector2>();
-            foreach (var v in verts) uvs.Add(new Vector2(v.x * 0.35f, v.z * 0.35f));
+            var uvs = localUV;
+            if (uvs == null)
+            {
+                uvs = new List<Vector2>();
+                foreach (var v in verts) uvs.Add(new Vector2(v.x * 0.35f, v.z * 0.35f));
+            }
             var mesh = new Mesh();
             mesh.SetVertices(verts);
             mesh.SetUVs(0, uvs);
@@ -620,30 +646,41 @@ namespace SledSurfers
             return m;
         }
 
-        /// Buz: açık zemin üstünde ince, dallanan don çatlakları ve parlak benekler.
-        static Texture2D FrostTexture()
+        /// Buz (lekeye göre UV): iki çapraz yumuşak ışık yansıması, ince dallanan çatlaklar ve hafif benekler.
+        /// Malzeme rengiyle çarpılır (1 = rengin kendisi; yansımalar 1'in üstüne çıkamaz, taban 0.82).
+        static Texture2D iceTexture;
+        static Texture2D IceTexture()
         {
-            const int N = 128;
-            var tex = new Texture2D(N, N, TextureFormat.RGBA32, true) { wrapMode = TextureWrapMode.Repeat, name = "Frost", anisoLevel = 4 };
+            if (iceTexture != null) return iceTexture;
+            const int N = 256;
+            var tex = new Texture2D(N, N, TextureFormat.RGBA32, true) { wrapMode = TextureWrapMode.Clamp, name = "Ice", anisoLevel = 4 };
             var px = new Color[N * N];
-            var rnd = new System.Random(7);
-            for (int i = 0; i < px.Length; i++) px[i] = Color.white * (0.92f + 0.05f * (float)rnd.NextDouble());
-            // Rastgele yürüyüşle dallanan çatlaklar
-            for (int k = 0; k < 14; k++)
+            var rnd = new System.Random(11);
+            for (int y = 0; y < N; y++)
+                for (int x = 0; x < N; x++)
+                {
+                    float u = x / (float)N, v = y / (float)N;
+                    float d = u + v;   // çapraz
+                    float streak = Mathf.Exp(-Mathf.Pow((d - 0.78f) / 0.06f, 2f)) + 0.6f * Mathf.Exp(-Mathf.Pow((d - 0.98f) / 0.025f, 2f));
+                    float b = 0.82f + 0.18f * Mathf.Clamp01(streak) + 0.02f * (float)rnd.NextDouble();
+                    px[y * N + x] = new Color(b, b, b, 1f);
+                }
+            // Rastgele yürüyüşle dallanan ince çatlaklar (açık renk: buzun içindeki kırılma yüzeyleri)
+            for (int k = 0; k < 9; k++)
             {
-                float x = rnd.Next(N), y = rnd.Next(N), dir = (float)rnd.NextDouble() * 6.28f;
-                int len = 20 + rnd.Next(50);
+                float x = rnd.Next(N / 5, N * 4 / 5), y = rnd.Next(N / 5, N * 4 / 5), dir = (float)rnd.NextDouble() * 6.28f;
+                int len = 40 + rnd.Next(70);
                 for (int j = 0; j < len; j++)
                 {
-                    dir += ((float)rnd.NextDouble() - 0.5f) * 0.7f;
-                    x = Mathf.Repeat(x + Mathf.Cos(dir), N);
-                    y = Mathf.Repeat(y + Mathf.Sin(dir), N);
-                    px[(int)y * N + (int)x] = Color.white * 0.78f;
+                    dir += ((float)rnd.NextDouble() - 0.5f) * 0.5f;
+                    x = Mathf.Clamp(x + Mathf.Cos(dir), 0, N - 1);
+                    y = Mathf.Clamp(y + Mathf.Sin(dir), 0, N - 1);
+                    px[(int)y * N + (int)x] = Color.white;
                 }
             }
             tex.SetPixels(px);
             tex.Apply(true);
-            return tex;
+            return iceTexture = tex;
         }
 
         // ---------------------------------------------------------------- arazi

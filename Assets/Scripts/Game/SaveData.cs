@@ -7,6 +7,13 @@ namespace SledSurfers
         public int money;
         public int gems;              // pembe elmas
         public long chestReadyTicks;  // ücretsiz sandığın açılacağı an (UTC)
+
+        /// Fırlatma hakkı: en fazla MaxLaunches; her LaunchRegenMinutes'te bir dolar (oyun kapalıyken de), sınırı aşmaz.
+        /// Hak fırlatma anında harcanır. Bitince ya beklenir ya da (ödüllü) reklamla +1 alınır.
+        public const int MaxLaunches = 8;
+        public const double LaunchRegenMinutes = 25;
+        public int launches = MaxLaunches;
+        public long launchTicks;      // dolum sayacının başladığı an (UTC); haklar doluyken her an güncellenir
         public int hand = 1;   // 1 = sağ el, -1 = sol el
         public bool sound = true;
         public int track;      // seçili parkur
@@ -28,6 +35,29 @@ namespace SledSurfers
 
         public bool Finished(int i) => bests[i] >= TrackLibrary.Lengths[i];
 
+        static long RegenPeriod => System.TimeSpan.FromMinutes(LaunchRegenMinutes).Ticks;
+
+        /// Geçen süreye göre hakları doldurur. Dönüş: hak sayısı değişti mi.
+        public bool RegenLaunches(long now)
+        {
+            if (launches >= MaxLaunches)
+            {
+                launches = MaxLaunches;
+                launchTicks = now;   // doluyken sayaç işlemez: ilk harcamadan itibaren 25 dk
+                return false;
+            }
+            if (launchTicks <= 0 || launchTicks > now) launchTicks = now;
+            long gained = (now - launchTicks) / RegenPeriod;
+            if (gained <= 0) return false;
+            launches = (int)System.Math.Min(MaxLaunches, launches + gained);
+            launchTicks = launches >= MaxLaunches ? now : launchTicks + gained * RegenPeriod;
+            return true;
+        }
+
+        /// Bir sonraki hakka kalan saniye (haklar doluysa 0).
+        public int SecondsToNextLaunch(long now) =>
+            launches >= MaxLaunches ? 0 : Mathf.Max(0, Mathf.CeilToInt((float)((launchTicks + RegenPeriod - now) / 1e7)));
+
         public static SaveData Load()
         {
             var s = new SaveData
@@ -39,7 +69,10 @@ namespace SledSurfers
                 sound = PlayerPrefs.GetInt("sound", 1) != 0,
                 unlocked = Mathf.Clamp(PlayerPrefs.GetInt("unlocked", 0), 0, TrackLibrary.Count - 1),
                 avatarsOwned = PlayerPrefs.GetInt("avatars", 0b11) | 0b11,
+                launches = Mathf.Clamp(PlayerPrefs.GetInt("launches", MaxLaunches), 0, MaxLaunches),
+                launchTicks = long.TryParse(PlayerPrefs.GetString("launchTicks", "0"), out var lt) ? lt : 0,
             };
+            s.RegenLaunches(System.DateTime.UtcNow.Ticks);
             s.track = Mathf.Clamp(PlayerPrefs.GetInt("track", 0), 0, s.unlocked);
             s.avatar = Mathf.Clamp(PlayerPrefs.GetInt("avatar", 0), 0, AvatarLibrary.Count - 1);
             if (!s.Owns(s.avatar)) s.avatar = 0;
@@ -60,6 +93,8 @@ namespace SledSurfers
             PlayerPrefs.SetInt("money", money);
             PlayerPrefs.SetInt("gems", gems);
             PlayerPrefs.SetString("chest", chestReadyTicks.ToString());
+            PlayerPrefs.SetInt("launches", launches);
+            PlayerPrefs.SetString("launchTicks", launchTicks.ToString());
             PlayerPrefs.SetInt("hand", hand);
             PlayerPrefs.SetInt("sound", sound ? 1 : 0);
             PlayerPrefs.SetInt("track", track);
