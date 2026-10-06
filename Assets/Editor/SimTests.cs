@@ -167,6 +167,7 @@ namespace SledSurfers.EditorTools
                     if (v.Length > 8) TrackLibrary.MeadowGate = v[8];
                     if (v.Length > 9) TrackLibrary.MeadowBumpy = v[9];
                     if (v.Length > 10) TrackLibrary.MeadowNet = v[10];
+                    if (v.Length > 11) TrackLibrary.ForestNet = v[11];
                 }
                 if (arg.StartsWith("gaps="))
                     foreach (var g in arg.Substring(5).Split(','))
@@ -175,6 +176,7 @@ namespace SledSurfers.EditorTools
                         Gaps(track)[int.Parse(f[0])] = new Vector2(ParseF(f[1]), -ParseF(f[2]));
                     }
                 if (arg.StartsWith("sweep=")) sweep = arg.Substring(6);
+                if (arg.StartsWith("drag=")) SledConfig.DefaultDragArea = ParseF(arg.Substring(5));
                 if (arg.StartsWith("snow="))   // karlı dağ: roket,net,kapı,kapıUzunluğu
                 {
                     var v = System.Array.ConvertAll(arg.Substring(5).Split(','), ParseF);
@@ -378,7 +380,7 @@ namespace SledSurfers.EditorTools
             float t = 0f;
             float launchSpeed = -1f, fillAfterLaunch = -1f, airTime = 0f, longestAir = 0f;
 
-            while (sled.end == RunEnd.None && t < 240f)
+            while (sled.end == RunEnd.None && t < 600f)
             {
                 if (player == GlassPlayer.Skilled) pilot.StepGlass(sled, Dt);
                 float glassPitch = pilot.glassPitch, glassRoll = pilot.glassRoll;

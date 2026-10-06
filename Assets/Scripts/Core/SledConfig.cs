@@ -9,7 +9,10 @@ namespace SledSurfers
     {
         // Kızak + sürücü
         public float riderMass = 40f;          // kg
-        public float dragArea = 0.02f;         // Cd·A (m²), hava direnci (oyun için gerçekten düşük: hız korunur)
+        /// Hava direnci Cd·A (m²). Dik oturan sürücü gerçekte ~0,3-0,5; oyunda 0,1: hız karesiyle büyür, hızlı kızak
+        /// tepeden tepeye enerji kaybetmeden taşınamaz (kullanıcı: "enerji kaybı 0 gibi davranamayız").
+        public static float DefaultDragArea = 0.1f;
+        public float dragArea = DefaultDragArea;
         public float groundFriction = 0.138f;  // kinetik sürtünme katsayısı
         public float crashImpact = 12f;        // m/s, bundan sert iniş = kaza
 

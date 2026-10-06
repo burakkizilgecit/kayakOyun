@@ -118,8 +118,8 @@ namespace SledSurfers
                     float zz = atZ + d, x = track.PathX(zz) + off;
                     if (Mathf.Abs(x - track.CenterX(zz)) > track.halfWidth) { score -= 1f; continue; }
                     var type = track.SurfaceAt(zz, x);
-                    score += type == Surface.Ice ? 1f : type == Surface.Puddle ? -2f : type == Surface.Mud ? -3f : track.OnPath(zz, x) ? 0.3f : 0f;
-                    score -= track.BumpHeight(x, zz) * 0.6f;   // tümseklerden kaçın (süt çalkalanır, hız kaybı)
+                    score += type == Surface.Ice ? 1f : type == Surface.Puddle ? -8f : type == Surface.Mud ? -9f : track.OnPath(zz, x) ? 0.3f : 0f;   // su/çamur ~1 m enerji/m
+                    score -= track.BumpHeight(x, zz) * 0.12f;   // tümsek az kaybettirir (inişte geri gelir); çamurdan hafif
                 }
                 // Engelin içinden geçen çizgi elenir.
                 foreach (var o in track.obstacles)

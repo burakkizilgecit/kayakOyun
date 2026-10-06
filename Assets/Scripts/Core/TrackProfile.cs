@@ -90,7 +90,7 @@ namespace SledSurfers
         public const float RocketPickupRadius = 1.5f;
 
         /// Su birikintisinde sürtünmeye eklenen katsayı; buzda ve çimende sürtünme çarpanı.
-        public const float PuddleDrag = 0.3f, MudDrag = 0.45f, IceFactor = 0.25f, GrassFactor = 1.5f;
+        public const float PuddleDrag = 0.4f, MudDrag = 0.45f, IceFactor = 0.25f, GrassFactor = 1.5f;
         public const float PathHalfWidth = 1.7f;
         /// Yamaç: tabanın kenarından itibaren BankCurve·d² yükselir (d ≤ BankFlex), sonra aynı eğimle sürer.
         /// Kızak tabandan en fazla BankLimit uzaklaşabilir.
@@ -359,7 +359,7 @@ namespace SledSurfers
 
         /// Su ve çamurun hıza bağlı direnci (1/m): ivme = -k·v². Hızlı giren kızak çok daha fazla yavaşlar
         /// (10 m su birikintisi hızı ~%18, 8 m çamur ~%22 düşürür; üstüne sürtünme eklenir).
-        public const float PuddleResist = 0.02f, MudResist = 0.03f;
+        public const float PuddleResist = 0.028f, MudResist = 0.03f;
 
         public float SurfaceResist(float z, float x)
         {

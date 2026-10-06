@@ -10,7 +10,7 @@ namespace SledSurfers
 
         public static readonly string[] Names = { "Çayır", "Orman", "Kanyon", "Karlı Dağ" };
         /// Atış kazancı çarpanı: zor pistler metre başına daha çok öder (son seviyeler pahalı, koşular kısa kalır).
-        public static float[] PayFactors = { 1f, 1f, 3.5f, 3.5f };
+        public static float[] PayFactors = { 1f, 1f, 2.6f, 2.65f };
 
         public static readonly float[] Lengths = { 3000f, 5000f, 4500f, 4200f };
 
@@ -191,16 +191,16 @@ namespace SledSurfers
         // y < 0: karşı kıyı derinliği, simle ayarlanmış). Küçük kanat 20 m/s'de az taşır: hız da belirleyicidir.
         // Kanat alanları kızak seviyesine göre: 13→0.7, 14→1.1, 15→1.6, 16→2.0, 17→2.4 … 20→3.6.
         public static Vector2[] ForestGaps =
-            { new Vector2(11f, -6f), new Vector2(15f, -7f), new Vector2(36f, -15f), new Vector2(46f, -17f),
-              new Vector2(54f, -7f) };   // simle ayarlı: 10-12 / 13 / 14 / 16 kızak geçer
+            { new Vector2(8f, -8f), new Vector2(15f, -7f), new Vector2(36f, -15f), new Vector2(46f, -17f),
+              new Vector2(54f, -9f) };   // simle ayarlı: 10-12 / 13 / 14 / 16 kızak geçer
         public static Vector2[] CanyonGaps =
             { new Vector2(70f, 1.6f), new Vector2(95f, 2.4f), new Vector2(120f, 2.8f), new Vector2(140f, 3.2f) };
 
         // Roket tepelerinin normal tepeden fazla yüksekliği (m), parkur başına.
-        public static float MeadowRocket = 3f, ForestRocket = 21f, CanyonRocket = 12f, MeadowGate = 2f, MeadowBumpy = 1f, MeadowNet = 13f, CanyonNet = 15f, GapRun = 16f, GapMargin = 6f,
-                            CanyonGate = 2f, CanyonGateLength = 1000f,
-                            SnowRocket = 20f, SnowGapMargin = 6f, SnowNet = 15f, SnowGate = 4f, SnowGateLength = 1000f;
-        public static Vector2[] SnowGaps = { new Vector2(70f, 1.6f), new Vector2(100f, -7f), new Vector2(130f, 3.6f) };   // 2. vadi simle: Kızak 20 ister
+        public static float MeadowRocket = 8f, ForestRocket = 0f, CanyonRocket = 20f, MeadowGate = 0f, MeadowBumpy = 1f, MeadowNet = 19f, ForestNet = 18f, ForestGate = 0f, CanyonNet = 18f, GapRun = 16f, GapMargin = 6f,
+                            CanyonGate = 0f, CanyonGateLength = 1000f,
+                            SnowRocket = 32f, SnowGapMargin = 6f, SnowNet = 20f, SnowGate = 0f, SnowGateLength = 1000f;
+        public static Vector2[] SnowGaps = { new Vector2(70f, -9f), new Vector2(100f, -7f), new Vector2(130f, 3.6f) };   // 2. vadi simle: Kızak 20 ister
         const float Gate = 3.5f;    // kapı basamağında tırmanılan fazla yükseklik
         const float Net = 9.4f;   // basamak başına net iniş: hız korunur; iyi kızak daha yüksek denge hızına ulaşır
 
@@ -210,7 +210,7 @@ namespace SledSurfers
                                        float net = Net, int gapEvery = 0, Vector2[] gaps = null,
                                        int dereEvery = 0, float[] rocketAt = null, float[] rocketExtra = null,
                                        float gate = Gate, float gateLength = 600f, bool snow = false, float margin = -1f,
-                                       float bumpy = 0f, float sideChoice = 0.35f)
+                                       float bumpy = 0f, float sideChoice = 0.35f, bool kickers = true)
         {
             // Engebe ayrı bir rastgele diziden üretilir: engebesiz pistlerin düzeni değişmez.
             var brnd = new System.Random(seed * 7 + 3);
@@ -251,7 +251,7 @@ namespace SledSurfers
                 int kind = big ? (rnd.Next(2) == 0 ? 1 : 4) : rnd.Next(6);
                 // Atlama rampası (inişin ortasında): bardaktaki süt sarsılır. Su/çamur ile üst üste binmez.
                 bool jump = !big && p.z > 120f && rnd.NextDouble() < 0.45;
-                if (rocketStep) jump = false;
+                if (rocketStep || !kickers) jump = false;   // kickers: büyük vadili pistlerde uçuş vadilerde
                 if (jump && (kind == 2 || kind == 3)) kind = 0;
                 float side = rnd.Next(2) == 0 ? -1f : 1f;
                 switch (kind)
@@ -301,7 +301,8 @@ namespace SledSurfers
                     p.flocks.Add(new Flock { z = p.z + 3f + width * 0.5f, x = 0f, y = p.y - 3f - width * 0.06f,
                                              sway = R(3f, 5f), period = R(2.5f, 4f), radius = 2.2f });
                     // İniş kıyısı dudağın gapDrop altında: kanatsız kızak balistik menzille, kanatlı süzülerek geçer.
-                    p.Gap(3f, -(dropHere + 6f), width, 3f, 6f).To(45f, -9f);   // eğimli, uzun iniş bölgesi
+                    // Eğimli, uzun iniş bölgesi: süzülüşte hava direncine kaybedilen hız burada geri kazanılır.
+                    p.Gap(3f, -(dropHere + 6f), width, 3f, 6f).To(60f, -16f);
                     i++;
                     continue;
                 }
@@ -311,14 +312,14 @@ namespace SledSurfers
                 // Dere: rampadan atlanır, karşı kıyı biraz alçakta, ardından kısa eğimli iniş.
                 if (dereEvery > 0 && i % dereEvery == dereEvery - 1 && p.z < length - 700f)
                 {
-                    float width = Mathf.Lerp(8f, 14f, t);
-                    // Dere inişin ortasında: rampa +1.5, dere -2.5, 16 m'lik iniş yamacı -5 (~17°, uçuş yoluna yakın).
+                    float width = Mathf.Lerp(6f, 10f, t);
+                    // Dere inişin ortasında: rampa +1.5, dere -3.5 (karşı kıyı alçak), 16 m'lik iniş yamacı -5 (~17°).
                     // Hızlı kızak yamacı aşarsa da inişin devamına düşer (yokuşa çakılmaz). Kalan iniş toplamı tamamlar.
                     float d1 = down * 0.4f;
                     p.Hills(d1, 1, 0.4f, drop * 0.4f).Ramp(12f, 2.5f, 1f);
                     Pickup(4f);
-                    p.Gap(3f, -4f, width, 2f, 1.5f).To(16f, -5f);
-                    p.Hills(Mathf.Max(20f, down - d1 - 36f - width), 1, 0.4f, Mathf.Max(1f, drop * 0.6f - 6f));
+                    p.Gap(3f, -4f, width, 2f, 0.5f).To(16f, -5f);
+                    p.Hills(Mathf.Max(20f, down - d1 - 36f - width), 1, 0.4f, Mathf.Max(1f, drop * 0.6f - 7f));
                     p.To(up, rise).Flat(6f);
                     i++;
                     continue;
@@ -359,10 +360,11 @@ namespace SledSurfers
                     p.To(up, rise).Flat(6f);
                     // Taraf seçimi: tepenin bir yanı daha yüksek ama temiz, öbür yanı alçak ama yokuşunda su/çamur var.
                     // Hızlı gelen yüksek yanı, yavaş gelen alçak yanı seçer (oyuncu becerisi).
-                    if (sideChoice > 0f && !dereStep && brnd.NextDouble() < sideChoice)
+                    // Son 700 m'de yok: finale doğru tepeler temiz (seviye kapısı yalnızca enerji).
+                    if (sideChoice > 0f && !dereStep && c0 < length - 700f && brnd.NextDouble() < sideChoice)
                     {
                         float hs = brnd.Next(2) == 0 ? -1f : 1f, len = up * 1.4f + 10f;
-                        p.bumps.Add(new Bump { z0 = c0 + up + 3f - len * 0.5f, length = len, height = Mathf.Clamp(rise * 0.15f, 1.4f, 2.6f),
+                        p.bumps.Add(new Bump { z0 = c0 + up + 3f - len * 0.5f, length = len, height = Mathf.Clamp(rise * 0.12f, 1.2f, 2.2f),
                                                xc = hs * 3.3f, halfWidth = 3f });
                         var wet = snow || brnd.NextDouble() < 0.5 ? Surface.Mud : Surface.Puddle;
                         p.surfaces.Add(SurfaceZone.Blob(wet, c0 + up * B(0.45f, 0.65f), -hs * 3.2f, B(3.5f, 5f), B(2.2f, 2.8f), c0 * 0.37f, false));
@@ -385,11 +387,11 @@ namespace SledSurfers
             float room = b - a;
             if (room < 16f) return;
             double r = brnd.NextDouble();
-            if (allowHump && r < 0.3 && room > 32f)
+            if (allowHump && r < 0.3 && room > 42f)
             {
-                // Zorlu kambur: yavaş gelen zor aşar, hızlı gelen fırlar.
-                float len = B(22f, 28f);
-                p.bumps.Add(new Bump { z0 = a + B(0f, room - len), length = len, height = Mathf.Lerp(2.4f, 3.6f, t) * bumpy, halfWidth = 40f });
+                // Zorlu kambur: uzun ve belirgin; yavaş gelen zor aşar, çok hızlı gelen (~17 m/s üstü) havalanır.
+                float len = B(30f, 40f);
+                p.bumps.Add(new Bump { z0 = a + B(0f, room - len), length = len, height = Mathf.Lerp(1.6f, 2.6f, t) * bumpy, halfWidth = 40f });
                 return;
             }
             // Tümsek dizileri kaldırıldı: büyük tepelerin dik inişinde kızak bir tümsekten uçup ötekinin yüzüne
@@ -441,8 +443,8 @@ namespace SledSurfers
         public static TrackProfile Forest()
         {
             var p = new Path(-30f).Flat(50f).Hills(30f, 1, 0.3f, 0f).Flat(10f);
-            var obstacles = Staircase(p, Lengths[1], 33, 10f, 18f, 14f, 22f, 8.5f, 4, ForestGaps, 0,
-                                      new[] { 0.62f }, new[] { ForestRocket });
+            var obstacles = Staircase(p, Lengths[1], 33, 10f, 18f, 12f, 18f, ForestNet, 4, ForestGaps, 0,
+                                      new[] { 0.62f }, new[] { ForestRocket }, ForestGate);
             var t = p.Build(Names[1], Lengths[1], 8f, 260f, 2f, 110f, 5);
             ScatterRocks(t, 33, 24f);
             AddObstacles(t, obstacles);
@@ -455,7 +457,7 @@ namespace SledSurfers
         {
             var p = new Path(-30f).Flat(50f).Hills(30f, 1, 0.3f, 0f).Flat(10f);
             var obstacles = Staircase(p, Lengths[3], 59, 12f, 22f, 14f, 20f, SnowNet, 5, SnowGaps, 0,
-                                      new[] { 0.5f }, new[] { SnowRocket }, SnowGate, SnowGateLength, true, SnowGapMargin);
+                                      new[] { 0.5f }, new[] { SnowRocket }, SnowGate, SnowGateLength, true, SnowGapMargin, kickers: false);
             var t = p.Build(Names[3], Lengths[3], 9f, 240f, 2.4f, 100f, 9);
             ScatterRocks(t, 59, 22f);
             AddObstacles(t, obstacles);
@@ -467,7 +469,7 @@ namespace SledSurfers
         {
             var p = new Path(-30f).Flat(50f).Hills(30f, 1, 0.3f, 0f).Flat(10f);
             var obstacles = Staircase(p, Lengths[2], 47, 12f, 22f, 14f, 20f, CanyonNet, 4, CanyonGaps, 0,
-                                      new[] { 0.5f }, new[] { CanyonRocket }, CanyonGate, CanyonGateLength);
+                                      new[] { 0.5f }, new[] { CanyonRocket }, CanyonGate, CanyonGateLength, kickers: false);
             var t = p.Build(Names[2], Lengths[2], 9f, 280f, 2f, 120f, 7);
             ScatterRocks(t, 47, 22f);
             AddObstacles(t, obstacles);
