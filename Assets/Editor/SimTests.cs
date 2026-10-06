@@ -175,6 +175,7 @@ namespace SledSurfers.EditorTools
                     if (v.Length > 1) TrackLibrary.SnowNet = v[1];
                     if (v.Length > 2) TrackLibrary.SnowGate = v[2];
                     if (v.Length > 3) TrackLibrary.SnowGateLength = v[3];
+                    if (v.Length > 4) TrackLibrary.SnowGapMargin = v[4];
                 }
             }
             var sb = new StringBuilder("[SIM] Merdiven " + TrackLibrary.Names[track] + "\n");

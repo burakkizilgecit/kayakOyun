@@ -183,13 +183,13 @@ namespace SledSurfers
             { new Vector2(11f, -6f), new Vector2(15f, -7f), new Vector2(36f, -15f), new Vector2(46f, -17f),
               new Vector2(54f, -9f) };   // simle ayarlı: 10-12 / 13 / 14 / 16 kızak geçer
         public static Vector2[] CanyonGaps =
-            { new Vector2(70f, 2.4f), new Vector2(95f, 2.8f), new Vector2(120f, 3.2f), new Vector2(140f, 3.6f) };
+            { new Vector2(70f, 1.6f), new Vector2(95f, 2.4f), new Vector2(120f, 2.8f), new Vector2(140f, 3.2f) };
 
         // Roket tepelerinin normal tepeden fazla yüksekliği (m), parkur başına.
         public static float MeadowRocket = 13f, ForestRocket = 21f, CanyonRocket = 36f, MeadowGate = Gate, CanyonNet = 13f, GapRun = 10f, GapMargin = 6f,
                             CanyonGate = 6f, CanyonGateLength = 1000f,
-                            SnowRocket = 38f, SnowNet = 12f, SnowGate = 7f, SnowGateLength = 1000f;
-        public static Vector2[] SnowGaps = { new Vector2(70f, 2.4f), new Vector2(100f, 3.2f), new Vector2(130f, 3.6f) };
+                            SnowRocket = 38f, SnowGapMargin = 6f, SnowNet = 12f, SnowGate = 7f, SnowGateLength = 1000f;
+        public static Vector2[] SnowGaps = { new Vector2(70f, 1.6f), new Vector2(100f, -7f), new Vector2(130f, 3.6f) };   // 2. vadi simle: Kızak 20 ister
         const float Gate = 3.5f;    // kapı basamağında tırmanılan fazla yükseklik
         const float Net = 9.4f;   // basamak başına net iniş: hız korunur; iyi kızak daha yüksek denge hızına ulaşır
 
@@ -198,7 +198,7 @@ namespace SledSurfers
         static List<Vector2> Staircase(Path p, float length, int seed, float riseStart, float riseEnd, float bigStart, float bigEnd,
                                        float net = Net, int gapEvery = 0, Vector2[] gaps = null,
                                        int dereEvery = 0, float[] rocketAt = null, float[] rocketExtra = null,
-                                       float gate = Gate, float gateLength = 600f, bool snow = false)
+                                       float gate = Gate, float gateLength = 600f, bool snow = false, float margin = -1f)
         {
             int nextGap = 0;
             var rnd = new System.Random(seed);
@@ -273,7 +273,7 @@ namespace SledSurfers
                     // yolunun GapMargin üstünde), y < 0: kanatsız atlayış, karşı kıyı -y kadar alçakta.
                     var gap = gaps[nextGap++];
                     float width = gap.x;
-                    float dropHere = gap.y < 0f ? -gap.y : width / (0.9f * SledPhysics.MaxGlideRatio(gap.y)) - GapMargin;
+                    float dropHere = gap.y < 0f ? -gap.y : width / (0.9f * SledPhysics.MaxGlideRatio(gap.y)) - (margin < 0f ? GapMargin : margin);
                     // Uzun, dik yaklaşma inişi + alçak rampa: kızak atlayışa hızlı girer.
                     p.Hills(down, 1, 0.4f, net + GapRun).Ramp(14f, 3f, 1.5f);
                     Pickup(5f);
@@ -380,7 +380,7 @@ namespace SledSurfers
         {
             var p = new Path(-30f).Flat(50f).Hills(30f, 1, 0.3f, 0f).Flat(10f);
             var obstacles = Staircase(p, Lengths[3], 59, 6f, 13f, 10f, 15f, SnowNet, 5, SnowGaps, 0,
-                                      new[] { 0.5f }, new[] { SnowRocket }, SnowGate, SnowGateLength, true);
+                                      new[] { 0.5f }, new[] { SnowRocket }, SnowGate, SnowGateLength, true, SnowGapMargin);
             var t = p.Build(Names[3], Lengths[3], 9f, 240f, 2.4f, 100f, 9);
             ScatterRocks(t, 59, 22f);
             AddObstacles(t, obstacles);
