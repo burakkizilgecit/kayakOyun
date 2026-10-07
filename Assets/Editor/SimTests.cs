@@ -74,6 +74,8 @@ namespace SledSurfers.EditorTools
                 if (arg.StartsWith("levels=")) levels = System.Array.ConvertAll(arg.Substring(7).Split(','), int.Parse);
             }
             Run(sb, track, string.Join("/", levels), levels, 1f, GlassPlayer.Skilled, true);
+            foreach (var b in TrackLibrary.Get(track).bumps)
+                sb.AppendLine(string.Format("    tümsek z {0:F0}-{1:F0}  h {2:F1}  x {3:F1} ±{4:F1}", b.z0, b.z0 + b.length, b.height, b.xc, b.halfWidth));
             Debug.Log(sb.ToString());
         }
 
@@ -89,6 +91,9 @@ namespace SledSurfers.EditorTools
                 if (arg.StartsWith("base=")) Upgrades.baseCosts = System.Array.ConvertAll(arg.Substring(5).Split(','), int.Parse);
                 if (arg.StartsWith("growth=")) Upgrades.growth = System.Array.ConvertAll(arg.Substring(7).Split(','), ParseF);
                 if (arg.StartsWith("later=")) Upgrades.laterGrowth = System.Array.ConvertAll(arg.Substring(6).Split(','), ParseF);
+                if (arg.StartsWith("top=")) Upgrades.topGrowth = System.Array.ConvertAll(arg.Substring(4).Split(','), ParseF);
+                if (arg.StartsWith("final=")) Upgrades.FinalMultiplier = ParseF(arg.Substring(6));
+                if (arg.StartsWith("pay=")) TrackLibrary.PayFactors = System.Array.ConvertAll(arg.Substring(4).Split(','), ParseF);
             }
             var sb = new StringBuilder("[SIM] İlerleme (atış: mesafe · süt · seviyeler sapan/kızak/bardak/gelir/roket · para)\n");
             var levels = new int[Upgrades.Count];
@@ -107,7 +112,7 @@ namespace SledSurfers.EditorTools
                     finished = r.end == RunEnd.Finished;
                     float coins = 0.07f * r.distance;   // pistteki coinlerin yaklaşık yarısı toplanır
                     int earned = Mathf.RoundToInt((r.distance * (0.4f + 0.6f * r.fill) + coins * 2f + (finished ? 1000 * (t + 1) : 0))
-                                                  * Upgrades.IncomeMultiplier(levels[(int)UpgradeType.Income]));
+                                                  * Upgrades.IncomeMultiplier(levels[(int)UpgradeType.Income]) * TrackLibrary.PayFactors[t]);
                     money += earned;
                     // En ucuz alınabilir yükseltmeyi tekrar tekrar al.
                     while (true)
@@ -160,6 +165,9 @@ namespace SledSurfers.EditorTools
                     if (v.Length > 6) TrackLibrary.CanyonGate = v[6];
                     if (v.Length > 7) TrackLibrary.CanyonGateLength = v[7];
                     if (v.Length > 8) TrackLibrary.MeadowGate = v[8];
+                    if (v.Length > 9) TrackLibrary.MeadowBumpy = v[9];
+                    if (v.Length > 10) TrackLibrary.MeadowNet = v[10];
+                    if (v.Length > 11) TrackLibrary.ForestNet = v[11];
                 }
                 if (arg.StartsWith("gaps="))
                     foreach (var g in arg.Substring(5).Split(','))
@@ -168,6 +176,7 @@ namespace SledSurfers.EditorTools
                         Gaps(track)[int.Parse(f[0])] = new Vector2(ParseF(f[1]), -ParseF(f[2]));
                     }
                 if (arg.StartsWith("sweep=")) sweep = arg.Substring(6);
+                if (arg.StartsWith("drag=")) SledConfig.DefaultDragArea = ParseF(arg.Substring(5));
                 if (arg.StartsWith("snow="))   // karlı dağ: roket,net,kapı,kapıUzunluğu
                 {
                     var v = System.Array.ConvertAll(arg.Substring(5).Split(','), ParseF);
@@ -246,6 +255,87 @@ namespace SledSurfers.EditorTools
             Debug.Log(sb.ToString());
         }
 
+        /// Süt nerede dökülüyor: her dökülme anı sebebine göre sınıflanır (iniş darbesi, su/çamur, buz, viraj,
+        /// zemin geçişi, havada). Bardağı hiç eğmeyen oyuncu ile usta oyuncu karşılaştırılır.
+        /// track=, sets=a/b/c/d/e;... (bardağı hiç eğmeyen = klavyesiz PC oyuncusu, usta = otomatik pilot)
+        [MenuItem("Sled Surfers/Döküm Analizi")]
+        public static void Spill()
+        {
+            int track = 0;
+            string sets = "4/4/0/0/4;6/6/2/0/6;8/8/4/0/8;8/8/8/0/8";
+            foreach (var arg in System.Environment.GetCommandLineArgs())
+            {
+                if (arg.StartsWith("track=")) track = int.Parse(arg.Substring(6));
+                if (arg.StartsWith("sets=")) sets = arg.Substring(5);
+                if (arg.StartsWith("bumpy=")) TrackLibrary.MeadowBumpy = ParseF(arg.Substring(6));
+            }
+            var t = TrackLibrary.Get(track);
+            var sb = new StringBuilder("[SIM] Döküm analizi " + TrackLibrary.Names[track] + "\n");
+            foreach (var set in sets.Split(';'))
+                for (int skilled = 0; skilled < 2; skilled++)
+                {
+                    var lv = System.Array.ConvertAll(set.Split('/'), int.Parse);
+                    var cfg = Upgrades.BuildConfig(lv);
+                    var sled = new SledPhysics(t, cfg);
+                    var liquid = new LiquidSim();
+                    liquid.Reset(cfg);
+                    sled.PlaceForAim(1f);
+                    sled.Launch();
+                    var pilot = new AutoPilot();
+                    var reflex = new GlassReflex();
+                    var loss = new System.Collections.Generic.Dictionary<string, float>();
+                    var worst = new System.Collections.Generic.List<(float z, float amount, string why)>();
+                    float time = 0f, sinceLanding = 9f;
+                    int landings = 0;
+                    string lastWhy = null;
+                    float eventStart = 0f, eventAmount = 0f;
+                    while (sled.end == RunEnd.None && time < 600f)
+                    {
+                        if (skilled == 1) pilot.StepGlass(sled, Dt);
+                        reflex.Step(sled, cfg.glassReflex, Dt);
+                        if (AutoPilot.ShouldFire(t, sled, cfg)) sled.FireRocket();
+                        sled.Step(AutoPilot.Steer(t, sled), AutoPilot.Pitch(t, sled, cfg), Dt);
+                        if (sled.landings != landings) { landings = sled.landings; sinceLanding = 0f; }
+                        sinceLanding += Dt;
+                        float before = liquid.FillRatio;
+                        liquid.lidClosed = sled.position.z < cfg.lidDistance;
+                        var rot = skilled == 1 ? sled.Orientation * Quaternion.Euler(pilot.glassPitch, 0f, -pilot.glassRoll)
+                                               : sled.Orientation * Quaternion.Euler(reflex.pitch, 0f, -reflex.roll);
+                        liquid.Step(sled.acceleration, rot, Dt);
+                        float lost = before - liquid.FillRatio;
+                        if (lost > 0f)
+                        {
+                            var surf = t.SurfaceAt(sled.position.z, sled.position.x);
+                            Vector3 local = Quaternion.Inverse(sled.Orientation) * sled.acceleration;
+                            string why = !sled.grounded ? "havada"
+                                       : sinceLanding < 0.6f ? "iniş darbesi"
+                                       : surf == Surface.Puddle || surf == Surface.Mud ? "su/çamur freni"
+                                       : surf == Surface.Ice ? "buz"
+                                       : Mathf.Abs(local.x) > 4f ? "viraj/yamaç"
+                                       : Mathf.Abs(local.z) > 3f ? "hızlanma/fren"
+                                       : "zemin geçişi";
+                            loss[why] = (loss.TryGetValue(why, out var l) ? l : 0f) + lost;
+                            if (why != lastWhy || sled.position.z - eventStart > 15f)
+                            {
+                                if (lastWhy != null && eventAmount > 0.01f) worst.Add((eventStart, eventAmount, lastWhy));
+                                lastWhy = why; eventStart = sled.position.z; eventAmount = 0f;
+                            }
+                            eventAmount += lost;
+                        }
+                        if (liquid.FillRatio < 0.12f) sled.ForceEnd(RunEnd.Spilled, "Bardak boşaldı!");
+                        time += Dt;
+                    }
+                    if (lastWhy != null && eventAmount > 0.01f) worst.Add((eventStart, eventAmount, lastWhy));
+                    sb.AppendLine(string.Format("  {0,-14} {1,-7} {2,6:F0} m  süt %{3,3:F0}  {4}", set, skilled == 1 ? "usta" : "refleks",
+                                                sled.maxDistance, liquid.FillRatio * 100f, sled.endReason));
+                    foreach (var kv in loss) sb.AppendLine(string.Format("      {0,-16} %{1,4:F0}", kv.Key, kv.Value * 100f));
+                    worst.Sort((a, b) => b.amount.CompareTo(a.amount));
+                    for (int i = 0; i < Mathf.Min(6, worst.Count); i++)
+                        sb.AppendLine(string.Format("      en kötü: {0,6:F0} m  %{1,3:F0}  {2}", worst[i].z, worst[i].amount * 100f, worst[i].why));
+                }
+            Debug.Log(sb.ToString());
+        }
+
         struct SimResult
         {
             public float distance, fill, time;
@@ -290,7 +380,7 @@ namespace SledSurfers.EditorTools
             float t = 0f;
             float launchSpeed = -1f, fillAfterLaunch = -1f, airTime = 0f, longestAir = 0f;
 
-            while (sled.end == RunEnd.None && t < 240f)
+            while (sled.end == RunEnd.None && t < 600f)
             {
                 if (player == GlassPlayer.Skilled) pilot.StepGlass(sled, Dt);
                 float glassPitch = pilot.glassPitch, glassRoll = pilot.glassRoll;

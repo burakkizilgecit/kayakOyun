@@ -203,7 +203,7 @@ namespace SledSurfers
                 main.loop = false;
                 main.startLifetime = new ParticleSystem.MinMaxCurve(0.5f, 0.9f);
                 main.startSpeed = new ParticleSystem.MinMaxCurve(0.6f, 2.2f);
-                main.startSize = new ParticleSystem.MinMaxCurve(0.05f, 0.14f);
+                main.startSize = new ParticleSystem.MinMaxCurve(0.03f, 0.075f);   // küçük toprak serpintisi (yakın kamerada iri top olmasın)
                 main.startRotation3D = true;
                 main.gravityModifier = -0.05f;
                 main.simulationSpace = ParticleSystemSimulationSpace.World;
@@ -215,7 +215,7 @@ namespace SledSurfers
                 shape.radius = 0.25f;
                 var size = ps.sizeOverLifetime;
                 size.enabled = true;
-                size.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 0.6f, 1f, 1.4f));
+                size.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 1f, 1f, 0f));   // küçülerek kaybolur
                 var pr = go.GetComponent<ParticleSystemRenderer>();
                 pr.renderMode = ParticleSystemRenderMode.Mesh;
                 pr.mesh = Mats.PrimitiveMesh(PrimitiveType.Sphere);
@@ -329,8 +329,12 @@ namespace SledSurfers
             glassPivot.gameObject.SetActive(true);
         }
 
-        /// groundHeight(x, z): zemin yüksekliği. 0) savrularak uçar, seker, yuvarlanır; 1) kameraya dönüp doğrulur
-        /// ve oturur; 2) kahkaha atar ("HA HA!" yazıları yükselir).
+        /// Ayağa kalkmış, kameraya dönük: "Tekrar deneyelim!" baloncuğu bu sırada gösterilir.
+        public bool CrashStanding => crashing && crashPhase == 2;
+        public Vector3 CrashHeadTop => avatar != null ? avatar.HeadTop : root.position;
+
+        /// groundHeight(x, z): zemin yüksekliği. 0) savrularak uçar, seker, yuvarlanır; 1) kameraya dönerek ayağa
+        /// kalkar; 2) ayakta durur, gülümser, bir kez sevinçle kollarını kaldırır ("Tekrar deneyelim!").
         public void TickCrash(float dt, System.Func<float, float, float> groundHeight, Vector3 cameraPos)
         {
             TickHaTexts(dt, cameraPos);
@@ -372,35 +376,33 @@ namespace SledSurfers
             }
             else if (crashPhase == 1)
             {
-                // Doğrulma: yattığı yerden kameraya dönerek oturur (pozdaki savrulma söner).
+                // Kalkış: yattığı yerden kameraya dönerek doğrulur, oturma pozundan ayakta durma pozuna geçer.
                 phaseClock += dt;
-                float k = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(phaseClock / 0.5f));
-                h.rotation = Quaternion.Slerp(fromRot, face, k);
-                avatar.FlailPose(crashClock, 0.25f * (1f - k));
-                float bottom = Mathf.Lerp(avatar.LowestPoint(), avatar.SeatBottom(), k);
-                h.position += Vector3.up * (ground - bottom);
-                if (k >= 1f)
+                float turn = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(phaseClock / 0.6f));
+                float rise = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((phaseClock - 0.2f) / 0.8f));
+                h.rotation = Quaternion.Slerp(fromRot, face, turn);
+                avatar.FlailPose(crashClock, 0.2f * (1f - turn));
+                if (rise > 0f) avatar.StandPose(rise);
+                h.position += Vector3.up * (ground - avatar.LowestPoint());
+                if (phaseClock >= 1.0f)
                 {
                     crashPhase = 2;
                     phaseClock = 0f;
-                    Dust(c, 0.4f);
+                    avatar.Smile(true);
+                    Dust(c, 0.3f);
                 }
             }
             else
             {
+                // Ayakta: gülümser, bir kez kollarını sevinçle kaldırır, hafifçe nefes alır.
                 phaseClock += dt;
                 h.rotation = Quaternion.Slerp(h.rotation, face, 3f * dt);
-                avatar.LaughPose(phaseClock);
-                avatar.Laugh(Mathf.Abs(Mathf.Sin(phaseClock * 15f)));
-                // Oturur: kahkahayla gövde hafifçe zıplar.
-                float hop = 0.025f * Mathf.Abs(Mathf.Sin(phaseClock * 7.5f));
-                h.position += Vector3.up * (ground + hop - avatar.SeatBottom());
-                haTimer -= dt;
-                if (haTimer <= 0f)
-                {
-                    haTimer = 0.5f;
-                    SpawnHa(avatar.HeadTop, cameraPos);
-                }
+                avatar.StandPose(1f);
+                float pump = phaseClock < 1.4f ? Mathf.Sin(Mathf.Clamp01(phaseClock / 1.4f) * Mathf.PI) : 0f;
+                avatar.CheerArms(0.85f * pump);
+                avatar.Breathe(phaseClock);
+                float hop = 0.06f * pump * Mathf.Abs(Mathf.Sin(phaseClock * 6f));
+                h.position += Vector3.up * (ground + hop - avatar.LowestPoint());
             }
         }
 
@@ -453,7 +455,7 @@ namespace SledSurfers
         {
             if (dust == null) return;
             dust.transform.position = at;
-            dust.Emit(Mathf.RoundToInt(6 + 22 * amount));
+            dust.Emit(Mathf.RoundToInt(4 + 12 * amount));
         }
 
         /// Roket arkasında iz: dünya uzayında kalan, sönen/büyüyen küçük küreler (ateş parlak, duman gri).

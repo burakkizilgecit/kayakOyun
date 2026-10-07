@@ -56,6 +56,7 @@ namespace SledSurfers
 
         float bankRoll;                  // rad, yamaçta gövdenin yana yatışı (sağ taraf yukarı +)
         float stillTime;
+        float landHold;                  // inişten hemen sonra kızak zemine bastırılır (aynı tümsekte tekrar seğmez)
         Vector2 aimDir = Vector2.up;     // fırlatma yönü (x, z)
 
         readonly TrackProfile track;
@@ -95,6 +96,7 @@ namespace SledSurfers
             end = RunEnd.None;
             endReason = "";
             stillTime = 0f;
+            landHold = 0f;
             rocketTime = 0f;
             rocketCharges = cfg.rocketCharges;
             rocketThrust = cfg.rocketThrust;
@@ -218,7 +220,12 @@ namespace SledSurfers
             // Havalanma: pist boyunca dışbükey bir yüzeyde (rampa ucu, tepe) gereken merkezcil ivme
             // yerçekiminin dik bileşenini aşarsa normal kuvvet sıfırlanır: -κ·v² > g·cosθ
             float curvature = track.CurvatureAt(position.x, position.z);
-            if (v.z > 2f && -curvature * v.z * v.z > normalAcc)
+            landHold -= dt;
+            // İnişten hemen sonra hafif kavislerde (tümsek tepesi) kızak zemine bastırılır; rampa dudağı gibi keskin
+            // kavislerde her zaman havalanır.
+            float lift = -curvature * v.z * v.z;
+            bool hold = landHold > 0f && lift < 2.5f * normalAcc;
+            if (!hold && v.z > 2f && lift > normalAcc)
             {
                 grounded = false;
                 position = next;
@@ -369,6 +376,7 @@ namespace SledSurfers
             if (vt.z < 0f) vt.z = 0f;
             velocity = Vector3.ProjectOnPlane(vt, n);
             grounded = true;
+            landHold = 0.12f;
         }
 
         /// Havada asılı roket hakkı: içinden geçen kızağa bir ateşleme hakkı ekler.

@@ -22,9 +22,9 @@ namespace SledSurfers
                                      z0 = cz - rz * m, z1 = cz + rz * m, x0 = cx - rx * m, x1 = cx + rx * m };
         }
 
-        /// Kenarın merkeze uzaklık çarpanı (açıya göre): her leke kendine özgü, dalgalı bir şekle sahip.
+        /// Kenarın merkeze uzaklık çarpanı (açıya göre): yalnızca 2-3 yumuşak loblu düzgün organik oval (tırtıksız).
         public float Edge(float angle) =>
-            1f + 0.16f * Mathf.Sin(3f * angle + seed) + 0.09f * Mathf.Sin(5f * angle + seed * 1.7f) + 0.05f * Mathf.Sin(9f * angle + seed * 0.3f);
+            1f + 0.1f * Mathf.Sin(2f * angle + seed) + 0.06f * Mathf.Sin(3f * angle + seed * 1.7f);
 
         /// dx: vadi ya da patika ortasına göre yanal konum.
         public bool Contains(float z, float dx)
@@ -42,6 +42,13 @@ namespace SledSurfers
     {
         public float z, x, y;          // x: vadi ortasına göre; y: mutlak yükseklik
         public float sway, period, radius;
+    }
+
+    /// Zemindeki tümsek: z0'dan length boyunca kosinüs biçimli kambur (yükseklik height). Yanda vadi ortasına göre
+    /// xc merkezli, halfWidth genişliğinde (kenarda 3 m'de yumuşakça söner); halfWidth ≥ 30: tüm taban.
+    public struct Bump
+    {
+        public float z0, length, height, xc, halfWidth;
     }
 
     public struct Obstacle
@@ -66,6 +73,10 @@ namespace SledSurfers
         public readonly float finishZ;
         public readonly float halfWidth;   // vadi tabanının yarı genişliği (düz kısım)
         public readonly List<Obstacle> obstacles = new List<Obstacle>();
+        /// Profilin üstüne eklenen tümsekler (dalga dizileri, zorlu kamburlar, yana kaymış tümsekler).
+        public readonly List<Bump> bumps = new List<Bump>();
+        List<int>[] bumpIndex;
+        const float BumpBucket = 4f;
         /// Dere ve kanyon dipleri: x = başlangıç z, y = bitiş z, z = su yüzeyi yüksekliği.
         public readonly List<Vector3> water = new List<Vector3>();
         public readonly List<SurfaceZone> surfaces = new List<SurfaceZone>();
@@ -79,7 +90,7 @@ namespace SledSurfers
         public const float RocketPickupRadius = 1.5f;
 
         /// Su birikintisinde sürtünmeye eklenen katsayı; buzda ve çimende sürtünme çarpanı.
-        public const float PuddleDrag = 0.3f, MudDrag = 0.45f, IceFactor = 0.25f, GrassFactor = 1.5f;
+        public const float PuddleDrag = 0.4f, MudDrag = 0.45f, IceFactor = 0.25f, GrassFactor = 1.5f;
         public const float PathHalfWidth = 1.7f;
         /// Yamaç: tabanın kenarından itibaren BankCurve·d² yükselir (d ≤ BankFlex), sonra aynı eğimle sürer.
         /// Kızak tabandan en fazla BankLimit uzaklaşabilir.
@@ -261,8 +272,48 @@ namespace SledSurfers
             return BankCurve * BankFlex * BankFlex + 2f * BankCurve * BankFlex * (d - BankFlex);
         }
 
-        /// Zemin yüksekliği (vadi tabanı + yamaç).
-        public float Height(float x, float z) => Height(z) + Bank(x - CenterX(z));
+        /// Zemin yüksekliği (vadi tabanı + yamaç + tümsekler).
+        public float Height(float x, float z) => Height(z) + Bank(x - CenterX(z)) + BumpHeight(x, z);
+
+        /// Tümsek listesini z kovalarına dizer (her yükseklik sorgusu yalnızca yakındaki tümseklere bakar).
+        public void IndexBumps()
+        {
+            bumpIndex = null;
+            if (bumps.Count == 0) return;
+            int n = Mathf.CeilToInt((EndZ - startZ) / BumpBucket) + 1;
+            bumpIndex = new List<int>[n];
+            for (int i = 0; i < bumps.Count; i++)
+            {
+                int a = Mathf.Clamp(Mathf.FloorToInt((bumps[i].z0 - startZ) / BumpBucket), 0, n - 1);
+                int b = Mathf.Clamp(Mathf.FloorToInt((bumps[i].z0 + bumps[i].length - startZ) / BumpBucket), 0, n - 1);
+                for (int k = a; k <= b; k++) (bumpIndex[k] ??= new List<int>()).Add(i);
+            }
+        }
+
+        /// Bu noktadaki tümseklerin toplam yüksekliği.
+        public float BumpHeight(float x, float z)
+        {
+            if (bumpIndex == null) return 0f;
+            int k = Mathf.FloorToInt((z - startZ) / BumpBucket);
+            if (k < 0 || k >= bumpIndex.Length || bumpIndex[k] == null) return 0f;
+            float h = 0f, center = float.NaN;
+            foreach (int i in bumpIndex[k])
+            {
+                var b = bumps[i];
+                float u = (z - b.z0) / b.length;
+                if (u <= 0f || u >= 1f) continue;
+                float side = 1f;
+                if (b.halfWidth < 30f)
+                {
+                    if (float.IsNaN(center)) center = CenterX(z);
+                    float d = Mathf.Abs(x - center - b.xc) - b.halfWidth;
+                    if (d >= 3f) continue;
+                    if (d > 0f) side = 1f - Mathf.SmoothStep(0f, 1f, d / 3f);
+                }
+                h += b.height * side * 0.5f * (1f - Mathf.Cos(u * 6.2832f));
+            }
+            return h;
+        }
 
         /// Yanal eğim dH/dx (yamaçta kızağı ortaya iten).
         public float SlopeX(float x, float z) => (Height(x + 0.1f, z) - Height(x - 0.1f, z)) / 0.2f;
@@ -308,7 +359,7 @@ namespace SledSurfers
 
         /// Su ve çamurun hıza bağlı direnci (1/m): ivme = -k·v². Hızlı giren kızak çok daha fazla yavaşlar
         /// (10 m su birikintisi hızı ~%18, 8 m çamur ~%22 düşürür; üstüne sürtünme eklenir).
-        public const float PuddleResist = 0.02f, MudResist = 0.03f;
+        public const float PuddleResist = 0.028f, MudResist = 0.03f;
 
         public float SurfaceResist(float z, float x)
         {
