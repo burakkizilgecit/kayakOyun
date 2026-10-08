@@ -72,6 +72,11 @@ namespace SledSurfers
             Vector2 target = slope;
             if (local.y < -0.05f * SledPhysics.Gravity)
                 target = Vector2.ClampMagnitude(new Vector2(local.x, local.z) / -local.y, 4f);
+            // Az yerçekiminde (neredeyse serbest düşüş, ör. kanatla az taşınan uçuş) etkin yerçekiminin yönünü küçük
+            // yanal itişler belirler; gerçek sıvı bu kadar zayıf kuvvetle yavaş kayar. Yüzeyin hedef eğimi g ile
+            // ölçeklenir: 0.35g'de yüzey olduğu yerde kalır, 0.8g'den itibaren tam yönelir.
+            float gw = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.35f, 0.8f, g / SledPhysics.Gravity));
+            target = Vector2.Lerp(slope, target, gw);
 
             float depth = Mathf.Max(fill, 0.005f);
             float w2 = 1.84f * g / r * (float)System.Math.Tanh(1.84f * depth / r);
@@ -81,7 +86,7 @@ namespace SledSurfers
             // Ağırlıksızken (havada) sıvı bardakta asılı kalır: yüzey hareketi söner, dökülme olmaz.
             // Asıl sınav inişte: sert iniş sıvıyı çalkalar.
             bool weightless = rawWeightless || g < 0.35f * SledPhysics.Gravity;
-            Vector2 acc = w2 * (target - slope) - (2f * cfg.sloshDamping * w + (weightless ? 6f : 0.5f)) * slopeVel;
+            Vector2 acc = w2 * (target - slope) - (2f * cfg.sloshDamping * w + (weightless ? 6f : 0.5f + 5.5f * (1f - gw))) * slopeVel;
             slopeVel += acc * dt;
             slope += slopeVel * dt;
 

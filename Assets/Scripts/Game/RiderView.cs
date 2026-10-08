@@ -14,6 +14,7 @@ namespace SledSurfers
         readonly Transform hand, handBall, glassPivot, glassShell, liquidBody, liquidSurface;
         readonly Transform torso, glassArm, ropeArm;
         readonly Transform leftWing, rightWing, rope;
+        float wingFold;   // 0 açık, 1 katlı
         // Aşama görünümleri
         readonly SledModel.Parts sledParts;
         readonly Material wingMat, wingletMat, rocketBodyMat, rocketTrimMat;
@@ -331,6 +332,7 @@ namespace SledSurfers
 
         /// Ayağa kalkmış, kameraya dönük: "Tekrar deneyelim!" baloncuğu bu sırada gösterilir.
         public bool CrashStanding => crashing && crashPhase == 2;
+        const float AriseSpeed = 1.3f;   // Meshy kalkış klibi biraz hızlı oynatılır (sahne kısa kalsın)
         public Vector3 CrashHeadTop => avatar != null ? avatar.HeadTop : root.position;
 
         /// groundHeight(x, z): zemin yüksekliği. 0) savrularak uçar, seker, yuvarlanır; 1) kameraya dönerek ayağa
@@ -374,6 +376,22 @@ namespace SledSurfers
                     fromRot = h.rotation;
                 }
             }
+            else if (crashPhase == 1 && avatar.HasArise)
+            {
+                // Meshy: gerçek kalkış klibi (sırt üstü yatıştan ayağa). Gövde hemen kameraya döner;
+                // yatış pozunu klip verir.
+                phaseClock += dt;
+                float clipT = phaseClock * AriseSpeed;
+                h.rotation = Quaternion.Slerp(fromRot, face, Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(phaseClock / 0.15f)));
+                avatar.AriseFrame(clipT);
+                h.position += Vector3.up * (ground - avatar.LowestPoint());
+                if (clipT >= avatar.AriseLength)
+                {
+                    crashPhase = 2;
+                    phaseClock = 0f;
+                    avatar.Smile(true);
+                }
+            }
             else if (crashPhase == 1)
             {
                 // Kalkış: yattığı yerden kameraya dönerek doğrulur, oturma pozundan ayakta durma pozuna geçer.
@@ -397,6 +415,13 @@ namespace SledSurfers
                 // Ayakta: gülümser, bir kez kollarını sevinçle kaldırır, hafifçe nefes alır.
                 phaseClock += dt;
                 h.rotation = Quaternion.Slerp(h.rotation, face, 3f * dt);
+                if (avatar.CheerFrame(phaseClock))
+                {
+                    // Meshy: sevinç klibi döngüde, üstüne hafif kafa sallama
+                    avatar.Breathe(phaseClock);
+                    h.position += Vector3.up * (ground - avatar.LowestPoint());
+                    return;
+                }
                 avatar.StandPose(1f);
                 float pump = phaseClock < 1.4f ? Mathf.Sin(Mathf.Clamp01(phaseClock / 1.4f) * Mathf.PI) : 0f;
                 avatar.CheerArms(0.85f * pump);
@@ -592,7 +617,7 @@ namespace SledSurfers
             if (wings)
             {
                 const float chord = 0.55f;
-                float span = cfg.wingArea / (2f * chord);
+                float span = cfg.wingSpan;   // yalnız görünüş: iki boy (fizikteki alan ayrı)
                 if (!Mathf.Approximately(span, wingSpan))
                 {
                     wingSpan = span;
@@ -603,7 +628,8 @@ namespace SledSurfers
 
             // Kızak altı yükseldikçe raylar çelikten parlak altına döner.
             // Aşama görünümü: her 4 seviyede kızak boyanır (2. aşamada spoiler), raylar çelik → gümüş → siyah krom → altın.
-            // Kızak seviyeleri: 1 tutma ipi, 2 gümüş kayaklar, 3 arka tampon kanadı (spoiler), 4 küçük kanat, 5 büyük kanat.
+            // Kızak: 4. seviyede tutma ipi, 5. seviyeden itibaren kanat (alanı seviyeyle büyür), 8 gümüş kayaklar, 12 spoiler,
+            // 16 mavi kanat, 20 jet kanat.
             int rs = Mathf.Clamp(cfg.runnerStage, 0, 5);
             sledParts.SetStage(rs);
             rope.gameObject.SetActive(rs >= 1);
@@ -629,7 +655,7 @@ namespace SledSurfers
             }
 
             bool hasRockets = cfg.rocketCharges > 0;
-            float rocketSize = 0.9f + 0.025f * Mathf.Clamp(cfg.rocketCharges > 0 ? (cfg.rocketThrust - 80f) / 12f % 4f : 0f, 0f, 4f);
+            float rocketSize = 0.9f + 0.025f * Mathf.Clamp(cfg.rocketCharges > 0 ? (cfg.rocketThrust - 150f) / 20f % 4f : 0f, 0f, 4f);
             foreach (var r in rockets)
             {
                 if (!rocketsDetached) r.gameObject.SetActive(hasRockets);
@@ -640,7 +666,10 @@ namespace SledSurfers
             if (avatar != null && avatar.Valid)
             {
                 var shoulder = avatar.ShoulderLocal(side, root, out float armLength);
-                hand.localPosition = shoulder + new Vector3(0.1f * side, -0.02f, armLength * 0.78f);
+                // Meshy (iri kafalı, kısa kollu) karakterlerde bardak göğüs hizasında ve yanda: el yüzü örtmesin.
+                hand.localPosition = avatar.Chibi
+                    ? shoulder + new Vector3(armLength * 0.3f * side, -armLength * 0.35f, armLength * 0.65f)
+                    : shoulder + new Vector3(0.1f * side, -0.02f, armLength * 0.78f);
             }
             else hand.localPosition = new Vector3(0.45f * side, 0.86f, 0.32f);
             float d = cfg.glassRadius * 2f * GlassScale;
@@ -673,6 +702,10 @@ namespace SledSurfers
                          float torsoPitch, float torsoRoll, Vector3 shake)
         {
             root.SetPositionAndRotation(sled.position + shake, sled.Orientation);
+            // Süzülme süresi dolunca kanatlar kısmen yukarı katlanır (taşıma azalır), yere inince açılır.
+            wingFold = Mathf.MoveTowards(wingFold, (1f - sled.WingLift) / 0.65f, Time.deltaTime * 3f);
+            leftWing.localRotation = Quaternion.Euler(0f, 0f, -80f * wingFold);
+            rightWing.localRotation = Quaternion.Euler(0f, 0f, 80f * wingFold);
             bool firing = sled.RocketFiring;
             UpdateRockets(sled, firing, Time.deltaTime);
             foreach (var flame in flames)

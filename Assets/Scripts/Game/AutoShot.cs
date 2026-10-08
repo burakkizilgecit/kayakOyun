@@ -10,6 +10,7 @@ namespace SledSurfers
     {
         GameController game;
         string folder;
+        string mode = "";   // "-shots avatars": yalnızca karakter çekimleri (hızlı deneme)
 
         public static void AttachIfRequested(GameController game)
         {
@@ -20,8 +21,13 @@ namespace SledSurfers
                 var shot = game.gameObject.AddComponent<AutoShot>();
                 shot.game = game;
                 game.debugUnlimitedLaunches = true;
+                // Kullanıcı isteği: otomatik test oyunları kısık sesle oynar.
+                SoundFx.MaxVolume = 0.1f;
+                AudioListener.volume = Mathf.Min(AudioListener.volume, SoundFx.MaxVolume);
                 shot.folder = args[i + 1];
                 Directory.CreateDirectory(shot.folder);
+                for (int j = 0; j < args.Length - 1; j++)
+                    if (args[j] == "-shots") shot.mode = args[j + 1];
                 return;
             }
         }
@@ -30,6 +36,13 @@ namespace SledSurfers
         {
             PlayerPrefs.DeleteAll();
             float t;
+            if (mode == "avatars")
+            {
+                yield return AvatarShots();
+                PlayerPrefs.DeleteAll();
+                Application.Quit();
+                yield break;
+            }
 
             // Ana ekran (başlangıç)
             game.DebugReset(new[] { 0, 0, 0, 0, 0 }, 300);
@@ -127,6 +140,28 @@ namespace SledSurfers
             while (!game.DebugInResult && game.DebugDistance < 104f && t < 30f) { t += Time.deltaTime; yield return null; }
             yield return new WaitForSeconds(0.25f);
             yield return Shot("5_lid_open");
+            // İlk ince köprü: yaklaşırken ve tablanın üstünde
+            float bz = game.DebugGapZ(0);
+            if (bz > 0f)
+            {
+                t = 0f;
+                while (!game.DebugInResult && game.DebugDistance < bz - 14f && t < 90f) { t += Time.deltaTime; yield return null; }
+                yield return Shot("5e_bridge_ahead");
+                t = 0f;
+                while (!game.DebugInResult && game.DebugDistance < bz + 6f && t < 30f) { t += Time.deltaTime; yield return null; }
+                yield return Shot("5f_bridge_on");
+            }
+            // Tepe aşılıp dik inişe geçerken kamera (zeminin altına girmemeli)
+            float cz = game.DebugCrestZ(300f);
+            if (cz > 0f)
+            {
+                t = 0f;
+                while (!game.DebugInResult && game.DebugDistance < cz + 8f && t < 90f) { t += Time.deltaTime; yield return null; }
+                yield return Shot("5d_crest_down");
+                t = 0f;
+                while (!game.DebugInResult && game.DebugDistance < cz + 22f && t < 30f) { t += Time.deltaTime; yield return null; }
+                yield return Shot("5d_crest_down2");
+            }
             // Yüzeyler: ilk buz ve ilk çamur lekesi (önünden)
             float iz = game.DebugSurfaceZ(Surface.Ice), dz = game.DebugSurfaceZ(Surface.Mud);
             foreach (var (z, name) in iz < dz || dz < 0f ? new[] { (iz, "5a_ice"), (dz, "5a_mud") } : new[] { (dz, "5a_mud"), (iz, "5a_ice") })
@@ -163,6 +198,14 @@ namespace SledSurfers
                 while (!game.DebugInResult && game.DebugDistance < pz + 3f && t < 30f) { t += Time.deltaTime; yield return null; }
                 yield return Shot("6c_pickup_taken");
             }
+            // Çayır vadisi: kanatla süzülürken
+            float gz = game.DebugGapZ(0);
+            if (gz > 0f)
+            {
+                t = 0f;
+                while (!game.DebugInResult && game.DebugDistance < gz + 15f && t < 90f) { t += Time.deltaTime; yield return null; }
+                yield return Shot("6d_valley");
+            }
             t = 0f;
             while (!game.DebugInResult && t < 120f) { t += Time.deltaTime; yield return null; }
             yield return new WaitForSeconds(2.5f);
@@ -187,6 +230,28 @@ namespace SledSurfers
             yield return new WaitForSeconds(1.0f);
             yield return Shot("7f_crash_bubble2");
 
+            // İnce köprüden kayıp dereye düşme: köprünün üstünde direksiyon bilerek sağa kırılır.
+            game.DebugReset(new[] { 16, 16, 8, 16, 16 }, 0);
+            yield return new WaitForSeconds(0.5f);
+            game.DebugLaunch(1f);
+            float kz = game.DebugGapZ(0);
+            if (kz > 0f)
+            {
+                t = 0f;
+                while (!game.DebugInResult && game.DebugDistance < kz + 2f && t < 90f) { t += Time.deltaTime; yield return null; }
+                game.debugSteer = 1f;
+                t = 0f;
+                while (!game.DebugInResult && t < 0.5f) { t += Time.deltaTime; yield return null; }
+                yield return Shot("7g_bridge_slip");
+                t = 0f;
+                while (!game.DebugInResult && t < 3f && game.DebugRunning) { t += Time.deltaTime; yield return null; }
+                yield return new WaitForSeconds(0.25f);
+                yield return Shot("7h_creek_fall");
+                yield return new WaitForSeconds(1.6f);
+                yield return Shot("7i_creek_after");
+                game.debugSteer = float.NaN;
+            }
+
             // Orman kademesi tam: ana ekranda kanat + roket + yeni bardak
             game.DebugReset(new[] { 16, 16, 12, 16, 16 }, 5000);
             game.DebugTrack(1, 1);
@@ -196,7 +261,8 @@ namespace SledSurfers
             yield return new WaitForSeconds(0.5f);
             game.DebugLaunch(1f);
             t = 0f;
-            while (!game.DebugInResult && game.DebugDistance < 680f && t < 90f) { t += Time.deltaTime; yield return null; }
+            float fz = game.DebugGapZ(0) + 30f;   // ilk vadinin üstünde süzülürken
+            while (!game.DebugInResult && game.DebugDistance < fz && t < 120f) { t += Time.deltaTime; yield return null; }
             yield return Shot("9_forest_glide");
 
             // Kanyon
@@ -221,11 +287,50 @@ namespace SledSurfers
             yield return new WaitForSeconds(6f);
             yield return Shot("13_snow_run");
             t = 0f;
-            while (!game.DebugInResult && game.DebugDistance < 860f && t < 60f) { t += Time.deltaTime; yield return null; }
+            float sz = game.DebugGapZ(0) + 40f;
+            while (!game.DebugInResult && game.DebugDistance < sz && t < 120f) { t += Time.deltaTime; yield return null; }
             yield return Shot("14_snow_gap");
 
             PlayerPrefs.DeleteAll();
             Application.Quit();
+        }
+
+        /// Meshy karakterleri: kart, ana ekran, nişan, koşu ve düşüp kalkma sahnesi.
+        IEnumerator AvatarShots()
+        {
+            game.DebugHideTutorial();
+            for (int i = 0; i < AvatarLibrary.Count; i++)
+            {
+                if (!AvatarLibrary.All[i].model.StartsWith("Meshy/")) continue;
+                string tag = "a" + i + "_" + AvatarLibrary.All[i].model.Substring(6).ToLowerInvariant();
+                game.DebugReset(new[] { 8, 8, 8, 8, 8 }, 0);
+                game.DebugSelectAvatar(i);
+                game.DebugHub();   // karakter sayfası ana ekrandan açılır (kamera kızağın önünde)
+                yield return new WaitForSeconds(0.5f);
+                game.DebugAvatars(i);
+                yield return new WaitForSeconds(1.2f);
+                yield return Shot(tag + "_0card");
+                game.DebugHub();
+                yield return new WaitForSeconds(1.2f);
+                yield return Shot(tag + "_1hub");
+                game.DebugAim();
+                yield return new WaitForSeconds(1.0f);
+                yield return Shot(tag + "_2aim");
+                game.debugAutopilot = true;
+                game.DebugLaunch(1f);
+                yield return new WaitForSeconds(2.5f);
+                yield return Shot(tag + "_3run");
+                float t = 0f;
+                while (!game.DebugInResult && game.DebugDistance < 140f && t < 30f) { t += Time.deltaTime; yield return null; }
+                game.DebugCrash();
+                foreach (var (wait, name) in new[] { (0.45f, "_4air"), (1.0f, "_5roll"), (0.6f, "_6getup"), (0.5f, "_7getup2"), (0.6f, "_8stand"), (0.8f, "_9cheer") })
+                {
+                    yield return new WaitForSeconds(wait);
+                    yield return Shot(tag + name);
+                }
+                game.debugAutopilot = false;
+                yield return new WaitForSeconds(2f);
+            }
         }
 
         IEnumerator Shot(string name)

@@ -79,7 +79,10 @@ namespace SledSurfers
             ui.PlayOneShot(gem, 0.8f);
         }
 
-        public static void SetEnabled(bool on) => AudioListener.volume = on ? 1f : 0f;
+        /// Ses açıkken genel ses düzeyi (otomatik test oyunları kısık sesle oynar).
+        public static float MaxVolume = 1f;
+
+        public static void SetEnabled(bool on) => AudioListener.volume = on ? MaxVolume : 0f;
 
         static void Fade(AudioSource s, float target, float dt, float rate) =>
             s.volume = Mathf.Lerp(s.volume, target, 1f - Mathf.Exp(-rate * dt));

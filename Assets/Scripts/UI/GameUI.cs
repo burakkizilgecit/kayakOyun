@@ -131,6 +131,7 @@ namespace SledSurfers
         Button avAction;
         Icon avActionGem;
         readonly AvatarCard[] avCards = new AvatarCard[AvatarLibrary.Count];
+        ScrollView avScroll;
         int avBrowse;
         float avBump;
 
@@ -465,7 +466,7 @@ namespace SledSurfers
             if (goNext)
             {
                 unlockTitle.text = "YENİ PARKUR AÇILDI!";
-                unlockName.text = summary.unlockedName + " · " + summary.unlockedLength + " m";
+                unlockName.text = summary.unlockedName + " · " + TrackLibrary.Show(summary.unlockedLength) + " m";
             }
             else if (summary.lastTrack)
             {
@@ -574,7 +575,7 @@ namespace SledSurfers
             if (h.best != shownBest)
             {
                 shownBest = h.best;
-                foreach (var l in bestLabels) l.text = "En iyi " + h.best + " m";
+                foreach (var l in bestLabels) l.text = "En iyi " + TrackLibrary.Show(h.best) + " m";
             }
             coinBump = Mathf.MoveTowards(coinBump, 0f, dt * 3f);
             float s = 1f + 0.18f * Mathf.Sin(coinBump * Mathf.PI) * coinBump;
@@ -940,7 +941,7 @@ namespace SledSurfers
             int t = save.track;
             float progress = Mathf.Clamp01(save.bests[t] / TrackLibrary.Lengths[t]);
             hubTrackName.text = TrackLibrary.Names[t].ToUpper(Tr);
-            hubTrackSub.text = (t + 1) + ". PARKUR  ·  " + Mathf.RoundToInt(TrackLibrary.Lengths[t]) + " m";
+            hubTrackSub.text = (t + 1) + ". PARKUR  ·  " + TrackLibrary.Show(TrackLibrary.Lengths[t]) + " m";
             hubTrackPct.text = "%" + Mathf.FloorToInt(progress * 100f);
             hubTrackFill.style.width = Length.Percent(Mathf.Max(progress * 100f, 4f));
             var tc = TrackColors[Mathf.Clamp(t, 0, TrackColors.Length - 1)];
@@ -1304,11 +1305,30 @@ namespace SledSurfers
             avAction.Add(avActionLabel);
             p.Add(avAction);
 
-            for (int r = 0; r < 3; r++)
+            // Kart ızgarası: 4 sütun; kart sayısı arttıkça satır eklenir, ızgara kaydırılır
+            // (~2,75 satır görünür: alttaki yarım satır kaydırılabildiğini gösterir).
+            avScroll = new ScrollView(ScrollViewMode.Vertical);
+            avScroll.style.height = 740;
+            avScroll.style.flexShrink = 0;
+            avScroll.verticalScrollerVisibility = ScrollerVisibility.Hidden;
+            avScroll.horizontalScrollerVisibility = ScrollerVisibility.Hidden;
+            avScroll.touchScrollBehavior = ScrollView.TouchScrollBehavior.Elastic;
+            // Tema yalnızca Game.uss'i içeriyor (Unity'nin varsayılan teması yok): ScrollView'un iç yerleşimi elle.
+            avScroll.style.overflow = Overflow.Hidden;
+            var inner = avScroll.Q(className: "unity-scroll-view__content-and-vertical-scroll-container");
+            if (inner != null) { inner.style.flexGrow = 1; inner.style.flexShrink = 1; inner.style.flexDirection = FlexDirection.Row; }
+            avScroll.contentViewport.style.flexGrow = 1;
+            avScroll.contentViewport.style.flexShrink = 1;
+            avScroll.contentViewport.style.overflow = Overflow.Hidden;
+            avScroll.contentContainer.style.flexShrink = 0;
+            p.Add(avScroll);
+            int rows = (AvatarLibrary.Count + 3) / 4;
+            for (int r = 0; r < rows; r++)
             {
                 var row = E("row");
                 row.style.alignItems = Align.Stretch;
                 row.style.marginTop = r > 0 ? 14 : 0;
+                row.style.flexShrink = 0;   // kaydırma alanında satırlar sıkışmasın, taşan kısım kaydırılsın
                 for (int k = 0; k < 4; k++)
                 {
                     int i = r * 4 + k;
@@ -1347,7 +1367,15 @@ namespace SledSurfers
                     avCards[i] = c;
                     row.Add(c.root);
                 }
-                p.Add(row);
+                // Son satır eksikse boş yer tutucular: kartlar öbür satırlarla aynı genişlikte kalsın
+                for (int k = row.childCount; k < 4; k++)
+                {
+                    var pad = E("av-card");
+                    pad.style.marginLeft = 14;
+                    pad.style.visibility = Visibility.Hidden;
+                    row.Add(pad);
+                }
+                avScroll.Add(row);
             }
         }
 
@@ -1355,6 +1383,9 @@ namespace SledSurfers
         {
             RefreshAvatars(save, browse);
             SetPage(Page.Avatars);
+            // Seçili kart görünür olsun (yerleşim hesaplandıktan sonra)
+            var card = avCards[browse].root;
+            avScroll.schedule.Execute(() => avScroll.ScrollTo(card)).ExecuteLater(30);
         }
 
         public void RefreshAvatars(SaveData save, int browse)
@@ -1464,7 +1495,7 @@ namespace SledSurfers
 
                 var info = E("grow");
                 info.style.marginLeft = 24;
-                var name = L(TrackLibrary.Names[i] + "  ·  " + TrackLibrary.Lengths[i] + " m", "heavy");
+                var name = L(TrackLibrary.Names[i] + "  ·  " + TrackLibrary.Show(TrackLibrary.Lengths[i]) + " m", "heavy");
                 name.style.fontSize = 50;
                 name.style.marginBottom = -6;
                 info.Add(name);
@@ -1504,12 +1535,12 @@ namespace SledSurfers
                 c.fill.style.backgroundColor = Col(done, new Color32(0x3F, 0xD1, 0x5B, 0xFF));
                 if (done)
                 {
-                    c.status.text = "Tamamlandı! · En iyi " + save.bests[i] + " m";
+                    c.status.text = "Tamamlandı! · En iyi " + TrackLibrary.Show(save.bests[i]) + " m";
                     c.status.style.color = (Color)new Color32(0x22, 0xA0, 0x3C, 0xFF);
                 }
                 else if (open)
                 {
-                    c.status.text = save.bests[i] > 0 ? "En iyi " + save.bests[i] + " m · %" + Mathf.FloorToInt(progress * 100f) : "Yeni! Hemen dene";
+                    c.status.text = save.bests[i] > 0 ? "En iyi " + TrackLibrary.Show(save.bests[i]) + " m · %" + Mathf.FloorToInt(progress * 100f) : "Yeni! Hemen dene";
                     c.status.style.color = (Color)new Color32(0xD8, 0x62, 0x0A, 0xFF);
                 }
                 else
@@ -1606,18 +1637,17 @@ namespace SledSurfers
             runColumn = new ProgressColumn();
             p.Add(runColumn.root);
 
-            distLabel = L("0 m", "outlined");
-            distLabel.style.fontSize = 140;
-            distLabel.style.unityTextAlign = TextAnchor.MiddleCenter;
-            distLabel.style.marginTop = -6;
-            p.Add(distLabel);
+            // Sol üst köşe (kullanıcı isteği): toplanan coin ve elmas; gidilen mesafe onların altında, ortada.
+            var runCorner = E("col");
+            runCorner.style.position = Position.Absolute;
+            runCorner.style.left = 36;
+            runCorner.style.top = 36;
+            runCorner.style.alignItems = Align.FlexStart;
+            runCorner.pickingMode = PickingMode.Ignore;
+            p.Add(runCorner);
 
-
-            // Toplanan coin/elmas (sol üstte, ilerleme çubuğunun altında)
             runLoot = E("row");
-            runLoot.style.position = Position.Absolute;
-            runLoot.style.left = 36;
-            runLoot.style.top = 230;
+            runLoot.style.transformOrigin = new TransformOrigin(0, Length.Percent(50));
             var coinBox = E("pill");
             coinBox.style.height = 72;
             coinBox.Add(new Icon(IconKind.Coin, 52));
@@ -1633,7 +1663,14 @@ namespace SledSurfers
             runGemLabel.style.fontSize = 38;
             runGemBox.Add(runGemLabel);
             runLoot.Add(runGemBox);
-            p.Add(runLoot);
+            runCorner.Add(runLoot);
+
+            distLabel = L("0 m", "outlined");
+            distLabel.style.fontSize = 120;
+            distLabel.style.unityTextAlign = TextAnchor.MiddleCenter;
+            distLabel.style.marginTop = 96;   // coin/elmas satırının altında
+            distLabel.pickingMode = PickingMode.Ignore;
+            p.Add(distLabel);
 
             airLabel = L("HAVADA!", "outlined");
             airLabel.style.fontSize = 96;
@@ -1685,7 +1722,7 @@ namespace SledSurfers
             if (h.distance != shownDist)
             {
                 shownDist = h.distance;
-                distLabel.text = h.distance + " m";
+                distLabel.text = TrackLibrary.Show(h.distance) + " m";
             }
             int kmh = Mathf.RoundToInt(h.speedKmh);
             if (kmh != shownSpeed)
@@ -1733,7 +1770,6 @@ namespace SledSurfers
                 runCoinLabel.text = h.runCoins.ToString();
                 runGemLabel.text = h.runGems.ToString();
             }
-            runGemBox.style.display = h.runGems > 0 ? DisplayStyle.Flex : DisplayStyle.None;
             lootBump = Mathf.MoveTowards(lootBump, 0f, dt * 4f);
             float lb = 1f + 0.22f * Mathf.Sin(lootBump * Mathf.PI) * lootBump;
             runLoot.style.scale = new Scale(new Vector2(lb, lb));
@@ -1820,7 +1856,7 @@ namespace SledSurfers
             bool lid = h.lidLeft > 0f;
             lidIcon.style.display = lid ? DisplayStyle.Flex : DisplayStyle.None;
             milkIcon.style.display = lid ? DisplayStyle.None : DisplayStyle.Flex;
-            string text = lid ? "KAPAK " + Mathf.CeilToInt(h.lidLeft) + " m" : "SÜT %" + pct;
+            string text = lid ? "KAPAK " + TrackLibrary.Show(h.lidLeft) + " m" : "SÜT %" + pct;
             if (milkLabel.text != text) milkLabel.text = text;
             if (pct != shownMilk)
             {
@@ -1998,7 +2034,7 @@ namespace SledSurfers
             }
             float t = Mathf.Clamp01((resultClock - 0.25f) / 0.9f);
             float e = 1f - (1f - t) * (1f - t) * (1f - t);
-            resDist.text = Mathf.RoundToInt(result.distance * e) + " m";
+            resDist.text = TrackLibrary.Show(result.distance * e) + " m";
             resBar.Set(result.progress * e, result.bestProgress);
             float tc = Mathf.Clamp01((resultClock - 0.6f) / 0.8f);
             resCoins.text = "+" + Mathf.RoundToInt(result.earned * (1f - (1f - tc) * (1f - tc)));

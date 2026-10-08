@@ -20,7 +20,14 @@ namespace SledSurfers
         public void StepGlass(SledPhysics sled, float dt)
         {
             felt = Vector3.Lerp(felt, sled.acceleration, dt / 0.15f);
-            if (!GlassReflex.Level(sled.Orientation, felt, out glassPitch, out glassRoll))
+            if (GlassReflex.Level(sled.Orientation, felt, out glassPitch, out glassRoll))
+            {
+                // İnsan gibi: savrulmanın çoğunu karşılar ama elini en çok ±30° eğer (gecikmeli tam karşılık
+                // keskin geçişlerde bardağı ters yöne yatırıp döküyordu).
+                glassPitch = Mathf.Clamp(glassPitch * 0.85f, -30f, 30f);
+                glassRoll = Mathf.Clamp(glassRoll * 0.85f, -30f, 30f);
+            }
+            else
             {
                 // Ağırlıksızken hissedilecek yön yok: bardağı yavaşça düze getir.
                 glassPitch = Mathf.MoveTowards(prevPitch, 0f, 90f * dt);
@@ -46,10 +53,18 @@ namespace SledSurfers
                     if (y > peak) { peak = y; peakDist = d; }
                 }
                 float climb = peak - h;
+                // Süzülme pisti (roket tepesi yok): kızak durmak üzereyken roket bir sonraki kanala taşır.
+                if (track.rocketHills.Count == 0 && sled.Speed < 6f && sled.position.z > 60f) return true;
                 // Tepeye kadar sürtünme kaybı da hesaba katılır (yükseklik cinsinden μ·yol).
                 float need = climb + cfg.groundFriction * peakDist + 0.5f;
                 float reach = sled.Speed * sled.Speed / (2f * SledPhysics.Gravity);
-                return climb > 1f && reach < need;
+                if (climb <= 1f || reach >= need) return false;
+                // Önde (ilerleme çubuğunda işaretli) roket tepesi varsa tek roket ona saklanır: yalnızca o tepenin
+                // yaklaşmasında ya da kızak gerçekten durmak üzereyken ateşlenir.
+                float nextHill = -1f;
+                foreach (float hz in track.rocketHills) if (hz > z && (nextHill < 0f || hz < nextHill)) nextHill = hz;
+                if (nextHill > 0f && sled.rocketCharges <= 1 && nextHill - z > 150f) return sled.Speed < 4f;
+                return true;
             }
             float height = sled.position.y - track.Height(sled.position.x, z);
             // Süzülürken yalnızca önündeki roket tepelerine yetecek kadar hak kalıyorsa.
@@ -74,6 +89,14 @@ namespace SledSurfers
                 cacheOffset = BestLane(track, sled, aheadZ) - track.PathX(aheadZ);
             }
             float target = track.PathX(aheadZ) + cacheOffset;
+            // İnce köprüye yaklaşırken ve üstündeyken: tablanın ortasına kısa bakışla hizalan (düz git).
+            for (float d = 0f; d <= 30f; d += 3f)
+                if (track.BridgeAt(sled.position.z + d, out var br))
+                {
+                    aheadZ = sled.position.z + Mathf.Max(5f, sled.Speed * 0.35f);
+                    target = br.x;
+                    break;
+                }
             // Önündeki havada asılı roket hakkına yönel (rampaya onun hizasında gir).
             if (track.hasRocketPickup && !sled.rocketPickupTaken)
             {
@@ -106,6 +129,8 @@ namespace SledSurfers
 
         /// atZ'deki en iyi yanal konum: patika üstünde kal, buzu seç, sudan kaç. Adaylar o noktadaki patikaya
         /// göre kaydırılarak ileriye doğru puanlanır (patika kıvrılsa da aday çizgisi onu izler).
+        static readonly float[] Margins = { -0.6f, 0.6f };
+
         static float BestLane(TrackProfile track, SledPhysics sled, float atZ)
         {
             float look = Mathf.Max(20f, sled.Speed * 2f);
@@ -116,9 +141,23 @@ namespace SledSurfers
                 for (float d = 0f; d < look; d += 2f)
                 {
                     float zz = atZ + d, x = track.PathX(zz) + off;
+                    // İnce köprü: tablanın dışı dere; tablanın tam ortası en güvenli çizgi.
+                    if (track.BridgeAt(zz, out var br))
+                    {
+                        float bo = Mathf.Abs(x - br.x);
+                        if (bo > TrackProfile.BridgeHalfWidth - 0.15f) { score -= 60f; continue; }
+                        score -= bo * 8f;
+                    }
                     if (Mathf.Abs(x - track.CenterX(zz)) > track.halfWidth) { score -= 1f; continue; }
                     var type = track.SurfaceAt(zz, x);
                     score += type == Surface.Ice ? 1f : type == Surface.Puddle ? -8f : type == Surface.Mud ? -9f : track.OnPath(zz, x) ? 0.3f : 0f;   // su/çamur ~1 m enerji/m
+                    // Kenarına sürtmesin: su/çamurun 0.6 m yakını da cezalı (yanal kayma ve dönüş gecikmesi payı)
+                    if (type != Surface.Puddle && type != Surface.Mud)
+                        foreach (float e in Margins)
+                        {
+                            var near = track.SurfaceAt(zz, x + e);
+                            if (near == Surface.Puddle || near == Surface.Mud) { score -= 3f; break; }
+                        }
                     score -= track.BumpHeight(x, zz) * 0.12f;   // tümsek az kaybettirir (inişte geri gelir); çamurdan hafif
                 }
                 // Engelin içinden geçen çizgi elenir.

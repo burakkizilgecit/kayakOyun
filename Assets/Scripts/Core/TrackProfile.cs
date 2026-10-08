@@ -79,6 +79,14 @@ namespace SledSurfers
         const float BumpBucket = 4f;
         /// Dere ve kanyon dipleri: x = başlangıç z, y = bitiş z, z = su yüzeyi yüksekliği.
         public readonly List<Vector3> water = new List<Vector3>();
+        /// İnce köprüler (kullanıcı kararı 2026-10-08): pisti enine kesen derenin (z0..z1) üstünde, patika hizasında
+        /// (x) düz tahta tabla. z0..z1 / y0 → y1: tabla (kıyılara biraz uzanır: profil yumuşatması dudağı yuvarlar,
+        /// tabla dudaktan önce başlamazsa hızlı kızak dudakta havalanıyordu). r0..r1: derenin kendisi; orada tablanın
+        /// dışına kayan kızak dereye düşer, koşu biter.
+        public struct Bridge { public float z0, z1, r0, r1, x, y0, y1; }
+        public readonly List<Bridge> bridges = new List<Bridge>();
+        /// Tablanın yarı genişliği (kızağın ortası bu aralıkta kalmalı; kızak 0.76 m genişliğinde).
+        public const float BridgeHalfWidth = 0.6f;
         public readonly List<SurfaceZone> surfaces = new List<SurfaceZone>();
         public readonly List<Flock> flocks = new List<Flock>();
         /// Roket tepelerinin zirve z'leri.
@@ -90,11 +98,12 @@ namespace SledSurfers
         public const float RocketPickupRadius = 1.5f;
 
         /// Su birikintisinde sürtünmeye eklenen katsayı; buzda ve çimende sürtünme çarpanı.
-        public const float PuddleDrag = 0.4f, MudDrag = 0.45f, IceFactor = 0.25f, GrassFactor = 1.5f;
+        public const float PuddleDrag = 0.4f, MudDrag = 0.45f, IceFactor = 0.25f, GrassFactor = 1.2f;
         public const float PathHalfWidth = 1.7f;
         /// Yamaç: tabanın kenarından itibaren BankCurve·d² yükselir (d ≤ BankFlex), sonra aynı eğimle sürer.
-        /// Kızak tabandan en fazla BankLimit uzaklaşabilir.
-        public const float BankCurve = 0.09f, BankFlex = 6f, BankLimit = 9f;
+        /// BankLimit: yamaçta kaya ve bitki yerleşiminin sınırı. BankRim: yamacın tepesi (taban kenarından); ötesi
+        /// düzlüktür ve pistin dışıdır: oraya çıkan kızak düşer (görünmez duvar yok, kullanıcı kararı 2026-10-08).
+        public const float BankCurve = 0.09f, BankFlex = 6f, BankLimit = 9f, BankRim = 10f;
 
         // Vadi kıvrımı ve patika (SetValley)
         float meanderAmp, meanderLength = 160f, pathAmp, pathLength = 55f, phaseA, phaseB, phaseC;
@@ -106,7 +115,7 @@ namespace SledSurfers
 
         public TrackProfile(string name, Vector2[] points, float finishZ, float halfWidth,
                             IList<float> corners = null, IList<Vector2> sharpZones = null,
-                            float step = 0.25f, float smoothRadius = 3f)
+                            float step = 0.25f, float smoothRadius = 3f, IList<Vector2> rawZones = null)
         {
             this.name = name;
             this.finishZ = finishZ;
@@ -130,6 +139,12 @@ namespace SledSurfers
             int r = Mathf.Max(1, Mathf.RoundToInt(smoothRadius / step));
             if (corners != null) RoundCorners(raw, corners, sharpZones);
             heights = BoxBlur(raw, r);
+            // Yumuşatılmayan bölgeler (köprülü derenin dik kıyıları): yumuşatma 5 m'lik kıyıyı 6 m'lik rampaya
+            // çeviriyordu, tabladan kayan hızlı kızak karşı kıyıya atlayıp kurtuluyordu.
+            if (rawZones != null)
+                foreach (var zone in rawZones)
+                    for (int i = Mathf.Max(0, Mathf.CeilToInt((zone.x - startZ) / step)); i < n && startZ + i * step <= zone.y; i++)
+                        heights[i] = raw[i];
 
             if (EndZ < finishZ + 20f)
                 Debug.LogWarning("[TRACK] " + name + ": pist " + EndZ + " m'de bitiyor, bitiş çizgisi " + finishZ + " m");
@@ -266,14 +281,49 @@ namespace SledSurfers
         /// Yamaç yüksekliği; dx: vadi eksenine uzaklık.
         public float Bank(float dx)
         {
-            float d = Mathf.Abs(dx) - halfWidth;
+            float d = Mathf.Min(Mathf.Abs(dx) - halfWidth, BankRim);   // tepeden sonra düz (görseldeki arazi gibi)
             if (d <= 0f) return 0f;
             if (d <= BankFlex) return BankCurve * d * d;
             return BankCurve * BankFlex * BankFlex + 2f * BankCurve * BankFlex * (d - BankFlex);
         }
 
-        /// Zemin yüksekliği (vadi tabanı + yamaç + tümsekler).
-        public float Height(float x, float z) => Height(z) + Bank(x - CenterX(z)) + BumpHeight(x, z);
+        /// Zemin yüksekliği (vadi tabanı + yamaç + tümsekler; köprü tablasının üstünde tabla).
+        public float Height(float x, float z)
+        {
+            foreach (var b in bridges)
+                if (z >= b.z0 && z <= b.z1 && Mathf.Abs(x - b.x) <= BridgeHalfWidth) return DeckHeight(b, z);
+            return TerrainHeight(x, z);
+        }
+
+        /// Arazi (köprüsüz): vadi, patika ve yüzey mesh'leri bunu kullanır.
+        public float TerrainHeight(float x, float z) => Height(z) + Bank(x - CenterX(z)) + BumpHeight(x, z);
+
+        public static float DeckHeight(Bridge b, float z) => Mathf.Lerp(b.y0, b.y1, Mathf.InverseLerp(b.z0, b.z1, z));
+
+        /// Köprü tablasının üstünde mi?
+        public bool OnDeck(float x, float z)
+        {
+            foreach (var b in bridges)
+                if (z >= b.z0 && z <= b.z1 && Mathf.Abs(x - b.x) <= BridgeHalfWidth) return true;
+            return false;
+        }
+
+        /// Köprülü derenin üstünde ama tablanın dışında mı (kızak dereye düşer)?
+        public bool OverRavine(float x, float z)
+        {
+            foreach (var b in bridges)
+                if (z > b.r0 && z < b.r1 && Mathf.Abs(x - b.x) > BridgeHalfWidth) return true;
+            return false;
+        }
+
+        /// z bir köprü açıklığında mı (otomatik pilot ve coinler için)?
+        public bool BridgeAt(float z, out Bridge bridge)
+        {
+            foreach (var b in bridges)
+                if (z >= b.z0 - 0.5f && z <= b.z1 + 0.5f) { bridge = b; return true; }
+            bridge = default;
+            return false;
+        }
 
         /// Tümsek listesini z kovalarına dizer (her yükseklik sorgusu yalnızca yakındaki tümseklere bakar).
         public void IndexBumps()
@@ -316,7 +366,7 @@ namespace SledSurfers
         }
 
         /// Yanal eğim dH/dx (yamaçta kızağı ortaya iten).
-        public float SlopeX(float x, float z) => (Height(x + 0.1f, z) - Height(x - 0.1f, z)) / 0.2f;
+        public float SlopeX(float x, float z) => OnDeck(x, z) ? 0f : (Height(x + 0.1f, z) - Height(x - 0.1f, z)) / 0.2f;   // tabla enine düz
 
         /// Kızağın x konumunda ileri eğim dH/dz (kıvrımın yamaç etkisi dahil).
         public float SlopeZ(float x, float z) => (Height(x, z + step) - Height(x, z - step)) / (2f * step);

@@ -68,10 +68,22 @@ namespace SledSurfers.EditorTools
             var sb = new StringBuilder("[SIM] Teşhis\n");
             int track = 0;
             var levels = new[] { 8, 8, 4, 8, 8 };
+            float[] range = null;
             foreach (var arg in System.Environment.GetCommandLineArgs())
             {
                 if (arg.StartsWith("track=")) track = int.Parse(arg.Substring(6));
                 if (arg.StartsWith("levels=")) levels = System.Array.ConvertAll(arg.Substring(7).Split(','), int.Parse);
+                if (arg.StartsWith("range=")) range = System.Array.ConvertAll(arg.Substring(6).Split(','), ParseF);   // profil: z0,z1
+            }
+            if (range != null)
+            {
+                // Zemin profili: 2,5 m'de bir yükseklik ve eğim (derece)
+                var tp = TrackLibrary.Get(track);
+                for (float z = range[0]; z <= range[1]; z += 2.5f)
+                    sb.AppendLine(string.Format("    profil z {0,7:F1}  y {1,7:F2}  eğim {2,5:F0}°", z, tp.Height(z), Mathf.Atan(tp.Slope(z)) * Mathf.Rad2Deg));
+                foreach (var sz in tp.surfaces)
+                    if (sz.cz > range[0] - 20f && sz.cz < range[1] + 20f)
+                        sb.AppendLine(string.Format("    profil yüzey {0} z {1:F0} ({2:F0}-{3:F0})  x {4:F1} ±{5:F1}  patikada {6}", sz.type, sz.cz, sz.cz - sz.rz, sz.cz + sz.rz, sz.cx, sz.rx, sz.onPath));
             }
             Run(sb, track, string.Join("/", levels), levels, 1f, GlassPlayer.Skilled, true);
             foreach (var b in TrackLibrary.Get(track).bumps)
@@ -148,11 +160,47 @@ namespace SledSurfers.EditorTools
         {
             int track = 0;
             string sets = "0/0/0/0/0;2/2/0/0/2;4/4/2/0/4;6/6/4/0/6;8/8/8/0/8;8/7/8/0/8;7/8/8/0/8;8/8/8/0/7";
-            string sweep = null;
+            string sweep = null, mnets = null, gsweep = null, wsweep = null, gsSlow = null;
             foreach (var arg in System.Environment.GetCommandLineArgs())
             {
                 if (arg.StartsWith("track=")) track = int.Parse(arg.Substring(6));
                 if (arg.StartsWith("sets=")) sets = arg.Substring(5);
+                if (arg.StartsWith("meadow="))   // çayır: net,araTepe,yokuşEğimi,tepeA,tepeB,zorluA,zorluB
+                {
+                    var v = System.Array.ConvertAll(arg.Substring(7).Split(','), ParseF);
+                    TrackLibrary.MeadowNet = v[0];
+                    if (v.Length > 1) TrackLibrary.MeadowRollers = v[1];
+                    if (v.Length > 2) TrackLibrary.MeadowUpSlope = v[2];
+                    if (v.Length > 4) TrackLibrary.MeadowRise = new Vector2(v[3], v[4]);
+                    if (v.Length > 6) TrackLibrary.MeadowBig = new Vector2(v[5], v[6]);
+                }
+                if (arg.StartsWith("mnets=")) mnets = arg.Substring(6);   // çayır net değerlerini sırayla dener
+                if (arg.StartsWith("grades="))   // pist eğimleri: çayır,orman,kanyon,karlı
+                {
+                    var v = System.Array.ConvertAll(arg.Substring(7).Split(','), ParseF);
+                    TrackLibrary.MeadowGrade = v[0];
+                    if (v.Length > 1) TrackLibrary.ForestGrade = v[1];
+                    if (v.Length > 2) TrackLibrary.CanyonGrade = v[2];
+                    if (v.Length > 3) TrackLibrary.SnowGrade = v[3];
+                }
+                if (arg.StartsWith("gsweep=")) gsweep = arg.Substring(7);   // bu pistin eğimini sırayla dener
+                if (arg.StartsWith("glide="))   // bu pistin süzülme ayarı: yavaşEğim,yavaşUzA,yavaşUzB,kanalEğim,kanalUz
+                {
+                    var v = System.Array.ConvertAll(arg.Substring(6).Split(','), ParseF);
+                    TrackLibrary.SlowGrade[track] = v[0];
+                    if (v.Length > 1) TrackLibrary.SlowGradeEnd[track] = v[1];
+                    if (v.Length > 3) TrackLibrary.SlowLength[track] = new Vector2(v[2], v[3]);
+                    if (v.Length > 4) TrackLibrary.BoostGrade[track] = v[4];
+                    if (v.Length > 5) TrackLibrary.BoostLength[track] = v[5];
+                }
+                if (arg.StartsWith("gsweepslow="))
+                    gsSlow = arg.Substring(11);   // yavaşlama eğimini sırayla dener
+                if (arg.StartsWith("open="))   // fırlatma koşusu: uzunluk,eğim
+                {
+                    var v = System.Array.ConvertAll(arg.Substring(5).Split(','), ParseF);
+                    TrackLibrary.OpenLength = v[0];
+                    if (v.Length > 1) TrackLibrary.OpenGrade = v[1];
+                }
                 if (arg.StartsWith("rh="))   // roket tepesi fazlalıkları: çayır,orman,kanyon
                 {
                     var v = System.Array.ConvertAll(arg.Substring(3).Split(','), ParseF);
@@ -176,6 +224,7 @@ namespace SledSurfers.EditorTools
                         Gaps(track)[int.Parse(f[0])] = new Vector2(ParseF(f[1]), -ParseF(f[2]));
                     }
                 if (arg.StartsWith("sweep=")) sweep = arg.Substring(6);
+                if (arg.StartsWith("wsweep=")) wsweep = arg.Substring(7);   // g:genişlik1,genişlik2 (g. vadinin genişliği)
                 if (arg.StartsWith("drag=")) SledConfig.DefaultDragArea = ParseF(arg.Substring(5));
                 if (arg.StartsWith("snow="))   // karlı dağ: roket,net,kapı,kapıUzunluğu
                 {
@@ -188,7 +237,45 @@ namespace SledSurfers.EditorTools
                 }
             }
             var sb = new StringBuilder("[SIM] Merdiven " + TrackLibrary.Names[track] + "\n");
-            if (sweep == null) LadderRun(sb, track, sets);
+            if (gsSlow != null)
+                foreach (var g in gsSlow.Split(','))
+                {
+                    var gg = g.Split('-');   // başEğim-sonEğim
+                    TrackLibrary.SlowGrade[track] = ParseF(gg[0]);
+                    if (gg.Length > 1) TrackLibrary.SlowGradeEnd[track] = ParseF(gg[1]);
+                    sb.AppendLine(" yavaşlama eğimi " + g);
+                    LadderRun(sb, track, sets);
+                }
+            else if (wsweep != null)
+            {
+                var f = wsweep.Split(':');
+                int gi = int.Parse(f[0]);
+                foreach (var w in f[1].Split(','))
+                {
+                    Gaps(track)[gi] = new Vector2(ParseF(w), Gaps(track)[gi].y);
+                    sb.AppendLine(" vadi " + gi + " genişlik " + w);
+                    LadderRun(sb, track, sets);
+                }
+            }
+            else if (gsweep != null)
+                foreach (var g in gsweep.Split(','))
+                {
+                    float v = ParseF(g);
+                    if (track == 0) TrackLibrary.MeadowGrade = v;
+                    else if (track == 1) TrackLibrary.ForestGrade = v;
+                    else if (track == 2) TrackLibrary.CanyonGrade = v;
+                    else TrackLibrary.SnowGrade = v;
+                    sb.AppendLine(" eğim " + g);
+                    LadderRun(sb, track, sets);
+                }
+            else if (mnets != null)
+                foreach (var n in mnets.Split(','))
+                {
+                    TrackLibrary.MeadowNet = ParseF(n);
+                    sb.AppendLine(" çayır net " + n);
+                    LadderRun(sb, track, sets);
+                }
+            else if (sweep == null) LadderRun(sb, track, sets);
             else
             {
                 var f = sweep.Split(':');
@@ -203,15 +290,66 @@ namespace SledSurfers.EditorTools
             Debug.Log(sb.ToString());
         }
 
-        static Vector2[] Gaps(int track) => track == 3 ? TrackLibrary.SnowGaps : track == 2 ? TrackLibrary.CanyonGaps : TrackLibrary.ForestGaps;
+        /// Süzülme testi: dudaktan (6° yukarı, hız v) kalkan kızağın 15 m alçaktaki karşı kıyı hizasına inene kadar
+        /// aldığı yatay yol, kızak seviyesine ve hıza göre (vadi genişliklerini ayarlamak için).
+        [MenuItem("Sled Surfers/Süzülme Testi")]
+        public static void GlideTest()
+        {
+            float depth = 15f;
+            foreach (var arg in System.Environment.GetCommandLineArgs())
+                if (arg.StartsWith("depth=")) depth = ParseF(arg.Substring(6));
+            var sb = new StringBuilder("[SIM] Süzülme menzili (m): dudaktan " + depth + " m alçağa inene kadar" + System.Environment.NewLine);
+            var pts = new[] { new Vector2(-50f, 0f), new Vector2(0f, 0f), new Vector2(2f, -60f), new Vector2(600f, -60f) };
+            var track = new TrackProfile("Test", pts, 600f, 20f);
+            track.water.Add(new Vector3(0f, 600f, -60f));   // dudaktan sonrası vadi: sığ süzülme kuralı
+            sb.AppendLine("  kızak   16 m/s   20 m/s   24 m/s   28 m/s");
+            for (int k = 4; k <= 20; k++)
+            {
+                var line = new StringBuilder(string.Format("  {0,4}  ", k));
+                foreach (float v0 in new[] { 16f, 20f, 24f, 28f })
+                {
+                    var cfg = Upgrades.BuildConfig(new[] { 8, k, 8, 8, 0 });
+                    var sled = new SledPhysics(track, cfg);
+                    sled.position = new Vector3(0f, 0.3f, 0.5f);
+                    float a = 6f * Mathf.Deg2Rad;
+                    sled.velocity = new Vector3(0f, Mathf.Sin(a), Mathf.Cos(a)) * v0;
+                    sled.pitch = a;
+                    sled.grounded = false;
+                    sled.launching = false;
+                    float t = 0f;
+                    while (sled.position.y > -depth && t < 20f && sled.end == RunEnd.None)
+                    {
+                        sled.Step(0f, 0f, Dt);
+                        t += Dt;
+                    }
+                    line.Append(string.Format("{0,7:F0}  ", sled.position.z));
+                }
+                sb.AppendLine(line.ToString());
+            }
+            Debug.Log(sb.ToString());
+        }
+
+        static Vector2[] Gaps(int track) => track == 3 ? TrackLibrary.SnowGaps : track == 2 ? TrackLibrary.CanyonGaps
+                                          : track == 0 ? TrackLibrary.MeadowGaps : TrackLibrary.ForestGaps;
 
         static void LadderRun(StringBuilder sb, int track, string sets)
         {
             var t = TrackLibrary.Get(track);
+            // Yokuş payı: pistin ne kadarı tırmanış (eğim > %2), en yüksek tırmanış ve basamak sayısı
+            int upM = 0, all = 0;
+            for (float z = 0f; z < t.finishZ; z += 1f, all++) if (t.Slope(z) > 0.02f) upM++;
+            sb.AppendLine(string.Format("  yokuş %{0:F0}  ({1} m / {2} m)", 100f * upM / Mathf.Max(all, 1), upM, all));
+            sb.AppendLine("  roket tepeleri: " + string.Join(", ", t.rocketHills.ConvertAll(z => z.ToString("F0")))
+                          + "  ·  vadi/dere: " + string.Join(", ", t.water.ConvertAll(w => w.x.ToString("F0") + "-" + w.y.ToString("F0")))
+                          + "  ·  köprü: " + t.bridges.Count);
             foreach (var set in sets.Split(';'))
             {
-                var lv = System.Array.ConvertAll(set.Split('/'), int.Parse);
-                var r = Simulate(t, Upgrades.BuildConfig(lv));
+                // Sonda "-": aynı seviyeler kanatsız (vadinin kanatsız geçilemediğini sınamak için)
+                bool noWing = set.EndsWith("-");
+                var lv = System.Array.ConvertAll(set.TrimEnd('-').Split('/'), int.Parse);
+                var cfg = Upgrades.BuildConfig(lv);
+                if (noWing) { cfg.wingArea = 0f; cfg.wingMass = 0f; }
+                var r = Simulate(t, cfg);
                 sb.AppendLine(string.Format("  {0,-16} {1,6:F0} m  {2,4:F0} s  ort. {3,3:F0} km/sa  süt %{4,3:F0}  {5}", set, r.distance, r.time,
                                             r.distance / Mathf.Max(r.time, 0.1f) * 3.6f, r.fill * 100f, r.reason));
             }
@@ -341,6 +479,40 @@ namespace SledSurfers.EditorTools
             public float distance, fill, time;
             public RunEnd end;
             public string reason;
+        }
+
+        /// İnce köprü testi: her pistin köprüleri; en iyi kızak ilk köprüye otomatik pilotla gelir, tablada
+        /// direksiyonu sağa kırarsa (kısa / uzun) dereye düşmeli, hiç kırmazsa geçmeli.
+        public static void BridgeTest()
+        {
+            var sb = new StringBuilder("[SIM] Köprü testi" + System.Environment.NewLine);
+            for (int ti = 0; ti < TrackLibrary.Count; ti++)
+            {
+                var track = TrackLibrary.Get(ti);
+                sb.AppendLine("  " + track.name + ": " + track.bridges.Count + " köprü  "
+                              + string.Join(", ", track.bridges.ConvertAll(b => b.r0.ToString("F0") + "-" + b.r1.ToString("F0") + " (x " + b.x.ToString("F1") + ")")));
+                if (track.bridges.Count == 0) continue;
+                var br = track.bridges[0];
+                foreach (float hold in new[] { 0f, 0.15f, 0.5f })
+                {
+                    var cfg = Upgrades.BuildConfig(new[] { 20, 20, 12, 20, 20 });
+                    var sled = new SledPhysics(track, cfg);
+                    sled.PlaceForAim(1f);
+                    sled.Launch();
+                    float t = 0f, held = 0f, maxOff = 0f;
+                    while (sled.end == RunEnd.None && t < 600f && sled.position.z < br.z1 + 20f)
+                    {
+                        float steer = AutoPilot.Steer(track, sled);
+                        if (sled.position.z > br.r0 + 2f && held < hold) { steer = 1f; held += Dt; }
+                        sled.Step(steer, AutoPilot.Pitch(track, sled, cfg), Dt);
+                        if (sled.position.z > br.r0 && sled.position.z < br.r1) maxOff = Mathf.Max(maxOff, Mathf.Abs(sled.position.x - br.x));
+                        t += Dt;
+                    }
+                    sb.AppendLine(string.Format("    sağa {0:F2} s: z {1,6:F0}  tabladan en çok {2:F2} m  hız {3,4:F1}  {4}", hold, sled.position.z, maxOff,
+                                                sled.Speed, sled.end == RunEnd.None ? "geçti" : sled.endReason));
+                }
+            }
+            Debug.Log(sb.ToString());
         }
 
         static SimResult Simulate(TrackProfile track, SledConfig cfg)

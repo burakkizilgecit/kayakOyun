@@ -8,7 +8,7 @@ namespace SledSurfers
     public static class PartVisuals
     {
         public static readonly string[] SlingNames = { "Tahta Sapan", "Kırmızı Sapan", "Destekli Sapan", "Çelik Sapan", "Hidrolik Sapan", "Altın Sapan" };
-        public static readonly string[] SledNames = { "Sörf Kızağı", "İpli Kızak", "Gümüş Kayaklı", "Spoilerlı", "Kanatlı Kızak", "Jet Kanatlı" };
+        public static readonly string[] SledNames = { "Sörf Kızağı", "Kanatlı Kızak", "Gümüş Kanatlı", "Spoilerlı", "Mavi Kanatlı", "Jet Kanatlı" };   // kanat 5. seviyede gelir
         public static readonly string[] IncomeNames = { "Kumbara", "Cüzdan", "Para Kesesi", "Hazine Sandığı", "Kasa", "Altın Hazine" };
         public static readonly string[] RocketNames = { "Havai Fişek", "Mavi Roket", "İkiz Roket", "Jet Motoru", "Turbo Roket", "Altın Roket" };
 

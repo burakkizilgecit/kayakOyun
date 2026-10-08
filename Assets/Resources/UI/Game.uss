@@ -425,11 +425,12 @@
 .hub-shade-top { position: absolute; left: 0; right: 0; top: -200px; height: 640px; -unity-background-scale-mode: stretch-to-fill; }
 .hub-shade-bottom { position: absolute; left: 0; right: 0; bottom: -200px; height: 760px; -unity-background-scale-mode: stretch-to-fill; }
 .hub-ribbon {
-    height: 128px; padding: 6px 70px 0 70px; border-radius: 40px; justify-content: center; align-items: center;
+    padding: 12px 64px 6px 64px; border-radius: 40px; justify-content: center; align-items: center;
     border-width: 5px; border-bottom-width: 14px; border-color: #FFFFFF; -unity-background-scale-mode: stretch-to-fill;
 }
-.hub-ribbon-text { font-size: 98px; color: #FFFFFF; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf");
-                   -unity-text-outline-width: 4px; -unity-text-outline-color: rgba(30, 24, 48, 0.55); margin-bottom: -14px; }
+/* Baloo'nun satır kutusu harflerden çok uzun: üst/alt boşluk kırpılır, kurdele yazıya göre boylanır (Ç'nin çengeli dahil). */
+.hub-ribbon-text { font-size: 84px; color: #FFFFFF; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf");
+                   -unity-text-outline-width: 4px; -unity-text-outline-color: rgba(30, 24, 48, 0.55); margin-top: -20px; margin-bottom: -18px; }
 .hub-sub { font-size: 34px; color: #FFFFFF; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); margin-top: 18px;
            -unity-text-outline-width: 3px; -unity-text-outline-color: rgba(30, 24, 48, 0.6); }
 .hub-bar {

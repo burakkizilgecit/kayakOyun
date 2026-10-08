@@ -100,7 +100,7 @@ namespace SledSurfers
         public void PlantFlag(Vector3 groundPos, int meters)
         {
             stopFlag.position = groundPos;
-            stopText.text = meters + " m";
+            stopText.text = TrackLibrary.Show(meters) + " m";
             stopFlag.localScale = Vector3.zero;
             stopFlag.gameObject.SetActive(true);
             stopClock = 0f;
@@ -153,7 +153,7 @@ namespace SledSurfers
             float z = meters;
             float x = track.CenterX(z) - track.halfWidth - 0.6f;
             bestFlag.position = new Vector3(x, track.Height(x, z), z);
-            bestText.text = "REKOR " + meters + " m";
+            bestText.text = "REKOR " + TrackLibrary.Show(meters) + " m";
         }
 
         /// attachPoint: lastiğin kızağa bağlandığı nokta. Kızak bırakılınca lastik (kütleli bir yay gibi)
@@ -177,7 +177,7 @@ namespace SledSurfers
             pouchAttached = attached;
 
             // Gerildikçe lastik incelir ve kızarır.
-            float stretch = Mathf.Clamp01((Vector3.Distance(pouchPos, rest) - 0.3f) / 6f);
+            float stretch = Mathf.Clamp01((Vector3.Distance(pouchPos, rest) - 0.3f) / SledConfig.SlingStretch);
             sling.Update(pouchPos, stretch, Color.Lerp(bandBase, new Color(0.95f, 0.2f, 0.12f), stretch), bandThickness);
         }
 

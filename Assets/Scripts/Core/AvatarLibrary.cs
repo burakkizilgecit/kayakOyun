@@ -20,12 +20,20 @@ namespace SledSurfers
             new Info { name = "Bjorn", model = "Viking_Male", perkTitle = "Güçlü kollar", perkText = "Sapan çıkışı %4 daha hızlı", perk = Perk.Sling, price = 15 },
             new Info { name = "Tex", model = "Cowboy_Male", perkTitle = "Kement", perkText = "Coin toplama alanı %40 daha geniş", perk = Perk.Magnet, price = 15 },
             new Info { name = "Kage", model = "Ninja_Female", perkTitle = "Hafif ayak", perkText = "Kızak sürtünmesi %5 daha az", perk = Perk.Friction, price = 20 },
-            new Info { name = "Şef Ayşe", model = "Chef_Female", perkTitle = "Usta eller", perkText = "Kapak 100 m yerine 130 m'de açılır", perk = Perk.Lid, price = 20 },
+            new Info { name = "Şef Ayşe", model = "Chef_Female", perkTitle = "Usta eller", perkText = "Kapak %30 daha geç açılır", perk = Perk.Lid, price = 20 },
             new Info { name = "Zombi Zeki", model = "Zombie_Male", perkTitle = "Sandık avcısı", perkText = "Sandık ödülleri %25 daha büyük", perk = Perk.Chest, price = 20 },
             new Info { name = "Çavuş Defne", model = "Soldier_Female", perkTitle = "Yakıt ustası", perkText = "Roket itişi %10 daha güçlü", perk = Perk.Rocket, price = 25 },
             new Info { name = "Altın Şövalye", model = "Knight_Golden_Male", perkTitle = "Zırh", perkText = "Sert inişlere %15 daha dayanıklı", perk = Perk.Armor, price = 25 },
             new Info { name = "Bay Kemal", model = "Suit_Male", perkTitle = "Yatırımcı", perkText = "Coin kazancı %10 daha fazla", perk = Perk.Income, price = 30 },
             new Info { name = "Büyücü Merlin", model = "Wizard", perkTitle = "Büyülü kanat", perkText = "Süzülürken kaldırma %8 daha fazla", perk = Perk.Glide, price = 35 },
+            // Yeni çizimlerden (Meshy ile 3D) gelen karakterler: deneme — kadro ve avantajlar sonra kesinleşecek.
+            new Info { name = "Şef Ali", model = "Meshy/Chef", perkTitle = "Usta eller", perkText = "Kapak %30 daha geç açılır", perk = Perk.Lid, price = 20 },
+            new Info { name = "Panda Pofuduk", model = "Meshy/Panda", perkTitle = "Tombul denge", perkText = "Süt %10 daha az çalkalanır", perk = Perk.Slosh, price = 20 },
+            new Info { name = "Şövalye Arda", model = "Meshy/Knight", perkTitle = "Zırh", perkText = "Sert inişlere %15 daha dayanıklı", perk = Perk.Armor, price = 25 },
+            new Info { name = "Robot Tıkır", model = "Meshy/Robot", perkTitle = "Yağlı dişliler", perkText = "Kızak sürtünmesi %5 daha az", perk = Perk.Friction, price = 20 },
+            new Info { name = "Büyücü Lila", model = "Meshy/Wizard", perkTitle = "Büyülü kanat", perkText = "Süzülürken kaldırma %8 daha fazla", perk = Perk.Glide, price = 30 },
+            new Info { name = "Kaptan Kanca", model = "Meshy/Pirate", perkTitle = "Hazine avcısı", perkText = "Sandık ödülleri %25 daha büyük", perk = Perk.Chest, price = 20 },
+            new Info { name = "Kovboy Rüzgar", model = "Meshy/Cowboy", perkTitle = "Kement", perkText = "Coin toplama alanı %40 daha geniş", perk = Perk.Magnet, price = 15 },
         };
 
         public static int Count => All.Length;

@@ -19,14 +19,14 @@ namespace SledSurfers
         public static readonly string[] Descriptions =
         {
             "Daha sert lastik, daha hızlı çıkış",
-            "Daha az sürtünme · 4. seviyede kanat",
+            "Daha az sürtünme · 5. seviyede kanat, 16'da büyük kanat",
             "Her seviye yeni bardak: süt daha zor dökülür",
             "Her atışta daha çok coin",
             "Koşuda bir kez dokun: güçlü itiş · her seviye daha güçlü",
         };
 
         /// Kızağın ana seviyelerinde gelen görünüm (seviye bitince).
-        public static readonly string[] RunnerStageNames = { "Tutma ipi", "Gümüş kayaklar", "Arka tampon kanadı", "Küçük kanatlar", "Büyük kanatlar" };
+        public static readonly string[] RunnerStageNames = { "Tutma ipi", "Gümüş kayaklar", "Arka tampon kanadı", "Büyük kanatlar", "Altın kanatlar" };
 
         /// Açılmış en ileri parkura göre en yüksek kademe: 20 kademenin tamamı baştan açıktır (kullanıcı kararı).
         /// Fiyat eğrisi için Çayır kademeleri ilk 8 sayılır.
@@ -47,15 +47,25 @@ namespace SledSurfers
         // Kademe başına değerler (0..20). Çayır'ın sonu (8) önceki dengedeki Çayır maksimumuyla aynı güçtedir.
         static readonly float[] slingFactor =
             { 1f, 1.5f, 2f, 2.5f, 3f, 3.5f, 4f, 4.5f, 5f, 5.25f, 5.5f, 5.75f, 6f, 6.25f, 6.5f, 6.75f, 7f, 7.5f, 8f, 8.5f, 9f };
-        // Zemin sürtünmesi (patika; çimen x1.5, buz x0.25). 2026-10-06: kullanıcı isteğiyle tümü yüzde 20 artırıldı.
-        static readonly float[] runnerFriction =
-            { 0.1656f, 0.144f, 0.1248f, 0.108f, 0.0936f, 0.0816f, 0.0708f, 0.0624f, 0.0552f, 0.0528f, 0.0504f, 0.048f, 0.0456f,
-              0.0432f, 0.0408f, 0.0384f, 0.036f, 0.0336f, 0.0312f, 0.0288f, 0.0264f };
-        // Kanat: kızağın 4. seviyesinde (kademe 13-16) küçük, 5.'de (17-20) büyük.
-        static readonly float[] wingAreas =
-            { 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0.7f, 1.1f, 1.6f, 2f, 2.4f, 2.8f, 3.2f, 3.6f };
+        // Zemin sürtünmesi: toprak patika (çimen x1.2, buz x0.25). 2026-10-08 kullanıcı kararı: orta sürtünme
+        // (kızak tekerlekli gibi kaymasın, ama pistte bol yokuş kalsın); kızak geliştikçe ölçülü azalır,
+        // seviye başına 0.004 (0.25 → 0.17). Belirleyici olan sapanın verdiği hız, roket ve rota (su, çamur, çimen).
+        public static readonly float[] runnerFriction =
+            { 0.25f, 0.246f, 0.242f, 0.238f, 0.234f, 0.23f, 0.226f, 0.222f, 0.218f, 0.214f, 0.21f, 0.206f, 0.202f, 0.198f, 0.194f, 0.19f, 0.186f, 0.182f, 0.178f, 0.174f, 0.17f };
+        // Kanat (2026-10-08, kullanıcı kararı): kızağın 5. seviyesinde gelir, her seviyede büyür. Kural: vadi kanatsız
+        // geçilemez, süzülen kızak (sürtünmesiz) daha uzağa gider. 40 kg'ı 20 m/s'de taşımak ~2 m² ister: ilk kanat
+        // bile gerçekten süzülür (1.6 m²), büyüdükçe süzülme oranı ve hızı artar.
+        // 2026-10-08 kullanıcı kararı: kanat iki boy — küçük (Kızak 5-15) ve büyük (16-20); görünen boy eskisinin en
+        // fazla yarısı (WingSpan), taşıma gücü eski düzeyde kalır (alan 2.2 / 2.6 m²). Seviye farkı süzülme süresinden.
+        public static readonly float[] wingAreas =
+            { 0f, 0f, 0f, 0f, 0f, 2.2f, 2.2f, 2.2f, 2.2f, 2.2f, 2.2f, 2.2f, 2.2f, 2.2f, 2.2f, 2.2f, 2.6f, 2.6f, 2.6f, 2.6f, 2.6f };
         static readonly float[] wingMasses =
-            { 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 4f, 4f, 3.5f, 3f, 2.6f, 2.2f, 1.8f, 1.5f };
+            { 0f, 0f, 0f, 0f, 0f, 3f, 3f, 2.9f, 2.8f, 2.7f, 2.6f, 2.5f, 2.4f, 2.3f, 2.2f, 2.1f, 2f, 1.9f, 1.8f, 1.7f, 1.5f };
+        /// Kanadın geldiği ve büyüdüğü kızak seviyeleri.
+        public const int WingLevel = 5, BigWingLevel = 16;
+
+        /// Görünen kanadın bir tarafının boyu (m): küçük 0.85, büyük 1.18 (eski en uzun kanadın yarısı).
+        public static float WingSpan(int runnerLevel) => runnerLevel < WingLevel ? 0f : runnerLevel < BigWingLevel ? 0.85f : 1.18f;
 
         public static readonly string[] GlassNames = { "Plastik Bardak", "Kupa", "Termos", "Pipetli Şişe", "Uzay Bardağı" };
         // Her yeni bardak daha yüksek (ağza daha çok pay) ve daha sönümlü (çalkantı çabuk söner).
@@ -90,6 +100,13 @@ namespace SledSurfers
 
         public static float IncomeMultiplier(int level) => 1f + 0.125f * level;
 
+        /// Kanadın bir kalkışta taşıdığı süre: Kızak 5'te 1.5 s, her seviyede +0.35 s (Kızak 20: 6.75 s). Seviyeler
+        /// arası fark belirgin: her seviye vadide ~7 m daha ileri süzülür (vadiler seviye seviye kapı olur).
+        public static float GlideTime(int runnerLevel) => runnerLevel < WingLevel ? 0f : 1.5f + 0.35f * (runnerLevel - WingLevel);
+
+        public static float RocketThrust(int level) => 150f + 20f * level;
+        public static float RocketBurn(int level) => 0.8f + 0.03f * level;
+
         /// Tamamlanmış ana seviye sayısı (0..5): kızaktaki görünümü belirler.
         public static int Stage(int level) => level / StageSize;
 
@@ -104,6 +121,8 @@ namespace SledSurfers
             c.groundFriction = runnerFriction[ru];
             c.wingArea = wingAreas[ru];
             c.wingMass = wingMasses[ru];
+            c.wingSpan = WingSpan(ru);
+            c.glideTime = GlideTime(ru);
 
             int gl = levels[(int)UpgradeType.Glass];
             int g = GlassModel(gl);
@@ -115,8 +134,9 @@ namespace SledSurfers
             c.glassReflex = 0.4f + 0.35f * gl / Max;   // iyi bardak = daha kolay dengelenir
 
             int r = levels[(int)UpgradeType.Rocket];
-            c.rocketThrust = r == 0 ? 0f : 80f + 12f * r;
-            c.rocketBurn = r == 0 ? 0f : 0.6f + 0.035f * r;
+            // Sürtünmeli pistte roket belirleyici (kullanıcı kararı): 1. seviye ~+3 m/s, 8. ~+7.5, 16. ~+14, 20. ~+18 m/s.
+            c.rocketThrust = r == 0 ? 0f : RocketThrust(r);
+            c.rocketBurn = r == 0 ? 0f : RocketBurn(r);
             c.rocketCharges = r == 0 ? 0 : 1;   // her koşuda tek ateşleme (kullanıcı kararı); seviye itişi ve süreyi artırır
             c.slingStage = Stage(sl);
             c.runnerStage = Stage(ru);

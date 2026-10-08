@@ -30,6 +30,8 @@ namespace SledSurfers
         const float MaxPitch = 1.2f;     // rad
         const float WallSlope = 1.4f;    // ~55°, bundan dik yüzey duvardır
         const float HalfWidth = 0.38f;
+        /// Köprüden dereye düşme sonu (oyun su sıçratır).
+        public const string FellInCreek = "Dereye düştün!";
         const float HalfLength = 0.8f;
 
         public Vector3 position;
@@ -52,7 +54,11 @@ namespace SledSurfers
         public float rocketThrust, rocketBurn;   // takılı roket (havada alınan hak, roketsizse 1. seviye roket verir)
         public bool rocketPickupTaken;   // pistteki havada alınan roket hakkı alındı mı
         public bool RocketFiring => rocketTime > 0f && end == RunEnd.None;
-        public bool CanFireRocket => rocketCharges > 0 && rocketTime <= 0f && !launching && end == RunEnd.None;
+        public bool CanFireRocket => rocketCharges > 0 && rocketTime <= 0f && !launching && end == RunEnd.None
+                                     && !(pickupAwaitingLanding && rocketCharges <= 1);
+        /// Havada alınan roket hakkı ancak yere inince ateşlenebilir: vadinin üstünde ateşlenip her genişlikte vadiyi
+        /// geçirmesin (kanat seviyesi kapısı anlamlı kalsın).
+        public bool pickupAwaitingLanding;
 
         float bankRoll;                  // rad, yamaçta gövdenin yana yatışı (sağ taraf yukarı +)
         float stillTime;
@@ -134,7 +140,7 @@ namespace SledSurfers
 
             if (end == RunEnd.None)
             {
-                SideWalls();
+                OffTrack();
                 CheckObstacles();
                 CheckRocketPickup();
             }
@@ -179,6 +185,17 @@ namespace SledSurfers
 
             float mu = track.Friction(position.z, position.x, cfg.groundFriction);
             float friction = mu * normalAcc;
+            // Elle itme: tepeyi zar zor aşan kızak, sürtünme açısından yatık (~3-12°) inişte durup kalmasın; sürücü
+            // elleriyle iterek dik kısma kadar ağır ağır ilerler (net ileri ivme en az 0.3 m/s²).
+            // Yalnızca tepe aşıldıktan hemen sonra: 15 m içinde sürtünmeyi yenen dik bir yer varsa (oraya kadar itilir).
+            float downhill = Vector3.Dot(a, headDir);
+            if (!launching && speed < 2f && downhill > 0.5f)
+                for (float d = 3f; d <= 15f; d += 3f)
+                    if (-track.SlopeZ(position.x, position.z + d) > mu * 1.05f)
+                    {
+                        friction = Mathf.Min(friction, downhill - 0.3f);
+                        break;
+                    }
             if (speed < 0.05f)
             {
                 // Duruyor: itiş sürtünmeyi aşarsa harekete geçer.
@@ -209,11 +226,20 @@ namespace SledSurfers
             lean = Mathf.MoveTowards(lean, steer * 0.22f, 1.2f * dt);
 
             Vector3 next = position + v * dt;
+            // Köprü tablasından (ya da dere kıyısından) boşluğa kayan kızak havalanır ve dereye düşer.
+            if (track.OverRavine(next.x, next.z))
+            {
+                grounded = false;
+                airTime = 0f;
+                position = next;
+                velocity = v;
+                return;
+            }
             float slopeAhead = track.SlopeZ(next.x, next.z);
             if (v.z > 0f && slopeAhead > WallSlope)
             {
                 velocity = Vector3.zero;
-                ForceEnd(RunEnd.Crashed, "Duvara çarptın!");
+                ForceEnd(RunEnd.Crashed, InGap(position.z) ? "Vadiye düştün!" : "Duvara çarptın!");
                 return;
             }
 
@@ -228,6 +254,7 @@ namespace SledSurfers
             if (!hold && v.z > 2f && lift > normalAcc)
             {
                 grounded = false;
+                airTime = 0f;
                 position = next;
                 velocity = v;
                 return;
@@ -273,8 +300,27 @@ namespace SledSurfers
             bankRoll = Mathf.Atan(acrossSlope);
         }
 
+        /// Havada geçen süre (son kalkıştan beri). Kanat yalnızca GlideTime kadar taşır, sonra katlanır.
+        public float airTime;
+
+        /// Kanadın bir kalkışta taşıdığı süre: SledConfig.glideTime (Upgrades.GlideTime, kızak seviyesine göre).
+        /// Kullanıcı kararı: süzülme sınırlı — yoksa pist süzülme açısından dik inince kızak hiç inmeden sona kadar uçuyordu.
+        float GlideTime => cfg.glideTime;
+
+        /// Kanat taşıması 0..1: süre dolunca 1.5 s içinde %35'e iner (kanatlar kısmen katlanır): kızak burnunu
+        /// indirip dik (~30°) bir süzülmeyle yere döner; havada asılı kalamaz ama sert de çakılmaz.
+        public float WingLift => cfg.wingArea <= 0f ? 0f : grounded ? 1f
+            : Mathf.Max(0.35f, 1f - Mathf.Max(0f, airTime - GlideTime) / 1.5f);
+
+        /// Kanatlar tam açık mı (yerde her zaman; havada süre dolana kadar).
+        public bool WingsOpen => cfg.wingArea > 0f && (grounded || airTime < GlideTime);
+
         void StepAir(float steer, float pitchInput, float dt)
         {
+            airTime += dt;
+            bool wingsOpen = cfg.wingArea > 0f;   // kanat taşıması süreyle azalır (WingLift), kanat kapanmaz
+            float liftScale = WingLift;
+            float area = cfg.wingArea * liftScale;
             float m = cfg.TotalMass;
             Vector3 v = velocity;
             float speed = v.magnitude;
@@ -285,10 +331,26 @@ namespace SledSurfers
             if (Mathf.Abs(pitchInput) > 0.05f) pitch += pitchInput * PitchRate * dt;
             // Dokunulmazsa: kanatlı kızak kendiliğinden sabit bir süzülme yolu tutar (tırmanıp tutunmayı
             // kaybetmez); kanatsız kızak burnunu yavaşça uçuş yönüne çevirir.
-            else if (cfg.wingArea > 0f)
+            else if (wingsOpen)
             {
                 // Süzülme denetimi: ~14°'lik iniş yolunu tutar; tırmanırsa hücum açısını azaltır, fazla dalarsa artırır.
-                float glidePath = -Mathf.Atan(1f / (0.9f * MaxGlideRatio(cfg.wingArea)));
+                float glidePath = -Mathf.Atan(1f / (0.9f * MaxGlideRatio(cfg.wingArea) * liftScale));
+                // Arazi takibi: altındaki yamaç süzülme yolundan dikse (vadi/dere üstü hariç) kızak yamacı izler,
+                // birkaç metre yüksekte kalır; dik inişlerin üstünde yükselip sonra çakılmaz. Sığ süzülme
+                // (sürtünmesiz, uzağa taşır) yalnızca vadi ve derelerin üstünde.
+                if (!InGap(position.z) && !InGap(position.z + v.z * 0.8f))
+                {
+                    float above = position.y - track.Height(position.x, position.z);
+                    // Yamacın eğimini izler (0.5 s ileride), üstüne yüksekliğe orantılı dalış: yüksekteyken yere yaklaşır,
+                    // yere yakınken yamaca paralel uçup yumuşak değer; önde yokuş/düzlük varsa burun ona göre kalkar.
+                    if (above > 1.5f)
+                    {
+                        float slopeAhead = Mathf.Atan(track.SlopeZ(position.x, position.z + Mathf.Max(v.z, 0f) * 0.5f));
+                        // En az ~6°: yamacın birkaç metre üstünde asılı kalmasın (süzülme süresini boşa harcamasın), yumuşakça değsin.
+                        float dive = Mathf.Max(0.1f, Mathf.Atan((above - 1f) / Mathf.Max(10f, v.z * 1.5f)));
+                        glidePath = Mathf.Clamp(slopeAhead - dive, -1.2f, 0.3f);
+                    }
+                }
                 float alpha = Mathf.Clamp(0.12f + 1.5f * (glidePath - gamma), 0f, 0.24f);
                 pitch = Mathf.MoveTowards(pitch, gamma + alpha, 1.5f * dt);
             }
@@ -296,9 +358,9 @@ namespace SledSurfers
             pitch = Mathf.Clamp(pitch, -MaxPitch, MaxPitch);
             // Kanatlı kızak (kuyruklu planör gibi) kendini akışa hizalar: burun akışın
             // altına bastırılamaz, böylece eksi g oluşmaz; en fazla ~25° kabartılabilir.
-            if (cfg.wingArea > 0f) pitch = Mathf.Clamp(pitch, gamma, gamma + 0.45f);
+            if (wingsOpen) pitch = Mathf.Clamp(pitch, gamma, gamma + 0.45f);
 
-            if (cfg.wingArea > 0f)
+            if (wingsOpen)
             {
                 float vzy = Mathf.Sqrt(v.y * v.y + v.z * v.z);
                 if (vzy > 1f)
@@ -310,7 +372,7 @@ namespace SledSurfers
                     float cd = WingCd0(cfg.wingArea) + cl * cl / (Mathf.PI * AspectRatio(cfg.wingArea) * 0.8f);
                     var liftDir = new Vector3(0f, v.z, -v.y) / vzy;
                     var dragDir = new Vector3(0f, v.y, v.z) / vzy;
-                    a += q * cfg.wingArea / m * (cl * liftDir - cd * dragDir);
+                    a += q * cfg.wingArea / m * (cl * liftScale * liftDir - cd * dragDir);
                 }
             }
 
@@ -320,8 +382,11 @@ namespace SledSurfers
                 rocketTime -= dt;
             }
 
-            a.x += steer * (1.5f + cfg.wingArea * 1.2f);
-            lean = Mathf.MoveTowards(lean, steer * 0.35f, 1.5f * dt);
+            // Havada yana itiş; gövde uçak gibi dönüşe yatar (koordineli dönüş): hissedilen ivme bardağın dibine
+            // doğru kalır, süt yana dökülmez.
+            float steerAcc = steer * (1.5f + area * 0.8f);
+            a.x += steerAcc;
+            lean = Mathf.MoveTowards(lean, Mathf.Atan2(steerAcc, Gravity), 3f * dt);
 
             velocity += a * dt;
             position += velocity * dt;
@@ -329,6 +394,15 @@ namespace SledSurfers
             bankRoll = Mathf.MoveTowards(bankRoll, 0f, 1.5f * dt);
 
             float ground = track.Height(position.x, position.z);
+            // Tabladan düşüp altına girmiş kızak tablaya alttan konamaz: zemini derenin kendisidir.
+            bool underDeck = track.OnDeck(position.x, position.z) && position.y < ground - 0.3f;
+            if (underDeck) ground = track.TerrainHeight(position.x, position.z);
+            if ((underDeck || track.OverRavine(position.x, position.z)) && position.y <= ground + 0.9f)
+            {
+                velocity = Vector3.zero;
+                ForceEnd(RunEnd.Crashed, FellInCreek);
+                return;
+            }
             if (position.y <= ground) Land(ground);
         }
 
@@ -343,8 +417,16 @@ namespace SledSurfers
             return Mathf.Sign(alpha) * peak * Mathf.Max(0.35f, 1f - (abs - stall) * 3f);
         }
 
+        /// Vadi/dere tabanında mı (track.water: x..y = suyun z aralığı)?
+        bool InGap(float z)
+        {
+            foreach (var w in track.water) if (z > w.x - 3f && z < w.y + 3f) return true;
+            return false;
+        }
+
         void Land(float ground)
         {
+            pickupAwaitingLanding = false;
             Vector3 n = track.Normal(position.x, position.z);
             float vn = Vector3.Dot(velocity, n);   // yüzeye dik (eksi = çarpma)
             float impact = -vn;
@@ -356,7 +438,7 @@ namespace SledSurfers
             if (impact > cfg.crashImpact)
             {
                 velocity = Vector3.zero;
-                ForceEnd(RunEnd.Crashed, slope > WallSlope ? "Duvara çarptın!" : "Çok sert indin!");
+                ForceEnd(RunEnd.Crashed, InGap(position.z) ? "Vadiye düştün!" : slope > WallSlope ? "Duvara çarptın!" : "Çok sert indin!");
                 return;
             }
 
@@ -387,20 +469,16 @@ namespace SledSurfers
             if ((position + new Vector3(0f, 0.6f, 0f) - track.rocketPickup).sqrMagnitude > r * r) return;
             rocketPickupTaken = true;
             rocketCharges++;
-            if (rocketThrust <= 0f) { rocketThrust = 92f; rocketBurn = 0.635f; }   // roketsiz kızağa 1. seviye roket
+            if (!grounded) pickupAwaitingLanding = true;
+            if (rocketThrust <= 0f) { rocketThrust = Upgrades.RocketThrust(1); rocketBurn = Upgrades.RocketBurn(1); }   // roketsiz kızağa 1. seviye roket
         }
 
-        void SideWalls()
+        /// Yan yamaçta görünmez duvar yok: yamacın tepesini aşıp pistin dışına çıkan kızak orada düşer
+        /// (kullanıcı kararı 2026-10-08). Tepeye çıkmak için yamaca hızla, dik açıyla sürmek gerekir.
+        void OffTrack()
         {
-            // Yamacın en dik yerinden öteye çıkılmaz (vadi eksenine göre).
-            float center = track.CenterX(position.z);
-            float limit = track.halfWidth + TrackProfile.BankLimit - HalfWidth;
-            float dx = position.x - center;
-            if (Mathf.Abs(dx) <= limit) return;
-            float side = Mathf.Sign(dx);
-            position.x = center + side * limit;
-            position.y = Mathf.Max(position.y, track.Height(position.x, position.z));
-            if (velocity.x * side > 0f) velocity.x = -velocity.x * 0.3f;
+            float dx = Mathf.Abs(position.x - track.CenterX(position.z)) - track.halfWidth;
+            if (dx > TrackProfile.BankRim) ForceEnd(RunEnd.Crashed, "Pistten çıktın!");
         }
 
         void CheckObstacles()

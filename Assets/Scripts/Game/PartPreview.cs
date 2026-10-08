@@ -151,8 +151,8 @@ namespace SledSurfers
             if (cfg.wingArea > 0f)
             {
                 const float chord = 0.55f;
-                float span = cfg.wingArea / (2f * chord);
-                int ws = stage >= 5 ? 2 : 1;
+                float span = cfg.wingSpan;
+                int ws = stage >= 5 ? 2 : stage >= 4 ? 1 : 0;   // RiderView ile aynı: beyaz, 16 mavi, 20 altın
                 var body = Mats.Solid(RiderView.WingColors[ws], 0.3f);
                 for (int s = -1; s <= 1; s += 2)
                 {

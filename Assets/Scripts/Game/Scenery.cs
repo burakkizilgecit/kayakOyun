@@ -271,7 +271,7 @@ namespace SledSurfers
         // Arazi sütunları: yamacın tepesinden (BankTop) dışarı doğru uzaklıklar.
         static readonly float[] Cols = { -0.6f, 2f, 5f, 9f, 14f, 21f, 30f, 42f, 58f, 78f, 102f, 130f, 165f, 210f };
         /// Vadi mesh'inin yamaçta kapladığı genişlik (taban kenarından); ötesini arazi devralır.
-        const float BankTop = 10f;
+        const float BankTop = TrackProfile.BankRim;
         // Vadi kesiti: tabandan yamaç tepesine sütunlar (taban kenarından uzaklık; eksi = taban içi)
         // Taban içi ~1,1 m aralıklı: yana kaymış tümsekler fizikteki yüzeyle aynı görünsün.
         static readonly float[] ValleyCols = { -6.5f, -5.4f, -4.3f, -3.2f, -2.2f, -1.1f, 0f, 0.8f, 1.7f, 2.7f, 3.8f, 5f, 6.3f, 8f, 10f };
@@ -303,6 +303,7 @@ namespace SledSurfers
             BuildSurfaces();
             BuildTerrain();
             BuildWater();
+            BuildBridges();
             BuildVegetation();
             BuildObstacles();
             BuildStartArea();
@@ -389,7 +390,7 @@ namespace SledSurfers
                         float off = ValleyCols[j];
                         float x = c + side * (hw + off);
                         if (j == 0) x = c + side * 0f;   // orta çizgi
-                        verts.Add(new Vector3(x, track.Height(x, z), z));
+                        verts.Add(new Vector3(x, track.TerrainHeight(x, z), z));
                         uvs.Add(new Vector2(x * 0.4f, z * 0.4f));
                     }
                     if (z > c0)
@@ -440,7 +441,7 @@ namespace SledSurfers
                     for (int k = 0; k <= PathSegs; k++)
                     {
                         float x = Mathf.Lerp(xa, xb, k / (float)PathSegs);
-                        verts.Add(new Vector3(x, track.Height(x, z) + 0.025f, z));
+                        verts.Add(new Vector3(x, track.TerrainHeight(x, z) + 0.025f, z));
                         uvs.Add(new Vector2(x * 0.3f, z * 0.3f));
                     }
                     if (verts.Count >= 2 * (PathSegs + 1))
@@ -599,7 +600,7 @@ namespace SledSurfers
         {
             float z = zone.cz + u * zone.rz;
             float x = (zone.onPath ? track.PathX(z) : track.CenterX(z)) + zone.cx + v * zone.rx;
-            return new Vector3(x, track.Height(x, z) + lift, z);
+            return new Vector3(x, track.TerrainHeight(x, z) + lift, z);
         }
 
         void SurfaceMesh(List<Vector3> verts, List<int> tris, Material mat, string name, List<Vector2> localUV = null)
@@ -823,6 +824,51 @@ namespace SledSurfers
                         TryPlant(side, BankTop + 1f + Mathf.Pow(R(), 1.4f) * 52f, z + R(0f, theme.midStep), theme.mid, theme.midHeight, true);
                 for (float z = z0; z < z1; z += theme.farStep)
                     TryPlant(side, R(60f, 205f), z + R(0f, theme.farStep), theme.far, theme.farHeight, true);
+            }
+        }
+
+        /// İnce tahta köprüler: enine tahtalar, altında iki kiriş, dereye inen direkler; girişte ve çıkışta kısa
+        /// direkler (kızağı hizalamak için işaret). Tablanın üstü fizikteki tabla yüksekliğindedir.
+        void BuildBridges()
+        {
+            if (track.bridges.Count == 0) return;
+            var plankA = Mats.Solid(new Color(0.64f, 0.44f, 0.25f), 0.12f);
+            var plankB = Mats.Solid(new Color(0.55f, 0.36f, 0.2f), 0.12f);
+            var beam = Mats.Solid(new Color(0.38f, 0.25f, 0.14f), 0.1f);
+            float hwB = TrackProfile.BridgeHalfWidth;
+            foreach (var b in track.bridges)
+            {
+                var go = new GameObject("Bridge").transform;
+                go.SetParent(root, false);
+                float span = b.z1 - b.z0, len = span + 0.4f;
+                go.localPosition = new Vector3(b.x, (b.y0 + b.y1) * 0.5f, (b.z0 + b.z1) * 0.5f);
+                go.localRotation = Quaternion.Euler(Mathf.Atan2(b.y0 - b.y1, span) * Mathf.Rad2Deg, 0f, 0f);
+                int n = Mathf.RoundToInt(len / 0.34f);
+                for (int k = 0; k < n; k++)
+                {
+                    float lz = -len * 0.5f + (k + 0.5f) * len / n;
+                    Mats.Prim(PrimitiveType.Cube, "Plank", go, new Vector3(R(-0.03f, 0.03f), -0.05f, lz),
+                              new Vector3(hwB * 2f + R(-0.04f, 0.1f), 0.07f, 0.29f), k % 2 == 0 ? plankA : plankB,
+                              Quaternion.Euler(0f, R(-2.5f, 2.5f), 0f));
+                }
+                for (int s = -1; s <= 1; s += 2)
+                {
+                    Mats.Prim(PrimitiveType.Cube, "Beam", go, new Vector3(s * (hwB - 0.14f), -0.17f, 0f), new Vector3(0.14f, 0.16f, len), beam);
+                    // Giriş ve çıkış direkleri
+                    foreach (float ez in new[] { -len * 0.5f + 0.1f, len * 0.5f - 0.1f })
+                        Mats.Prim(PrimitiveType.Cylinder, "EndPost", go, new Vector3(s * (hwB + 0.12f), 0.3f, ez), new Vector3(0.13f, 0.45f, 0.13f), beam);
+                }
+                // Direkler: kıyı üstünde (tabla yuvarlanan dudağın üstünden geçer), derenin iki duvarında ve ortada
+                foreach (float z in new[] { b.z0 + 1f, b.r0 + 0.4f, (b.r0 + b.r1) * 0.5f, b.r1 - 0.4f, b.z1 - 1f })
+                {
+                    float top = TrackProfile.DeckHeight(b, z) - 0.2f, floor = track.TerrainHeight(b.x, z) - 0.3f;
+                    if (top - floor < 0.3f) continue;
+                    for (int s = -1; s <= 1; s += 2)
+                    {
+                        var post = Mats.Prim(PrimitiveType.Cylinder, "Post", root, Vector3.zero, Vector3.one, beam);
+                        Mats.PlaceBetween(post, new Vector3(b.x + s * (hwB - 0.14f), floor, z), new Vector3(b.x + s * (hwB - 0.14f), top, z), 0.16f);
+                    }
+                }
             }
         }
 

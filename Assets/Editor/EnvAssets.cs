@@ -8,11 +8,25 @@ namespace SledSurfers.EditorTools
     public class EnvModelImport : AssetPostprocessor
     {
         // Ayarlar değişince modellerin yeniden içe aktarılması için sürüm artırılır.
-        public override uint GetVersion() => 2;
+        public override uint GetVersion() => 3;
+
+        void OnPreprocessTexture()
+        {
+            // Meshy karakter dokuları 2K geliyor: telefonda kızaktaki küçük karakter için 1K yeterli.
+            var tex = (TextureImporter)assetImporter;
+            if (assetPath.Contains("/Resources/Avatars/Portraits/"))
+            {
+                // Portreler arayüzde: mipmap kenarları koyulaştırmasın, saydam kenar rengi doğru olsun.
+                tex.mipmapEnabled = false;
+                tex.alphaIsTransparency = true;
+                return;
+            }
+            if (assetPath.Contains("/Resources/Avatars/Meshy/")) tex.maxTextureSize = 1024;
+        }
 
         void OnPreprocessModel()
         {
-            if (assetPath.Contains("/Resources/Avatars/"))
+            if (assetPath.Contains("/Resources/Avatars/") || assetPath.Contains("/Art/Meshy/"))
             {
                 // Karakterler: iskelet + animasyonlar. Legacy olmalı: Generic klipler build'de
                 // Animator olmadan örneklenemiyor; oturma pozu ise çalışma anında örneklenir.

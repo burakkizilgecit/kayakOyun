@@ -11,6 +11,7 @@ namespace SledSurfers.EditorTools
         {
             UiAssets.Ensure();
             EnvAssets.Ensure();
+            AvatarAssets.Ensure();
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
                 scenes = new[] { "Assets/Scenes/Main.unity" },

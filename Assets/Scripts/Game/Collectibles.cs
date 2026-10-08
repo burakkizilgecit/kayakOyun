@@ -67,9 +67,21 @@ namespace SledSurfers
                 z += length;
             }
 
-            // 2) Çukurların üstünde yay: atlayan kızağın yoluna benzer; tepesinde pembe elmas.
+            // 2) Köprülerin tablası boyunca coin sırası (ortada pembe elmas): düz ve tam ortadan geçmenin ödülü.
+            foreach (var b in track.bridges)
+            {
+                int n = Mathf.Max(3, Mathf.RoundToInt((b.r1 - b.r0) / 2.2f));
+                for (int i = 0; i <= n; i++)
+                {
+                    float zz = Mathf.Lerp(b.r0, b.r1, (float)i / n);
+                    Add(new Vector3(b.x, TrackProfile.DeckHeight(b, zz) + 0.8f, zz), i == n / 2);
+                }
+            }
+
+            // 3) Köprüsüz çukurların üstünde yay: atlayan kızağın yoluna benzer; tepesinde pembe elmas.
             foreach (var w in track.water)
             {
+                if (track.BridgeAt((w.x + w.y) * 0.5f, out _)) continue;
                 float z0 = w.x - 2f, z1 = w.y + 2f;
                 float width = z1 - z0;
                 float lift = Mathf.Clamp(width * 0.12f, 2.5f, 14f);
@@ -84,7 +96,7 @@ namespace SledSurfers
                 }
             }
 
-            // 3) Pistin zor kısımlarında birer elmas (iyi atışların ödülü).
+            // 4) Pistin zor kısımlarında birer elmas (iyi atışların ödülü).
             foreach (float f in new[] { 0.45f, 0.82f })
             {
                 float z = track.finishZ * f;
@@ -116,7 +128,7 @@ namespace SledSurfers
 
         void Spawn()
         {
-            var coinPrefab = Resources.Load<GameObject>("Env/Platformer/coin-gold");
+            GameObject coinPrefab = null;   // coinler CoinModel ile kurulur (hazır model çok kalın duruyordu)
             var gemPrefab = Resources.Load<GameObject>("Env/Platformer/jewel");
             var gemMat = Mats.Solid(new Color(1f, 0.38f, 0.78f), 0.85f);
             gemMat.EnableKeyword("_EMISSION");
@@ -140,6 +152,13 @@ namespace SledSurfers
                     go.transform.localPosition = -b.center * s;
                     if (it.gem)
                         foreach (var r in go.GetComponentsInChildren<Renderer>()) r.sharedMaterial = gemMat;
+                    go = holder.gameObject;
+                }
+                else if (!it.gem)
+                {
+                    var holder = new GameObject("Coin").transform;
+                    holder.SetParent(root, false);
+                    CoinModel.Create(holder, CoinSize);
                     go = holder.gameObject;
                 }
                 else

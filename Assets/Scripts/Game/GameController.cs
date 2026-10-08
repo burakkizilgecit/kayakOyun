@@ -70,6 +70,8 @@ namespace SledSurfers
 
         // Otomatik ekran görüntüsü testi: kızağı ve bardağı otomatik oyuncu sürer.
         public bool debugAutopilot;
+        /// Otomatik pilotun direksiyonunu ezer (NaN: kapalı) — köprüden düşme çekimi için.
+        public float debugSteer = float.NaN;
         readonly AutoPilot pilot = new AutoPilot();
 
         void Awake()
@@ -153,6 +155,20 @@ namespace SledSurfers
             return -1f;
         }
 
+        /// after'dan sonraki ilk tepe (hemen ardından dik iniş: eğim −0.45'ten dik); yoksa -1.
+        public float DebugCrestZ(float after)
+        {
+            if (track == null) return -1f;
+            for (float z = after; z < track.finishZ - 50f; z += 1f)
+                if (track.Slope(z) >= 0f && track.Slope(z + 1f) < 0f)
+                    for (float d = 2f; d <= 18f; d += 2f)
+                        if (track.Slope(z + d) < -0.45f) return z;
+            return -1f;
+        }
+
+        /// i. vadinin (su) başladığı z; yoksa -1.
+        public float DebugGapZ(int i) => track != null && i < track.water.Count ? track.water[i].x : -1f;
+
         /// 300 m'den sonraki ilk verilen türde yüzey lekesinin başladığı z; yoksa -1.
         public float DebugSurfaceZ(Surface type)
         {
@@ -172,6 +188,7 @@ namespace SledSurfers
             EnterHub();
         }
         public float DebugDistance => sled.maxDistance;
+        public bool DebugRunning => state == State.Run && sled.end == RunEnd.None;
 
         public void DebugReset(int[] levels, int money)
         {
@@ -381,6 +398,11 @@ namespace SledSurfers
                 // Karakter kızaktan fırlar, yuvarlanır, ayağa kalkıp "Tekrar deneyelim!" der: sonuç kartı bekler.
                 rider.Crash(preCrashVelocity);
                 resultDelay = 4.8f;
+                if (sled.endReason == SledPhysics.FellInCreek)
+                {
+                    rider.Splash(1f, true);   // dereye düşüş: büyük sıçrama
+                    sfx.Splash(1.4f);
+                }
             }
             pendingResult = new RunSummary
             {
@@ -577,7 +599,8 @@ namespace SledSurfers
                 {
                     pilot.StepGlass(sled, PhysicsStep);
                     if (AutoPilot.ShouldFire(track, sled, cfg)) TryFireRocket();
-                    sled.Step(AutoPilot.Steer(track, sled), AutoPilot.Pitch(track, sled, cfg), PhysicsStep);
+                    float st = float.IsNaN(debugSteer) ? AutoPilot.Steer(track, sled) : debugSteer;
+                    sled.Step(st, AutoPilot.Pitch(track, sled, cfg), PhysicsStep);
                 }
                 else sled.Step(input.steer, input.pitch, PhysicsStep);
                 liquid.lidClosed = sled.position.z < cfg.lidDistance;
@@ -682,7 +705,7 @@ namespace SledSurfers
                 // Dikey ekranda yatay görüş dar (~31°): kanatlar büyüdükçe kamera geri çekilir.
                 bool closeUp = ui != null && ui.Current == GameUI.Page.Avatars;
                 float a = 0.35f * Mathf.Sin(orbit * 0.3f);
-                float radius = closeUp ? 3.6f : 5.4f + 0.8f * cfg.wingArea;
+                float radius = closeUp ? 3.6f : 5.4f + 1.2f * cfg.wingSpan;
                 Vector3 center = p + new Vector3(0f, 0.7f, 0f);
                 look = center + new Vector3(0f, closeUp ? -0.5f : -0.35f, 0f);
                 return center + new Vector3(Mathf.Sin(a) * radius, 1.2f, Mathf.Cos(a) * radius);
@@ -707,8 +730,31 @@ namespace SledSurfers
             float c = track.CenterX(p.z);
             float bend = (track.CenterX(p.z + 6f) - track.CenterX(p.z - 6f)) / 12f;
             float lateral = (p.x - c) * 0.85f;   // yamaca çıkan kızak ekranın ortasına yakın kalsın
-            look = new Vector3(c + bend * 7f + lateral, p.y + 1f, p.z + 7f);
-            return new Vector3(c - bend * 8f + lateral, p.y + 3.0f, p.z - 8f);
+            float lookX = c + bend * 7f + lateral;
+            // İnişte bakış biraz aşağı: yamaç yukarıdan okunsun (ileri zeminle kızak arası).
+            // Vadinin üstünde (zemin çok aşağıda) kamera suya dönmesin: bakış kızağın en çok 1.5 m altına iner.
+            float lookY = Mathf.Max(Mathf.Lerp(p.y + 1f, track.Height(lookX, p.z + 7f) + 1.2f, 0.5f), p.y - 1.5f);
+            look = new Vector3(lookX, lookY, p.z + 7f);
+            var camPos = new Vector3(c - bend * 8f + lateral, p.y + 3.0f, p.z - 8f);
+            camPos.y = AboveGround(camPos, p + new Vector3(0f, 0.8f, 0f));
+            return camPos;
+        }
+
+        /// Kameranın yüksekliği: kendi altındaki zeminden en az 2 m yukarıda ve kızağa bakan görüş çizgisi araziye
+        /// girmeyecek kadar yüksek (tepe aşılıp inişe geçilince kamera arkadaki yamacın içinde kalıyordu: yol alttan
+        /// şeffaf görünüyordu).
+        float AboveGround(Vector3 camPos, Vector3 target)
+        {
+            float y = Mathf.Max(camPos.y, track.Height(camPos.x, camPos.z) + 2f);
+            for (int i = 1; i <= 6; i++)
+            {
+                float u = i / 7f;
+                float qx = Mathf.Lerp(camPos.x, target.x, u), qz = Mathf.Lerp(camPos.z, target.z, u);
+                float need = track.Height(qx, qz) + 0.9f;
+                // Doğru üzerindeki nokta: y + u·(hedef − y) ≥ need  →  y ≥ (need − u·hedef) / (1 − u)
+                y = Mathf.Max(y, (need - u * target.y) / (1f - u));
+            }
+            return y;
         }
 
         void SnapCamera()
@@ -727,6 +773,9 @@ namespace SledSurfers
                          : state == State.Run ? Mathf.Lerp(1.2f, 6f, Mathf.Clamp01((sinceLaunch - 0.15f) / 0.6f)) : 3f;
             float k = 1f - Mathf.Exp(-follow * dt);
             Vector3 pos = Vector3.Lerp(cam.transform.position, target, k);
+            // Yumuşak takip geride kalsa da kamera zeminin altına inmez.
+            if (state == State.Run && !rider.Crashing && track != null)
+                pos.y = Mathf.Max(pos.y, track.Height(pos.x, pos.z) + 1.5f);
             cam.transform.position = pos;
             var rot = Quaternion.LookRotation(look - pos);
             cam.transform.rotation = Quaternion.Slerp(cam.transform.rotation, rot, 1f - Mathf.Exp(-8f * dt));
