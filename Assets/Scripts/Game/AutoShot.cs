@@ -359,12 +359,38 @@ namespace SledSurfers
                 yield return Shot("t" + tr + "_2fork_ahead");
                 while (!game.DebugInResult && game.DebugDistance < fz + 22f && t < 120f) { t += Time.deltaTime; yield return null; }
                 yield return Shot("t" + tr + "_3fork_in");
+                if (tr == 0)
+                {
+                    // Gerçek akış: parkur biter → sonuç kartı (3 kat düğmesi) → yeni parça duyurusu
+                    game.DebugForceFinish();
+                    yield return new WaitForSeconds(3.5f);
+                    yield return Shot("t0_4unlock");
+                    game.DebugClosePart();
+                    yield return new WaitForSeconds(0.6f);
+                    yield return Shot("t0_5result");
+                }
             }
             game.DebugReset(new[] { 16, 16, 12, 16, 16 }, 0);
             game.DebugTrack(4, 4);
             game.DebugMap();
             yield return new WaitForSeconds(1.2f);
             yield return Shot("t_map");
+            for (int part = 0; part < Upgrades.PartNames.Length; part++)
+            {
+                game.DebugHub();
+                game.DebugPartUnlock(part);
+                yield return new WaitForSeconds(1.2f);
+                yield return Shot("u" + part + "_part");
+            }
+            // Günlük görevler (biri tamam, biri yarıda) ve günlük ödül (seride 4. gün)
+            game.DebugHub();
+            game.DebugQuests(new[] { 99999, 1, 0 });
+            yield return new WaitForSeconds(1.2f);
+            yield return Shot("q_quests");
+            game.DebugHub();
+            game.DebugLogin(3);
+            yield return new WaitForSeconds(1.2f);
+            yield return Shot("q_login");
         }
 
         /// Meshy karakterleri: kart, ana ekran, nişan, koşu ve düşüp kalkma sahnesi.

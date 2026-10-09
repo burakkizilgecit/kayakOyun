@@ -145,6 +145,14 @@ namespace SledSurfers
         public void DebugSettings(bool show) => ui.DebugSettings(show);
         public void DebugBuy(int i) => Buy(i);
         public void DebugMap() => ui.ShowMap(save);
+        public void DebugClosePart() => ui.DebugClosePart();
+        /// Parça duyurusu: part = PartNames dizini (0 kanat ... 5 jet), araç bir sonraki parkurun aracı.
+        public void DebugPartUnlock(int part)
+        {
+            int next = Mathf.Min(part + 1, TrackLibrary.Count - 1);
+            ui.ShowPartUnlock(Upgrades.PartNames[part], Upgrades.PartTexts[part],
+                              PartPreview.Instance.RenderUnlock(TrackLibrary.Vehicles[next], part + 1));
+        }
         public void DebugForceFinish()
         {
             if (state != State.Run) return;
@@ -226,9 +234,11 @@ namespace SledSurfers
         {
             world?.Destroy();
             Upgrades.Track = index;   // yükseltmeler pist başına: aşama sayısı, fiyat ve güç bu pistin
+            Upgrades.PartTier = save.unlocked;   // kalıcı parçalar: bitirilen parkur sayısı
             track = TrackLibrary.Get(index);
             var theme = TrackTheme.Get(index);
             world = new WorldView(track, theme);
+            trail = new SledTrail(world.Root, track, theme);
             world.SetBest(save.best);
             loot = new Collectibles(track, world.Root);
             PushGemMarks();
@@ -282,6 +292,7 @@ namespace SledSurfers
         {
             cfg = Upgrades.BuildConfig(save.levels, save.Perk);
             sled = new SledPhysics(track, cfg);
+            trail?.Clear();
             liquid.Reset(cfg);
             reflex.Reset();
             rider.Apply(cfg, save.hand);
@@ -330,6 +341,105 @@ namespace SledSurfers
             PrepareSled();
             state = State.Hub;
             ui.ShowHub(save);
+            RefreshQuests(false);
+            // Günlük giriş ödülü: oturumda bir kez kendiliğinden açılır (otomatik testte açılmaz).
+            if (!loginShown && !AutoShot.Requested && save.PendingLoginDay() > 0)
+            {
+                loginShown = true;
+                ShowLogin();
+            }
+        }
+
+        // ---------------------------------------------------------------- günlük görevler ve giriş ödülü
+
+        DailyQuests.Quest[] quests;
+        int questsDay = -1, questsTrack = -1;
+        bool loginShown;
+
+        /// Gün değiştiyse listeyi yeniler; görev listesi (gün, parkur) için bir kez üretilir.
+        void RefreshQuests(bool open)
+        {
+            save.RollQuests();
+            if (quests == null || questsDay != save.questDay || questsTrack != save.questTrack)
+            {
+                int keepTrack = Upgrades.Track;   // TrackLibrary.Get bağlamı değiştirir
+                quests = DailyQuests.Generate(save.questDay, save.questTrack, TrackLibrary.Get(save.questTrack));
+                Upgrades.Track = keepTrack;
+                questsDay = save.questDay;
+                questsTrack = save.questTrack;
+                save.Save();
+            }
+            ui.ShowQuests(quests, save.questProgress, save.questClaimed, open);
+        }
+
+        void RecordQuests(bool finished, float fill)
+        {
+            RefreshQuests(false);
+            var st = sled.stats;
+            var report = new RunReport
+            {
+                distance = sled.maxDistance, fill = fill, airTime = st.airTime, longestAir = st.longestAir,
+                iceMeters = st.meters[(int)LossSurface.Ice], wetMeters = st.meters[(int)LossSurface.Mud] + st.meters[(int)LossSurface.Puddle],
+                coins = loot.coins, gems = loot.gems, bridges = st.bridgesCrossed, forksGood = st.forksGood, rockets = st.rocketsFired,
+                perfect = st.perfectLaunch, finished = finished,
+            };
+            for (int i = 0; i < quests.Length; i++)
+                save.questProgress[i] = Mathf.Min(DailyQuests.Apply(quests[i], save.questProgress[i], report), 1 << 24);
+        }
+
+        void ClaimQuestReward(int i)
+        {
+            if (quests == null || i < 0 || i >= quests.Length) return;
+            if ((save.questClaimed & (1 << i)) != 0 || save.questProgress[i] < quests[i].target) return;
+            save.questClaimed |= 1 << i;
+            save.money += quests[i].coins;
+            save.gems += quests[i].gems;
+            save.Save();
+            sfx.Coin();
+            ui.RefreshHub(save, -1);
+            RefreshQuests(false);
+        }
+
+        int[] LoginCoins(out int[] gems)
+        {
+            var coins = new int[7];
+            gems = new int[7];
+            for (int d = 0; d < 7; d++) DailyQuests.LoginReward(d + 1, save.unlocked, out coins[d], out gems[d]);
+            return coins;
+        }
+
+        void ShowLogin()
+        {
+            int day = save.PendingLoginDay();
+            if (day <= 0) return;
+            var coins = LoginCoins(out var gems);
+            ui.ShowLogin(day, coins, gems);
+        }
+
+        void ClaimLoginReward()
+        {
+            int day = save.PendingLoginDay();
+            if (day <= 0) return;
+            DailyQuests.LoginReward(day, save.unlocked, out int coins, out int gems);
+            save.money += coins;
+            save.gems += gems;
+            save.ClaimLogin(day);
+            save.Save();
+            sfx.Coin();
+            ui.RefreshHub(save, -1);
+        }
+
+        public void DebugQuests(int[] progress)
+        {
+            RefreshQuests(false);
+            System.Array.Copy(progress, save.questProgress, Mathf.Min(progress.Length, save.questProgress.Length));
+            RefreshQuests(true);
+        }
+        public void DebugLogin(int streak)
+        {
+            save.loginDay = DailyQuests.Yesterday;
+            save.loginStreak = streak;
+            ShowLogin();
         }
 
         /// Ekran görüntüsü testi onlarca kez fırlatır: kota uygulanmaz.
@@ -382,6 +492,10 @@ namespace SledSurfers
             ShowHint(Hint.Steer, IconKind.Swap, input.TiltMode ? "Sağa-sola sürükle: yön" : "A / D: yön", 3);
         }
 
+        SledTrail trail;
+        int pendingPart = -1;   // bu atışla açılan kalıcı parça (Upgrades.PartNames dizini)
+        int lastEarned;   // son atışın kazancı (sonuçta reklamla 3 katına çıkarılabilir)
+
         void EndRun()
         {
             state = State.Result;
@@ -398,6 +512,8 @@ namespace SledSurfers
             {
                 save.unlocked++;
                 unlockedName = TrackLibrary.Names[save.unlocked];
+                Upgrades.PartTier = save.unlocked;
+                pendingPart = save.unlocked - 1;   // sonuç kartından sonra duyurulur
             }
             bool record = distance > save.best;
             float previousBest = save.best;
@@ -407,6 +523,8 @@ namespace SledSurfers
                 world.SetBest(save.best);
             }
             save.money += earned;
+            lastEarned = earned;
+            RecordQuests(finished, fill);
             save.Save();
 
             float flagZ = Mathf.Max(sled.maxDistance, 1f);
@@ -466,7 +584,17 @@ namespace SledSurfers
                     if (resultDelay > 0f)
                     {
                         resultDelay -= dt;
-                        if (resultDelay <= 0f) ui.ShowResult(pendingResult);
+                        if (resultDelay <= 0f)
+                        {
+                            ui.ShowResult(pendingResult);
+                            if (pendingPart >= 0 && pendingPart < Upgrades.PartNames.Length)
+                            {
+                                // Yeni parça bir sonraki parkurun aracında gösterilir (son üç haritada araç da değişir).
+                                var tex = PartPreview.Instance?.RenderUnlock(TrackLibrary.Vehicles[save.unlocked], save.unlocked);
+                                if (tex != null) ui.ShowPartUnlock(Upgrades.PartNames[pendingPart], Upgrades.PartTexts[pendingPart], tex);
+                            }
+                            pendingPart = -1;
+                        }
                     }
                     break;
             }
@@ -474,6 +602,7 @@ namespace SledSurfers
             orbit += dt;
             UpdateBody(dt, out Vector3 shake);
             rider.Sync(sled, liquid, GlassPitch, GlassRoll, torsoAngle.x, torsoAngle.y, shake);
+            trail?.Tick(sled, state == State.Run);
             rider.TickCrash(dt, (x, z) => track.Height(x, z), cam.transform.position);
             // Ayağa kalkan karakterin başının üstünde konuşma baloncuğu.
             if (rider.CrashStanding)
@@ -877,6 +1006,15 @@ namespace SledSurfers
         void WireUi()
         {
             ui.Retry += EnterAim;
+            ui.OpenQuests += () => RefreshQuests(true);
+            ui.ClaimQuest += ClaimQuestReward;
+            ui.ClaimLogin += ClaimLoginReward;
+            ui.TripleEarnings += () =>
+            {
+                save.money += 2 * lastEarned;   // kazanç zaten eklendi: 3 kat için 2 kat daha
+                lastEarned = 0;
+                save.Save();
+            };
             ui.OpenHub += EnterHub;
             ui.OpenChest += OpenChest;
             ui.OpenAvatars += () => ui.ShowAvatars(save, save.avatar);

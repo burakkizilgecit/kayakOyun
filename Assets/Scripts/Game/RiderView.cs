@@ -19,6 +19,7 @@ namespace SledSurfers
         readonly SledModel.Parts sledParts;
         // Araçlar (pist başına): kızak hep kurulu; kum sörfü, bobsled ve hover gerektiğinde kurulur.
         readonly Transform sledRoot;
+        readonly PartAddons addons;   // kalıcı parçalar (aero kuyruk, pervaneler, jet)
         readonly System.Collections.Generic.Dictionary<VehicleKind, (Transform root, VehicleModels.Parts parts)> vehicles =
             new System.Collections.Generic.Dictionary<VehicleKind, (Transform, VehicleModels.Parts)>();
         VehicleKind shownVehicle = VehicleKind.Sled;
@@ -92,6 +93,7 @@ namespace SledSurfers
             sledRoot = new GameObject("Vehicle Sled").transform;
             sledRoot.SetParent(root, false);
             sledParts = SledModel.Build(sledRoot, steel);
+            addons = new PartAddons(root);
             rope = Mats.Prim(PrimitiveType.Cylinder, "Rope", root, Vector3.zero, Vector3.one, Mats.Solid(new Color(1f, 0.76f, 0.2f), 0.2f));
 
             // Kanatlar: mesh Apply'da kanat boyuna göre üretilir; uçta turuncu dikey kanatçık.
@@ -642,6 +644,7 @@ namespace SledSurfers
             int rs = Mathf.Clamp(cfg.runnerStage, 0, 5);
             sledParts.SetStage(rs);
             ShowVehicle(cfg.vehicle, cfg.runnerStage);
+            addons.Show(cfg.parts);
             rope.gameObject.SetActive(rs >= 1 && (cfg.vehicle == VehicleKind.Sled || cfg.vehicle == VehicleKind.Sandboard));
             int metal = rs >= 5 ? 3 : rs >= 4 ? 2 : rs >= 2 ? 1 : 0;
             steel.color = RunnerColors[metal];
@@ -737,6 +740,7 @@ namespace SledSurfers
             wingFold = Mathf.MoveTowards(wingFold, (1f - sled.WingLift) / 0.65f, Time.deltaTime * 3f);
             leftWing.localRotation = Quaternion.Euler(0f, 0f, -80f * wingFold);
             rightWing.localRotation = Quaternion.Euler(0f, 0f, 80f * wingFold);
+            addons.Tick(sled.Speed, Time.deltaTime);
             bool firing = sled.RocketFiring;
             UpdateRockets(sled, firing, Time.deltaTime);
             foreach (var flame in flames)

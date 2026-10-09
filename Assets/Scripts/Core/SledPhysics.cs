@@ -173,6 +173,16 @@ namespace SledSurfers
                 topSpeed = Mathf.Max(topSpeed, velocity.magnitude);
                 foreach (var b in track.bridges)
                     if (zBefore < b.r1 && position.z >= b.r1) stats.bridgesCrossed++;
+                // Çatalın ortasından geçerken hangi şeritte (altınlı mı) olduğu (günlük görevler)
+                foreach (var f in track.forks)
+                {
+                    float mid = (f.z0 + f.z1) * 0.5f;
+                    if (zBefore < mid && position.z >= mid && grounded)
+                    {
+                        stats.forksPassed++;
+                        if ((position.x - track.CenterX(mid)) * f.good > 0f) stats.forksGood++;
+                    }
+                }
                 if (position.z >= track.finishZ) ForceEnd(RunEnd.Finished, "Parkur tamamlandı!");
             }
         }
@@ -197,6 +207,9 @@ namespace SledSurfers
                 a += headDir * (rocketThrust / m);   // roket kızağın baktığı yöne iter
                 rocketTime -= dt;
             }
+            // Kalıcı pervane: hız 2-8 m/s arasında açılır; sürtünmenin %70'ini aşmaz (düzlükte kızak yine durur).
+            if (cfg.propThrust > 0f && !launching && end == RunEnd.None)
+                a += headDir * (Mathf.Min(cfg.propThrust, 0.7f * cfg.groundFriction * Gravity) * Mathf.Clamp01((speed - 2f) / 6f));
             if (launching)
             {
                 // Sapan lastiği: F = k·x, sapanın ortasına doğru. Kızak sapan hattını geçince lastik boşa düşer.

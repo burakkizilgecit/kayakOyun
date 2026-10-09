@@ -27,6 +27,8 @@ namespace SledSurfers
 
         // Kanat
         public float wingArea = 0f;            // m²
+        public float propThrust;               // kalıcı pervane itişi (m/s², hızla açılır)
+        public int parts;                      // açılan kalıcı parça sayısı (görünüş)
         public float wingSpan = 0f;            // m, görünen kanadın bir tarafının boyu (yalnız görünüş)
         public float wingMass = 0f;            // kg
         public float glideTime = 0f;           // s: kanadın bir kalkışta taşıdığı süre (kızak seviyesiyle uzar)

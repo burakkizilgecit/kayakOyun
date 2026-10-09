@@ -20,7 +20,7 @@ namespace SledSurfers
         public static readonly float[] MilkHeadroomScale = { 1f, 1f, 1f, 1f, 1f, 1f, 1.8f };
         public static float[] PowerStart = { 0f, 5f, 7f, 8f, 9f, 10f, 10f };
         public static float[] PowerEnd = { 15f, 18f, 21f, 23f, 24f, 25f, 25f };
-        public static float[] CostScale = { 1f, 3f, 3.5f, 6.5f, 18f, 15f, 26f };
+        public static float[] CostScale = { 1f, 1.8f, 4f, 2.6f, 3.6f, 3f, 16f };   // 2026-10-10: referans fiyat eğrisi (5×aşama, 1.4→1.24) ile
         /// Pistin aracı: son üç haritada aracın şekli tamamen değişir.
         public static readonly VehicleKind[] Vehicles =
             { VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sandboard, VehicleKind.Bobsled, VehicleKind.Hover };
@@ -146,7 +146,7 @@ namespace SledSurfers
                 To(1.5f, depth - drop);
                 bridges.Add(new Vector2(z0, z));
                 sharp.Add(new Vector2(z0 - 3f, z + 3f));
-                straight.Add(new Vector2(z0 - 40f, z + 6f));   // 40 m düz yaklaşma: kızağı hizalamaya zaman
+                straight.Add(new Vector2(z0 - 75f, z + 6f));   // 75 m düz yaklaşma (ortalama oyuncu 40 m'de hizalanamıyordu)
                 return this;
             }
 
@@ -220,6 +220,7 @@ namespace SledSurfers
                 var t = new TrackProfile(name, points.ToArray(), length, ValleyHalfWidth, corners, sharp, rawZones: cliffs);
                 t.SetValley(meander, meanderWave, pathAmp, pathWave, seed, straight);
                 foreach (var f in forks) t.forks.Add(new TrackProfile.Fork { z0 = f.x, z1 = f.y, good = (int)f.z });
+                foreach (var b in bridges) t.centerZones.Add(new Vector2(b.x - 60f, b.y + 5f));
                 t.water.AddRange(water);
                 t.surfaces.AddRange(surfaces);
                 t.flocks.AddRange(flocks);
@@ -337,22 +338,34 @@ namespace SledSurfers
 
         /// Pist başına süzülme ayarları: yavaşlama yamacı eğimi (pist başında → sonunda; sona doğru düzleşir, her kızak
         /// seviyesi bir iki yamaç daha aşar), yamaç uzunluğu, kanal eğimi ve uzunluğu.
-        public static float[] SlowGrade = { 0.143f, 0.095f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f };
-        public static float[] SlowGradeEnd = { 0.138f, 0.092f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f };
+        public static float[] SlowGrade = { 0.175f, 0.105f, 0.14f, 0.1f, 0.1f, 0.08f, 0.08f };   // 2026-10-10: uzun yokuşlarla yeniden tarandı (Mars: sona doğru belirgin azalır; pervane telafisiyle sonda hafif yokuş yukarı)
+        public static float[] SlowGradeEnd = { 0.17f, 0.105f, 0.14f, 0.1f, 0.1f, 0.08f, 0.045f };
         public static Vector2[] SlowLength = { new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f) };
         public static float[] BoostGrade = { 0.42f, 0.36f, 0.36f, 0.34f, 0.34f, 0.34f, 0.32f };
         public static float[] BoostLength = { 25f, 25f, 25f, 25f, 25f, 25f, 25f };
+        /// Kullanıcı isteği (2026-10-09, oyun videoları): uzun ama düşük eğimli yokuşlar. Yamaç ve kanal CycleScale kat
+        /// uzar; kanal BoostSoft kadar yatıklaşır ve aynı düşüşü korumak için o oranda daha da uzar (pistin toplam
+        /// düşüşü, yani ekonomi, aşağı yukarı aynı kalır; hız daha az dalgalanır).
+        public static float CycleScale = 1.8f, BoostSoft = 0.7f;
         /// İnce köprü olasılığı (yamaç başına) ve iki köprü arası en az mesafe; köprü uzunluğu pist boyunca uzar.
-        public static float[] BridgeChance = { 0.5f, 0.45f, 0.35f, 0.5f, 0.4f, 0.45f, 0.4f };
-        public const float BridgeSpacing = 120f, BridgeDepth = 5f;
+        public static float[] BridgeChance = { 0.5f, 0.45f, 0.35f, 0.5f, 0.25f, 0.22f, 0.22f };   // son üç pist uzun: köprü sayısı 3-4 (7 köprüde hızlı kızak hep birinde düşüyordu)
+        public const float BridgeSpacing = 120f, BridgeDepth = 5f, BridgeLead = 40f;
         public static Vector2 BridgeSpan = new Vector2(14f, 22f);
         /// Çatal olasılığı (yüzeysiz yamaç başına).
         public static float[] ForkChance = { 0.9f, 0.8f, 0.45f, 0.5f, 0.45f, 0.5f, 0.3f };
         public const float ForkLength = 44f;
 
+        /// Pervane itişinin eğim karşılığı (o piste gelen oyuncunun parçasıyla; fizikteki tavanla aynı: ≈ %70 μg).
+        static float PropGrade(int track)
+        {
+            float g = track == 6 ? 0.38f : 1f;
+            return Mathf.Min(Upgrades.PropThrust(track) / (SledPhysics.EarthGravity * g), 0.06f);
+        }
+
         static List<Vector2> Glide(Path p, int track, int seed, float kickChance, bool snow, bool allowIce)
         {
-            float length = Lengths[track], slowGrade, boostGrade = BoostGrade[track], boostLen = BoostLength[track];
+            float length = Lengths[track], slowGrade, boostGrade = BoostGrade[track] * BoostSoft,
+                  boostLen = BoostLength[track] * CycleScale;   // yatık kanalda hava direnci az: düşüş de %30 az
             var rnd = new System.Random(seed);
             var brnd = new System.Random(seed ^ 0xb21d);   // köprüler ayrı: pistin geri kalanının dizilişi değişmesin
             var frnd = new System.Random(seed ^ 0xf04c);   // çatallar da ayrı
@@ -369,8 +382,10 @@ namespace SledSurfers
             while (true)
             {
                 float t = Mathf.Clamp01(p.z / length);
-                slowGrade = Mathf.Lerp(SlowGrade[track], SlowGradeEnd[track], t);
-                float L = Mathf.Lerp(SlowLength[track].x, SlowLength[track].y, t) * R(0.85f, 1.15f);
+                // Kalıcı pervane (bu piste gelen oyuncuda takılı) yamaçta eğim gibi iter: pist o kadar yatık kurulur ki
+                // ekonomi pervanesiz ayarla aynı kalsın; pervane eski pistlere dönünce gerçek avantaj olur.
+                slowGrade = Mathf.Lerp(SlowGrade[track], SlowGradeEnd[track], t) - PropGrade(track);
+                float L = Mathf.Lerp(SlowLength[track].x, SlowLength[track].y, t) * CycleScale * R(0.85f, 1.15f);
                 // Yamaç-kanal döngüsü bitiş çizgisini geçene kadar sürer: sonda kanalsız uzun yamaç (duvar) kalmasın,
                 // zorluk yalnızca eğimin pist boyunca azalmasından gelsin (her seviye biraz daha ileri).
                 if (p.z > length + 20f) break;
@@ -387,10 +402,13 @@ namespace SledSurfers
                     kickH = 0f;
                     float span = Mathf.Lerp(BridgeSpan.x, BridgeSpan.y, t);
                     // Kanal çıkışından 20 m sonra: kızak biraz yavaşlamış, köprüye hizalanacak zaman var.
-                    p.Hills(20f, 1, 0f, slowGrade * 20f);
+                    // Uzun kanaldan çıkan kızak hızlı: köprüye 40 m'lik yamaçla yaklaşır (yavaşlasın, hizalansın).
+                    // Kanaldan yamaca ani geçişte hızlı kızak havalanıp köprüye havadan iniyordu: önce ara eğimli 20 m.
+                    p.Hills(20f, 1, 0f, (boostGrade + slowGrade) * 0.5f * 20f);
+                    p.Hills(BridgeLead, 1, 0f, slowGrade * BridgeLead);
                     p.Bridge(span, BridgeDepth, slowGrade);
                     lastBridge = p.z;
-                    L = Mathf.Max(25f, L - 20f - span);   // köprü yamacın parçası: döngünün enerji dengesi değişmesin
+                    L = Mathf.Max(25f, L - 20f - BridgeLead - span);   // köprü yamacın parçası: döngünün enerji dengesi değişmesin
                 }
                 else if (kick)
                 {

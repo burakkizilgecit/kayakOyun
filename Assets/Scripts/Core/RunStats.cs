@@ -28,6 +28,7 @@ namespace SledSurfers
         public bool fellInRavine;                        // köprüden dereye (lav, kratere...) düştü
         public float airTime, longestAir;
         public int bridgesCrossed;
+        public int forksPassed, forksGood;   // çatallar: geçilen ve altınlı şeritten geçilen
 
         public void Reset()
         {
@@ -41,6 +42,7 @@ namespace SledSurfers
             fellInRavine = false;
             airTime = longestAir = 0f;
             bridgesCrossed = 0;
+            forksPassed = forksGood = 0;
         }
 
         public float MilkLostTotal

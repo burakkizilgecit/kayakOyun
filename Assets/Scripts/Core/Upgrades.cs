@@ -11,7 +11,7 @@ namespace SledSurfers
     public static class Upgrades
     {
         public const int Count = 5;
-        public const int StageSize = 4;
+        public const int StageSize = 5;   // kullanıcı kararı (2026-10-10, referans oyun): her aşama 5 yükseltme
         public const int MaxStages = 6;
 
         /// Geçerli pist: aşama sayısı, fiyat ve güç buna göre. Oyun pisti yüklerken, simler pist başına ayarlar.
@@ -36,9 +36,13 @@ namespace SledSurfers
         /// Kart adı: Kızak kartı pistin aracının adını taşır (Kum Sörfü, Bobsled, Hover).
         public static string Name(int type) => type == (int)UpgradeType.Runners ? Vehicles.CardName(TrackLibrary.Vehicles[Track]) : Names[type];
 
-        // Fiyat: kartın taban fiyatı × pistin fiyat ölçeği × büyüme^kademe (simle ayarlanır).
-        public static int[] baseCosts = { 68, 85, 510, 100, 205 };
-        public static float[] growth = { 1.3f, 1.3f, 1.33f, 1.32f, 1.3f };
+        // Fiyat: kartın taban fiyatı × pistin fiyat ölçeği × iki aşamalı büyüme (kullanıcının referans oyunu, kızak kartı:
+        // 50 70 100 135 190 | 270 375 525 740 1035 | 1345 ... 25. seviyede ~35 bin). İlk Knee kademede ×growth (1.4),
+        // sonra ×lateGrowth (1.24). Kartlar arası oran eski tablodan (sapan kızağın %80'i, bardak 6 katı...).
+        public static int[] baseCosts = { 40, 50, 300, 60, 120 };
+        public static float[] growth = { 1.4f, 1.4f, 1.4f, 1.4f, 1.4f };
+        public static float lateGrowth = 1.24f;
+        public const int Knee = 10;
 
         // Güç tabloları (güç endeksi 0..20; 20'nin ötesi son eğimle sürer). Kademe pistin aralığına eşlenir.
         static readonly float[] slingFactor =
@@ -80,7 +84,8 @@ namespace SledSurfers
 
         public static int Cost(int type, int level)
         {
-            float price = baseCosts[type] * TrackLibrary.CostScale[Track] * Mathf.Pow(growth[type], level);
+            float price = baseCosts[type] * TrackLibrary.CostScale[Track] * Mathf.Pow(growth[type], Mathf.Min(level, Knee))
+                          * Mathf.Pow(lateGrowth, Mathf.Max(0, level - Knee));
             return Mathf.Max(5, Mathf.RoundToInt(price / 5f) * 5);
         }
 
@@ -89,7 +94,7 @@ namespace SledSurfers
         public static int GemCost(int type, int level) =>
             Mathf.Max(2, 2 + Mathf.FloorToInt(Mathf.Log(Mathf.Max(Cost(type, level), 1) / 100f, 2f)));
 
-        public static float IncomeMultiplier(int level) => 1f + 0.125f * level;
+        public static float IncomeMultiplier(int level) => 1f + 0.1f * level;   // 25 kademede ×3.5 (eski 20 × 0.125 ile aynı)
 
         public static float RocketThrust(float power) => 150f + 20f * power;
         public static float RocketBurn(float power) => 0.8f + 0.03f * power;
@@ -104,6 +109,30 @@ namespace SledSurfers
         public static string GlassStageName(int stage) => stage >= Stages ? "Altın " + GlassNames[Mathf.Min(Stages - 1, GlassNames.Length - 1)]
                                                          : GlassNames[Mathf.Clamp(stage, 0, GlassNames.Length - 1)];
 
+        // ---------------------------------------------------------------- kalıcı parçalar (kullanıcı isteği 2026-10-09)
+        // Her parkur bitince kızağa kalıcı bir parça eklenir (geliştirmeler sıfırlansa da kalır):
+        // Çayır → kanat (her pistte en baştan), Orman → aero kuyruk, Kanyon → pervane, Karlı Dağ → turbo pervane,
+        // Çöl → çift turbo pervane, Volkan → jet motoru.
+
+        /// Bitirilen parkur sayısı (açılan parça kademesi). Oyunda kayıttan (save.unlocked); -1 iken simler için o anki pist
+        /// (pist t'ye gelen oyuncu önceki t parkuru bitirmiştir).
+        public static int PartTier = -1;
+        public static int Parts => PartTier >= 0 ? PartTier : Track;
+
+        public static readonly string[] PartNames = { "Kanat", "Aero Kuyruk", "Pervane", "Turbo Pervane", "Çift Turbo Pervane", "Jet Motoru" };
+        public static readonly string[] PartTexts =
+        {
+            "Kanatlar artık her pistte en baştan takılı",
+            "Hava direnci %12 daha az: uzun süzülmelerde hız korunur",
+            "Kayarken hafif itiş: yavaşlayan kızağı biraz daha taşır",
+            "Daha güçlü itiş: yokuşları daha uzun götürür",
+            "İki turbo pervane: uzun düzlüklerde fark yaratır",
+            "Jet motoru: Mars'ın uzun düzlükleri için en güçlü itiş",
+        };
+
+        /// Pervane itişi (m/s²) parça kademesine göre.
+        public static float PropThrust(int parts) => parts >= 6 ? 0.45f : parts >= 5 ? 0.36f : parts >= 4 ? 0.26f : parts >= 3 ? 0.16f : 0f;
+
         public static SledConfig BuildConfig(int[] levels, Perk perk = Perk.None)
         {
             var c = new SledConfig();
@@ -114,6 +143,17 @@ namespace SledSurfers
             c.wingMass = ru < WingLevel ? 0f : Mathf.Lerp(3f, 1.5f, (float)ru / Max);
             c.wingSpan = WingSpan(ru);
             c.glideTime = GlideTime(ru);
+            if (Parts >= 1 && ru < WingLevel)
+            {
+                // Kalıcı kanat: Çayır'dan sonra her pist kanatla başlar (küçük kanadın ilk hali).
+                c.wingArea = 2.2f;
+                c.wingMass = 3f;
+                c.wingSpan = WingSpan(WingLevel);
+                c.glideTime = GlideTime(WingLevel);
+            }
+            if (Parts >= 2) c.dragArea *= 0.88f;
+            c.propThrust = PropThrust(Parts);
+            c.parts = Parts;
             c.vehicle = TrackLibrary.Vehicles[Track];
 
             int gl = levels[(int)UpgradeType.Glass];

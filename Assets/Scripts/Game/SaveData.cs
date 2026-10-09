@@ -28,9 +28,44 @@ namespace SledSurfers
             int c = TutorialCount(h);
             if (c < 15) tutorialCounts += 1 << (4 * (int)h);
         }
+        /// Günlük görevler: listenin günü ve parkuru (gün içinde parkur değişse de liste sabit kalır), ilerleme, alınanlar.
+        public int questDay, questTrack;
+        public readonly int[] questProgress = new int[DailyQuests.PerDay];
+        public int questClaimed;   // bit maskesi
+
+        /// Gün değiştiyse yeni listeye geçer (ilerleme ve alınanlar sıfırlanır). true: yenilendi.
+        public bool RollQuests()
+        {
+            int today = DailyQuests.Today;
+            if (questDay == today) return false;
+            questDay = today;
+            questTrack = unlocked;
+            System.Array.Clear(questProgress, 0, questProgress.Length);
+            questClaimed = 0;
+            return true;
+        }
+
+        /// Günlük giriş ödülü (kullanıcı isteği 2026-10-09): 7 günlük seri; bir gün atlanırsa seri baştan başlar.
+        public int loginDay, loginStreak;   // son ödül alınan gün (DailyQuests.Today) ve seride kaçıncı gün (1..7)
+
+        /// Bugün alınmamış ödül varsa serideki günü (1..7) döndürür, yoksa 0.
+        public int PendingLoginDay()
+        {
+            int today = DailyQuests.Today;
+            if (loginDay == today) return 0;
+            bool yesterday = loginDay == DailyQuests.Yesterday;
+            return yesterday ? loginStreak % 7 + 1 : 1;
+        }
+
+        public void ClaimLogin(int day)
+        {
+            loginDay = DailyQuests.Today;
+            loginStreak = day;
+        }
+
         public int track;      // seçili parkur
         public int avatar;     // seçili karakter (AvatarLibrary)
-        public int avatarsOwned = 0b11;   // sahip olunan karakterler (bit maskesi; ilk ikisi ücretsiz)
+        public int avatarsOwned = 0b1;   // sahip olunan karakterler (bit maskesi; ilki — Panda — ücretsiz)
         public int unlocked;   // açılmış en ileri parkur
         /// Pist başına yükseltme kademeleri (kullanıcı kararı 2026-10-09): yeni pistte kartlar sıfırdan başlar.
         public readonly int[][] trackLevels = NewTrackLevels();
@@ -91,7 +126,7 @@ namespace SledSurfers
 
         static System.Collections.Generic.IEnumerable<string> Keys()
         {
-            foreach (var k in new[] { "money", "gems", "chest", "launches", "launchTicks", "hand", "sound", "track", "avatar", "avatars", "unlocked",
+            foreach (var k in new[] { "lday", "lstreak", "qday", "qtrack", "qp0", "qp1", "qp2", "qclaim", "money", "gems", "chest", "launches", "launchTicks", "hand", "sound", "track", "avatar", "avatars", "avatar2", "avatars2", "unlocked",
                                       "sens", "tut" })
                 yield return k;
             for (int t = 0; t < TrackLibrary.Count; t++)
@@ -118,13 +153,13 @@ namespace SledSurfers
                 steerSens = Mathf.Clamp(PlayerPrefs.GetInt(K("sens"), 1), 0, 2),
                 tutorialCounts = PlayerPrefs.GetInt(K("tut"), 0),
                 unlocked = Mathf.Clamp(PlayerPrefs.GetInt(K("unlocked"), 0), 0, TrackLibrary.Count - 1),
-                avatarsOwned = PlayerPrefs.GetInt(K("avatars"), 0b11) | 0b11,
+                avatarsOwned = PlayerPrefs.GetInt(K("avatars2"), 0b1) | 0b1,   // 2: karakter listesi yenilendi (eski dizinler geçersiz)
                 launches = Mathf.Clamp(PlayerPrefs.GetInt(K("launches"), MaxLaunches), 0, MaxLaunches),
                 launchTicks = long.TryParse(PlayerPrefs.GetString(K("launchTicks"), "0"), out var lt) ? lt : 0,
             };
             s.RegenLaunches(System.DateTime.UtcNow.Ticks);
             s.track = Mathf.Clamp(PlayerPrefs.GetInt(K("track"), 0), 0, s.unlocked);
-            s.avatar = Mathf.Clamp(PlayerPrefs.GetInt(K("avatar"), 0), 0, AvatarLibrary.Count - 1);
+            s.avatar = Mathf.Clamp(PlayerPrefs.GetInt(K("avatar2"), 0), 0, AvatarLibrary.Count - 1);
             if (!s.Owns(s.avatar)) s.avatar = 0;
             // Pist başına kademeler ("lvl{pist}_{kart}"). Eski tek dizi ("lvl{kart}") yeni sistemde anlam taşımadığı için okunmaz.
             for (int t = 0; t < TrackLibrary.Count; t++)
@@ -135,6 +170,12 @@ namespace SledSurfers
             // Bir parkur bitmeden sonraki açılmaz (eski kayıtlar ve değişen pistler için de geçerli).
             while (s.unlocked > 0 && !s.Finished(s.unlocked - 1)) s.unlocked--;
             s.track = Mathf.Min(s.track, s.unlocked);
+            s.questDay = PlayerPrefs.GetInt(K("qday"), 0);
+            s.questTrack = Mathf.Clamp(PlayerPrefs.GetInt(K("qtrack"), 0), 0, TrackLibrary.Count - 1);
+            for (int i = 0; i < DailyQuests.PerDay; i++) s.questProgress[i] = PlayerPrefs.GetInt(K("qp" + i), 0);
+            s.questClaimed = PlayerPrefs.GetInt(K("qclaim"), 0);
+            s.loginDay = PlayerPrefs.GetInt(K("lday"), 0);
+            s.loginStreak = PlayerPrefs.GetInt(K("lstreak"), 0);
             return s;
         }
 
@@ -150,12 +191,18 @@ namespace SledSurfers
             PlayerPrefs.SetInt(K("sens"), steerSens);
             PlayerPrefs.SetInt(K("tut"), tutorialCounts);
             PlayerPrefs.SetInt(K("track"), track);
-            PlayerPrefs.SetInt(K("avatar"), avatar);
-            PlayerPrefs.SetInt(K("avatars"), avatarsOwned);
+            PlayerPrefs.SetInt(K("avatar2"), avatar);
+            PlayerPrefs.SetInt(K("avatars2"), avatarsOwned);
             PlayerPrefs.SetInt(K("unlocked"), unlocked);
             for (int t = 0; t < TrackLibrary.Count; t++)
                 for (int i = 0; i < Upgrades.Count; i++) PlayerPrefs.SetInt(K("lvl" + t + "_" + i), trackLevels[t][i]);
             for (int i = 0; i < TrackLibrary.Count; i++) PlayerPrefs.SetInt(K("best_t" + i), bests[i]);
+            PlayerPrefs.SetInt(K("qday"), questDay);
+            PlayerPrefs.SetInt(K("qtrack"), questTrack);
+            for (int i = 0; i < DailyQuests.PerDay; i++) PlayerPrefs.SetInt(K("qp" + i), questProgress[i]);
+            PlayerPrefs.SetInt(K("qclaim"), questClaimed);
+            PlayerPrefs.SetInt(K("lday"), loginDay);
+            PlayerPrefs.SetInt(K("lstreak"), loginStreak);
             PlayerPrefs.Save();
         }
     }

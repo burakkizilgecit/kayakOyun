@@ -114,6 +114,22 @@ namespace SledSurfers
         public readonly List<Fork> forks = new List<Fork>();
         public const float ForkOffset = 3.1f, ForkRidge = 0.75f, ForkRidgeHalf = 1.9f, ForkBlend = 14f;
 
+        /// Patikanın vadi ortasına toplandığı bölgeler (köprü yaklaşımı ve tablası; z0, z1), CenterBlend ile yumuşak.
+        public readonly List<Vector2> centerZones = new List<Vector2>();
+        const float CenterBlend = 25f;
+
+        float CenterWeight(float z)
+        {
+            for (int i = 0; i < centerZones.Count; i++)
+            {
+                var c = centerZones[i];
+                if (z <= c.x - CenterBlend || z >= c.y + CenterBlend) continue;
+                float d = z < c.x ? c.x - z : z > c.y ? z - c.y : 0f;
+                return 1f - Mathf.SmoothStep(0f, 1f, d / CenterBlend);
+            }
+            return 0f;
+        }
+
         /// Çatalın açıklığı: 0 tek patika, 1 tam ayrık iki şerit (giriş ve çıkışta yumuşakça).
         public float ForkWeight(float z)
         {
@@ -340,6 +356,7 @@ namespace SledSurfers
         {
             float k = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(25f, 70f, z));
             k *= 1f - ForkWeight(z);   // çatalda patika vadinin ortasına gelir, şeritler ondan ayrılır
+            k *= 1f - CenterWeight(z); // köprü yaklaşımında da: tabla vadinin ortasında, kenara açılı gelinmesin
             return CenterX(z) + k * pathAmp * Mathf.Sin(Bend(z) * 6.2832f / pathLength + phaseC);
         }
 

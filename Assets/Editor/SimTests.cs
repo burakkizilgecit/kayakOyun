@@ -303,7 +303,7 @@ namespace SledSurfers.EditorTools
             if (gsSlow != null)
                 foreach (var g in gsSlow.Split(','))
                 {
-                    var gg = g.Split('-');   // başEğim-sonEğim
+                    var gg = g.Split(':');   // başEğim:sonEğim (eksi eğim yokuş yukarı)
                     TrackLibrary.SlowGrade[track] = ParseF(gg[0]);
                     if (gg.Length > 1) TrackLibrary.SlowGradeEnd[track] = ParseF(gg[1]);
                     sb.AppendLine(" yavaşlama eğimi " + g);

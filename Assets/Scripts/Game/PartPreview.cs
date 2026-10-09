@@ -114,6 +114,34 @@ namespace SledSurfers
                 }
             }
 
+            Shoot(root, view, targets[type]);
+        }
+
+        RenderTexture unlockTarget;
+
+        /// Parça duyurusu: aracın (kanat ve kalıcı parçalarıyla) arkadan 3/4 görünüşü.
+        public Texture RenderUnlock(VehicleKind kind, int parts)
+        {
+            if (unlockTarget == null)
+            {
+                unlockTarget = new RenderTexture(560, 420, 16, RenderTextureFormat.ARGB32) { antiAliasing = 4, name = "Unlock Preview" };
+                unlockTarget.Create();
+            }
+            var root = new GameObject("Unlock Preview").transform;
+            root.position = Origin;
+            int saved = Upgrades.PartTier;
+            Upgrades.PartTier = parts;
+            if (kind == VehicleKind.Sled) SledModel.Build(root, Mats.Solid(RiderView.RunnerColors[0], 0.6f)).SetStage(0);
+            else VehicleModels.Build(kind, root).SetStage(0);
+            BuildWings(root, 0, 0);
+            new PartAddons(root).Show(parts);
+            Upgrades.PartTier = saved;
+            Shoot(root, new Vector3(0.85f, 0.6f, -1f), unlockTarget, 0.58f);
+            return unlockTarget;
+        }
+
+        void Shoot(Transform root, Vector3 view, RenderTexture target, float fit = 0.82f)
+        {
             // Katman ve gölge: yalnızca önizleme kamerası görür.
             var renderers = root.GetComponentsInChildren<Renderer>();
             foreach (var t in root.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = Layer;
@@ -127,10 +155,10 @@ namespace SledSurfers
             }
             // Kamera: nesneyi kadraja sığdıran uzaklık.
             float radius = b.extents.magnitude;
-            float dist = radius / Mathf.Sin(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) * 0.82f;
+            float dist = radius / Mathf.Sin(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) * fit;
             cam.transform.position = b.center + view.normalized * dist;
             cam.transform.LookAt(b.center);
-            cam.targetTexture = targets[type];
+            cam.targetTexture = target;
             var fog = RenderSettings.fog;
             RenderSettings.fog = false;
             cam.Render();
