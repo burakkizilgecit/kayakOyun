@@ -23,6 +23,33 @@ namespace SledSurfers
             return m;
         }
 
+        static Material detailTemplate, glowTemplate;
+
+        /// Zemin: ana doku + büyük ölçekli açık/koyu lekeler (Standard'ın detay haritası, ×2 çarpım; 0.5 = etkisiz).
+        /// Şablon (BaseMatDetail) anahtar kelimeyi açık tutar: varyant build'den atılmaz.
+        public static Material Ground(Color color, float gloss, Texture2D tex, Texture2D macro, float macroTiling)
+        {
+            if (detailTemplate == null) detailTemplate = Resources.Load<Material>("BaseMatDetail");
+            if (detailTemplate == null) { var s = Solid(color, gloss); s.mainTexture = tex; return s; }
+            var m = new Material(detailTemplate) { color = color, mainTexture = tex };
+            m.SetFloat("_Glossiness", gloss);
+            m.SetTexture("_DetailAlbedoMap", macro);
+            m.SetTextureScale("_DetailAlbedoMap", Vector2.one * macroTiling);
+            return m;
+        }
+
+        /// Kendi ışığını veren yüzey (lav). Şablon (BaseMatEmission) _EMISSION varyantını build'de tutar.
+        public static Material Glow(Color color, Color emission, float gloss = 0.3f)
+        {
+            if (glowTemplate == null) glowTemplate = Resources.Load<Material>("BaseMatEmission");
+            var m = glowTemplate != null ? new Material(glowTemplate) { color = color } : Solid(color, gloss);
+            m.SetFloat("_Glossiness", gloss);
+            m.EnableKeyword("_EMISSION");
+            m.SetColor("_EmissionColor", emission);
+            m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+            return m;
+        }
+
         static Material waterTemplate;
         static Texture2D ripples;
 

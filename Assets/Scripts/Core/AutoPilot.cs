@@ -158,6 +158,7 @@ namespace SledSurfers
                             var near = track.SurfaceAt(zz, x + e);
                             if (near == Surface.Puddle || near == Surface.Mud) { score -= 3f; break; }
                         }
+                    if (!track.OnPath(zz, x) && track.ForkWeight(zz) > 0.3f) score -= 1f;   // çatal sırtına çıkma: erkenden şeridini seç
                     score -= track.BumpHeight(x, zz) * 0.12f;   // tümsek az kaybettirir (inişte geri gelir); çamurdan hafif
                 }
                 // Engelin içinden geçen çizgi elenir.

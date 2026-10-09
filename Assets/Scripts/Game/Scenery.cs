@@ -465,7 +465,8 @@ namespace SledSurfers
         void BuildValley()
         {
             int first = Mathf.FloorToInt(track.startZ), last = Mathf.CeilToInt(track.EndZ);
-            var mat = Textured(Mats.Solid(theme.grass, 0.06f), theme.GroundTexture());
+            // Büyük lekeler ~70 m'de bir tekrar eder (UV 1 = 2.5 m)
+            var mat = Mats.Ground(theme.grass, 0.06f, theme.GroundTexture(), TextureKit.Macro(), 0.036f);
             int cols = ValleyCols.Length * 2 - 1;
             for (int c0 = first; c0 < last; c0 += 150)
             {
@@ -515,17 +516,27 @@ namespace SledSurfers
 
         void BuildPath()
         {
-            var mat = Textured(Mats.Solid(theme.trackA, 0.1f), TextureKit.Dirt());
+            var mat = Mats.Ground(theme.trackA, 0.1f, TextureKit.Dirt(), TextureKit.Macro(), 0.03f);
+            // Kenar: çimenle toprak arası tonda biraz daha geniş alt şerit; geçiş tek sert çizgi olmasın (aşınmış çim).
+            var edge = Mats.Ground(Color.Lerp(theme.grass, theme.trackA, 0.5f), 0.08f, theme.GroundTexture(), TextureKit.Macro(), 0.03f);
             float first = track.startZ, last = track.EndZ;
             // Çatalda patika iki şeride ayrılır: ana şerit sola, ikinci şerit (yalnızca çatal boyunca) sağa açılır.
             float Lane(float z, float side) => track.PathX(z) + side * TrackProfile.ForkOffset * track.ForkWeight(z);
             for (float c0 = first; c0 < last; c0 += 150f)
+            {
                 BuildStrip(mat, c0, Mathf.Min(last, c0 + 150f), z => Lane(z, -1f), "Path " + c0);
+                BuildStrip(edge, c0, Mathf.Min(last, c0 + 150f), z => Lane(z, -1f), "PathEdge " + c0, 0.45f, 0.012f, 1.7f);
+            }
             foreach (var f in track.forks)
+            {
                 BuildStrip(mat, f.z0, f.z1, z => Lane(z, 1f), "Fork " + f.z0);
+                BuildStrip(edge, f.z0, f.z1, z => Lane(z, 1f), "ForkEdge " + f.z0, 0.45f, 0.012f, 1.7f);
+            }
         }
 
-        void BuildStrip(Material mat, float c0, float c1, System.Func<float, float> center, string name)
+        /// extra: şeride eklenen yarı genişlik; lift: zeminden yükseklik; phase: kenar dalgasının kayması.
+        void BuildStrip(Material mat, float c0, float c1, System.Func<float, float> center, string name,
+                        float extra = 0f, float lift = 0.025f, float phase = 0f)
         {
             const float step = 0.5f;
             {
@@ -536,14 +547,14 @@ namespace SledSurfers
                 {
                     float px = center(z);
                     float dir = (center(z + 0.5f) - center(z - 0.5f));   // kıvrımda genişlik sabit kalsın
-                    float w = TrackProfile.PathHalfWidth * Mathf.Sqrt(1f + dir * dir);
-                    float wob = 0.12f * Mathf.Sin(z * 0.9f) + 0.06f * Mathf.Sin(z * 2.3f);   // kenar hafif düzensiz (yumuşak dalga)
+                    float w = (TrackProfile.PathHalfWidth + extra) * Mathf.Sqrt(1f + dir * dir);
+                    float wob = 0.12f * Mathf.Sin(z * 0.9f + phase) + 0.06f * Mathf.Sin(z * 2.3f + phase * 1.7f);   // kenar hafif düzensiz (yumuşak dalga)
                     float xa = px - w - wob, xb = px + w + wob;
                     // Şerit enine 4 parça: tümseklerin üstünde zemini izler (gömülmez, havada kalmaz).
                     for (int k = 0; k <= PathSegs; k++)
                     {
                         float x = Mathf.Lerp(xa, xb, k / (float)PathSegs);
-                        verts.Add(new Vector3(x, track.TerrainHeight(x, z) + 0.025f, z));
+                        verts.Add(new Vector3(x, track.TerrainHeight(x, z) + lift, z));
                         uvs.Add(new Vector2(x * 0.3f, z * 0.3f));
                     }
                     if (verts.Count >= 2 * (PathSegs + 1))
@@ -602,7 +613,7 @@ namespace SledSurfers
             var shorePath = Mats.Solid(Color.Lerp(theme.trackA, Color.black, 0.3f), 0.3f);
             // Buz: donmuş göl; dıştan içe koyulaşan mavi, çapraz ışık yansımaları ve ince çatlaklar.
             var iceTex = IceTexture();
-            float gloss = theme.lava ? 0.6f : 1f;   // obsidyen: gökyüzünü yansıtıp soluk cam levha gibi durmasın
+            float gloss = theme.lava ? 0.35f : 1f;   // obsidyen: gökyüzünü yansıtıp soluk cam levha gibi durmasın
             var iceOuter = Textured(Mats.Solid(theme.iceA, 0.95f * gloss), iceTex);
             var iceMid = Textured(Mats.Solid(theme.iceB, 0.97f * gloss), iceTex);
             var iceCore = Textured(Mats.Solid(theme.iceC, 0.98f * gloss), iceTex);
@@ -872,9 +883,7 @@ namespace SledSurfers
             if (theme.lava)
             {
                 // Lav: parlayan turuncu, dalgacıksız
-                mat = Mats.Solid(theme.water, 0.3f);
-                mat.EnableKeyword("_EMISSION");
-                mat.SetColor("_EmissionColor", new Color(1f, 0.32f, 0.04f) * 1.6f);
+                mat = Mats.Glow(theme.water, new Color(1f, 0.32f, 0.04f) * 1.6f);
             }
             else mat = Mats.Water(theme.water);
             foreach (var w in track.water)

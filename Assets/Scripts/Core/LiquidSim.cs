@@ -42,6 +42,10 @@ namespace SledSurfers
             armOffset = armVel = smoothAccel = Vector3.zero;
         }
 
+        /// Sıvının "ağırlıksız" sayılma eşikleri Dünya yerçekimine göre: Mars'ta havadaki küçük yanal itişler (direksiyon)
+        /// 0.38 g'ye göre büyük kalıp sütü döküyordu; Dünya'da aynı itiş ağırlıksızlık sayılır.
+        static float GRef => Mathf.Max(SledPhysics.Gravity, SledPhysics.EarthGravity);
+
         public static float HolderPull => Mathf.Max(0f, 0.65f * (SledPhysics.EarthGravity - SledPhysics.Gravity));
 
         /// anchorAccel: elin (kızağın) dünya ivmesi. glassRotation: bardağın dünya yönelimi.
@@ -50,7 +54,7 @@ namespace SledSurfers
             anchorAccel = Vector3.ClampMagnitude(anchorAccel, MaxAccel * 10f);
             // Ağırlıksızlık ham ivmeyle anlaşılır: kızak havalandığı an sıvı asılı kalır (süspansiyon gecikmesi
             // yüzünden havada dökülmesin).
-            bool rawWeightless = (new Vector3(0f, -SledPhysics.Gravity, 0f) - anchorAccel).magnitude < 0.35f * SledPhysics.Gravity;
+            bool rawWeightless = (new Vector3(0f, -SledPhysics.Gravity, 0f) - anchorAccel).magnitude < 0.35f * GRef;
             smoothAccel += (anchorAccel - smoothAccel) * Mathf.Min(1f, dt / SuspensionTime);
             anchorAccel = smoothAccel;
 
@@ -78,12 +82,12 @@ namespace SledSurfers
             float r = cfg.glassRadius;
 
             Vector2 target = slope;
-            if (local.y < -0.05f * SledPhysics.Gravity)
+            if (local.y < -0.05f * GRef)
                 target = Vector2.ClampMagnitude(new Vector2(local.x, local.z) / -local.y, 4f);
             // Az yerçekiminde (neredeyse serbest düşüş, ör. kanatla az taşınan uçuş) etkin yerçekiminin yönünü küçük
             // yanal itişler belirler; gerçek sıvı bu kadar zayıf kuvvetle yavaş kayar. Yüzeyin hedef eğimi g ile
             // ölçeklenir: 0.35g'de yüzey olduğu yerde kalır, 0.8g'den itibaren tam yönelir.
-            float gw = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.35f, 0.8f, g / SledPhysics.Gravity));
+            float gw = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.35f, 0.8f, g / GRef));
             target = Vector2.Lerp(slope, target, gw);
 
             float depth = Mathf.Max(fill, 0.005f);
@@ -93,7 +97,7 @@ namespace SledSurfers
             float w = Mathf.Sqrt(w2);
             // Ağırlıksızken (havada) sıvı bardakta asılı kalır: yüzey hareketi söner, dökülme olmaz.
             // Asıl sınav inişte: sert iniş sıvıyı çalkalar.
-            bool weightless = rawWeightless || g < 0.35f * SledPhysics.Gravity;
+            bool weightless = rawWeightless || g < 0.35f * GRef;
             Vector2 acc = w2 * (target - slope) - (2f * cfg.sloshDamping * w + (weightless ? 6f : 0.5f + 5.5f * (1f - gw))) * slopeVel;
             slopeVel += acc * dt;
             slope += slopeVel * dt;
