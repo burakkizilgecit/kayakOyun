@@ -40,7 +40,8 @@ namespace SledSurfers
                     {
                         horizon = new Color(0.78f, 0.86f, 0.8f), skyTint = new Color(0.58f, 0.74f, 0.82f), skyGround = new Color(0.3f, 0.42f, 0.3f),
                         exposure = 1.4f, sunColor = new Color(1f, 0.86f, 0.66f), sunEuler = new Vector3(32f, -60f, 0f), sunIntensity = 1.05f,
-                        ambientSky = new Color(0.55f, 0.65f, 0.68f), ambientEquator = new Color(0.45f, 0.5f, 0.42f), ambientGround = new Color(0.25f, 0.3f, 0.22f),
+                        // Gölgeler daha açık (aşama 6): koyu gölgede engel ve su okunmuyordu.
+                        ambientSky = new Color(0.63f, 0.73f, 0.75f), ambientEquator = new Color(0.54f, 0.59f, 0.5f), ambientGround = new Color(0.33f, 0.38f, 0.29f),
                         skyTop = new Color(0.4f, 0.6f, 0.78f), fogEnd = 280f, contrast = 1.1f, saturation = 1.1f, vignette = 0.3f, gradeTint = new Color(0.98f, 1f, 0.97f),
                         grass = new Color(0.27f, 0.52f, 0.27f), grassB = new Color(0.22f, 0.45f, 0.24f), rock = new Color(0.47f, 0.47f, 0.5f),
                         trackA = new Color(0.66f, 0.47f, 0.31f), trackB = new Color(0.58f, 0.41f, 0.27f), kerb = new Color(0.98f, 0.72f, 0.15f),
@@ -480,10 +481,9 @@ namespace SledSurfers
             var deep = Mats.Water(new Color(0.18f, 0.34f, 0.48f, 0.9f));
             var foam = Mats.Solid(new Color(0.86f, 0.95f, 0.98f), 0.6f);
             // Çamur: kenarı açık kahve, ortası koyu ve ıslak parlak; üstünde birikinti benekleri.
-            var mudOuter = Mats.Solid(new Color(0.46f, 0.32f, 0.2f), 0.35f);
-            var mudCore = Mats.Water(new Color(0.24f, 0.15f, 0.08f, 0.97f));
-            mudCore.SetFloat("_Glossiness", 0.55f);   // ıslak ama parıltı benekleri gürültü olmasın
-            var mudRim = Mats.Solid(new Color(0.58f, 0.43f, 0.28f), 0.3f);
+            var mudOuter = Mats.Solid(new Color(0.37f, 0.25f, 0.15f), 0.35f);   // çekirdeğe yakın: açık bant gibi durmasın
+            var mudCore = Mats.Solid(new Color(0.27f, 0.17f, 0.09f), 0.55f);   // ıslak ama düz: dalgacık dokusu çevreye göre fazla ayrıntılıydı
+            var mudSpot = Mats.Solid(new Color(0.2f, 0.12f, 0.06f), 0.8f);
             var shoreGrass = Mats.Solid(Color.Lerp(theme.grass, Color.black, theme.snowy ? 0.12f : 0.28f), 0.2f);
             var shorePath = Mats.Solid(Color.Lerp(theme.trackA, Color.black, 0.3f), 0.3f);
             // Buz: donmuş göl; dıştan içe koyulaşan mavi, çapraz ışık yansımaları ve ince çatlaklar.
@@ -508,17 +508,17 @@ namespace SledSurfers
                         Pebbles(zone);
                         break;
                     case Surface.Mud:
-                        Blob(zone, 1.07f, 0.03f, overPath ? shorePath : shoreGrass, "Shore");
+                        // Yol haritası aşama 6: kalın açık kenar halkası zeminden ayrı bir nesne gibi duruyordu.
+                        Blob(zone, 1.03f, 0.03f, overPath ? shorePath : shoreGrass, "Shore");
                         Blob(zone, 1f, 0.045f, mudOuter, "Mud");
-                        Blob(zone, 0.72f, 0.05f, mudCore, "Mud Wet");
-                        Ring(zone, 0.93f, 1f, 0.055f, mudRim, "Mud Rim");
+                        Blob(zone, 0.82f, 0.05f, mudCore, "Mud Wet");
                         // Islak benekler (küçük birikintiler)
                         for (int k = 0; k < 2 + rng.Next(3); k++)
                         {
                             float a = R(0f, 6.28f), r = zone.Edge(a) * R(0.15f, 0.55f);
                             var spot = SurfaceZone.Blob(Surface.Mud, zone.cz + Mathf.Cos(a) * r * zone.rz, zone.cx + Mathf.Sin(a) * r * zone.rx,
                                                         R(0.35f, 0.7f), R(0.3f, 0.6f), R(0f, 50f), zone.onPath);
-                            Blob(spot, 1f, 0.058f, deep, "Mud Spot");
+                            Blob(spot, 1f, 0.058f, mudSpot, "Mud Spot");   // koyu ıslak çamur (mavi su beneği çamura uymuyordu)
                         }
                         Pebbles(zone);
                         break;

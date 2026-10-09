@@ -20,7 +20,7 @@ namespace SledSurfers
             {
                 case UpgradeType.Slingshot: return SlingNames[stage];
                 case UpgradeType.Runners: return SledNames[stage];
-                case UpgradeType.Glass: return Upgrades.GlassNames[Mathf.Min(stage, Upgrades.GlassNames.Length - 1)];
+                case UpgradeType.Glass: return Upgrades.GlassStageName(stage);
                 case UpgradeType.Income: return IncomeNames[stage];
                 default: return RocketNames[stage];
             }

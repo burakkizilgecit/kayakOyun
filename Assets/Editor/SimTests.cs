@@ -98,6 +98,9 @@ namespace SledSurfers.EditorTools
         public static void Progression()
         {
             // Fiyat tablosu denemesi: base=a,b,c,d,e growth=... later=... (sapan/kızak/bardak/gelir/roket)
+            // player=usta|ortalama|egmeyen  gems=1 (coin yetmezse elmasla da alır)
+            var kind = PlayerKind.Usta;
+            bool gems = false;
             foreach (var arg in System.Environment.GetCommandLineArgs())
             {
                 if (arg.StartsWith("base=")) Upgrades.baseCosts = System.Array.ConvertAll(arg.Substring(5).Split(','), int.Parse);
@@ -106,49 +109,103 @@ namespace SledSurfers.EditorTools
                 if (arg.StartsWith("top=")) Upgrades.topGrowth = System.Array.ConvertAll(arg.Substring(4).Split(','), ParseF);
                 if (arg.StartsWith("final=")) Upgrades.FinalMultiplier = ParseF(arg.Substring(6));
                 if (arg.StartsWith("pay=")) TrackLibrary.PayFactors = System.Array.ConvertAll(arg.Substring(4).Split(','), ParseF);
+                if (arg.StartsWith("player=")) kind = SimPlayer.Parse(arg.Substring(7));
+                if (arg.StartsWith("gems=")) gems = arg.Substring(5) == "1";
             }
-            var sb = new StringBuilder("[SIM] İlerleme (atış: mesafe · süt · seviyeler sapan/kızak/bardak/gelir/roket · para)\n");
+            var sb = new StringBuilder("[SIM] İlerleme (" + SimPlayer.Name(kind) + (gems ? ", elmasla alım" : "") +
+                                       ") (atış: mesafe · süt · seviyeler sapan/kızak/bardak/gelir/roket · para · elmas)\n");
+            var eco = RunEconomy(kind, gems, sb);
+            sb.AppendLine(eco.Summary());
+            Debug.Log(sb.ToString());
+        }
+
+        /// Ekonomi simi sonucu: pist başına atış, ilerlemeyen atış, en uzun duraklama, yeni piste girişte ulaşılan oran.
+        class EconomyResult
+        {
+            public string label;
+            public int[] runs = new int[TrackLibrary.Count], stalled = new int[TrackLibrary.Count], longest = new int[TrackLibrary.Count];
+            public float[] arrival = new float[TrackLibrary.Count], milkLoss = new float[TrackLibrary.Count];
+            public int gemsEarned, gemsSpent, gemBuys;
+            public bool[] finished = new bool[TrackLibrary.Count];
+            public readonly float[] surfaceLoss = new float[(int)LossSurface.Count];
+            public readonly float[] milkByCause = new float[(int)SpillCause.Count];
+            public int Total { get { int s = 0; foreach (int r in runs) s += r; return s; } }
+            public int Stalled { get { int s = 0; foreach (int r in stalled) s += r; return s; } }
+
+            public string Summary()
+            {
+                var sb = new StringBuilder();
+                for (int t = 0; t < TrackLibrary.Count; t++)
+                    sb.AppendLine(string.Format("  {0,-10} {1,3} atış{2}  ilerlemeyen {3,3}  en uzun duraklama {4,2}  ilk atış %{5,3:F0}  süt kaybı %{6,4:F1}",
+                        TrackLibrary.Names[t], runs[t], finished[t] ? " " : "!", stalled[t], longest[t], arrival[t] * 100f, milkLoss[t] * 100f));
+                sb.AppendLine(string.Format("  Toplam {0} atış · ilerlemeyen %{1:F0} · elmas kazanılan {2}, harcanan {3} ({4} kademe)",
+                    Total, 100f * Stalled / Mathf.Max(Total, 1), gemsEarned, gemsSpent, gemBuys));
+                return sb.ToString();
+            }
+        }
+
+        /// Oyuncu benzetimi: her atıştan sonra kazancı oyundaki formülle hesaplar (coin toplama tahmini mesafeyle
+        /// orantılı), parası yettikçe en ucuz yükseltmeyi alır. useGems: coin yetmeyince elmasla da alır (oyundaki
+        /// gibi); elmas geliri pistteki elmaslardan (Collectibles.GemZs), oyuncu tipine göre toplama olasılığıyla.
+        static EconomyResult RunEconomy(PlayerKind kind, bool useGems, StringBuilder log)
+        {
+            var res = new EconomyResult { label = SimPlayer.Name(kind) + (useGems ? " + elmas" : "") };
             var levels = new int[Upgrades.Count];
-            int money = 0, total = 0;
+            int money = 0, gems = 0, seed = 0;
+            var rnd = new System.Random(17 + (int)kind);
+            float pickChance = kind == PlayerKind.Usta ? 1f : 0.75f;
             for (int t = 0; t < TrackLibrary.Count; t++)
             {
                 var track = TrackLibrary.Get(t);
-                sb.AppendLine("Parkur " + (t + 1) + " — " + track.name);
-                int runs = 0;
+                var gemZs = Collectibles.GemZs(track);
+                log?.AppendLine("Parkur " + (t + 1) + " — " + track.name);
+                int runs = 0, streak = 0;
+                float best = 0f, milk = 0f;
                 bool finished = false;
-                var line = new StringBuilder();
                 while (!finished && runs < 250)
                 {
                     runs++;
-                    var r = Simulate(track, Upgrades.BuildConfig(levels));
+                    var r = Simulate(track, Upgrades.BuildConfig(levels), kind, ++seed);
                     finished = r.end == RunEnd.Finished;
+                    if (runs == 1) res.arrival[t] = r.distance / track.finishZ;
+                    if (r.distance > best * 1.01f) { best = r.distance; streak = 0; }
+                    else { res.stalled[t]++; streak++; res.longest[t] = Mathf.Max(res.longest[t], streak); }
+                    milk += 1f - r.fill;
+                    for (int i = 0; i < res.surfaceLoss.Length; i++) res.surfaceLoss[i] += r.stats.lostMeters[i];
+                    for (int i = 0; i < res.milkByCause.Length; i++) res.milkByCause[i] += r.stats.milkLost[i];
                     float coins = 0.07f * r.distance;   // pistteki coinlerin yaklaşık yarısı toplanır
                     int earned = Mathf.RoundToInt((r.distance * (0.4f + 0.6f * r.fill) + coins * 2f + (finished ? 1000 * (t + 1) : 0))
                                                   * Upgrades.IncomeMultiplier(levels[(int)UpgradeType.Income]) * TrackLibrary.PayFactors[t]);
                     money += earned;
-                    // En ucuz alınabilir yükseltmeyi tekrar tekrar al.
+                    int gotGems = 0;
+                    foreach (float gz in gemZs) if (gz <= r.distance && rnd.NextDouble() < pickChance) gotGems++;
+                    gems += gotGems;
+                    res.gemsEarned += gotGems;
+                    // En ucuz alınabilir yükseltmeyi tekrar tekrar al; coin yetmezse (istenirse) elmasla.
                     while (true)
                     {
-                        int best = -1, bestCost = int.MaxValue;
+                        int pick = -1, bestCost = int.MaxValue;
                         for (int u = 0; u < Upgrades.Count; u++)
                         {
                             if (levels[u] >= Upgrades.Cap(u, t)) continue;
                             int c = Upgrades.Cost(u, levels[u]);
-                            if (c < bestCost) { best = u; bestCost = c; }
+                            if (c < bestCost) { pick = u; bestCost = c; }
                         }
-                        if (best < 0 || bestCost > money) break;
-                        money -= bestCost;
-                        levels[best]++;
+                        if (pick < 0) break;
+                        if (bestCost <= money) { money -= bestCost; levels[pick]++; continue; }
+                        int gc = Upgrades.GemCost(pick, levels[pick]);
+                        if (useGems && gc <= gems) { gems -= gc; res.gemsSpent += gc; res.gemBuys++; levels[pick]++; continue; }
+                        break;
                     }
-                    line.AppendFormat("  {0,3}: {1,5:F0} m %{2,3:F0} {3,-14} {4}  para {5}\n", runs, r.distance, r.fill * 100f,
-                                      r.reason, string.Join("/", levels), money);
+                    log?.AppendFormat("  {0,3}: {1,5:F0} m %{2,3:F0} {3,-14} {4}  para {5}  elmas {6}\n", runs, r.distance, r.fill * 100f,
+                                      r.reason, string.Join("/", levels), money, gems);
                 }
-                sb.Append(line);
-                sb.AppendLine(string.Format("  => {0} atış{1}", runs, finished ? "" : " (bitmedi!)"));
-                total += runs;
+                res.runs[t] = runs;
+                res.finished[t] = finished;
+                res.milkLoss[t] = milk / Mathf.Max(runs, 1);
+                log?.AppendLine(string.Format("  => {0} atış{1}", runs, finished ? "" : " (bitmedi!)"));
             }
-            sb.AppendLine("Toplam " + total + " atış");
-            Debug.Log(sb.ToString());
+            return res;
         }
 
         /// Hızlı merdiven: bir parkurda birkaç seviye setinin mesafesi (track=, sets=a/b/c/d/e;...).
@@ -165,6 +222,8 @@ namespace SledSurfers.EditorTools
             {
                 if (arg.StartsWith("track=")) track = int.Parse(arg.Substring(6));
                 if (arg.StartsWith("sets=")) sets = arg.Substring(5);
+                if (arg.StartsWith("player=")) ladderKind = SimPlayer.Parse(arg.Substring(7));
+                if (arg.StartsWith("seeds=")) ladderSeeds = int.Parse(arg.Substring(6));
                 if (arg.StartsWith("meadow="))   // çayır: net,araTepe,yokuşEğimi,tepeA,tepeB,zorluA,zorluB
                 {
                     var v = System.Array.ConvertAll(arg.Substring(7).Split(','), ParseF);
@@ -332,6 +391,9 @@ namespace SledSurfers.EditorTools
         static Vector2[] Gaps(int track) => track == 3 ? TrackLibrary.SnowGaps : track == 2 ? TrackLibrary.CanyonGaps
                                           : track == 0 ? TrackLibrary.MeadowGaps : TrackLibrary.ForestGaps;
 
+        static PlayerKind ladderKind = PlayerKind.Usta;
+        static int ladderSeeds = 1;
+
         static void LadderRun(StringBuilder sb, int track, string sets)
         {
             var t = TrackLibrary.Get(track);
@@ -349,6 +411,25 @@ namespace SledSurfers.EditorTools
                 var lv = System.Array.ConvertAll(set.TrimEnd('-').Split('/'), int.Parse);
                 var cfg = Upgrades.BuildConfig(lv);
                 if (noWing) { cfg.wingArea = 0f; cfg.wingMass = 0f; }
+                if (ladderSeeds > 1 || ladderKind != PlayerKind.Usta)
+                {
+                    // Gürültülü oyuncu: tohum ortalaması, en kötü-en iyi ve bitirme oranı
+                    float sum = 0f, lo = float.MaxValue, hi = 0f, milk = 0f;
+                    int fin = 0;
+                    var reasons = new System.Collections.Generic.Dictionary<string, int>();
+                    for (int sd = 1; sd <= ladderSeeds; sd++)
+                    {
+                        var rr = Simulate(t, cfg, ladderKind, sd * 97 + track);
+                        sum += rr.distance; lo = Mathf.Min(lo, rr.distance); hi = Mathf.Max(hi, rr.distance); milk += 1f - rr.fill;
+                        if (rr.end == RunEnd.Finished) fin++;
+                        reasons[rr.reason] = (reasons.TryGetValue(rr.reason, out int c) ? c : 0) + 1;
+                    }
+                    var rs = new System.Collections.Generic.List<string>();
+                    foreach (var kv in reasons) rs.Add(kv.Key + " " + kv.Value);
+                    sb.AppendLine(string.Format("  {0,-16} {1,6:F0} m ({2:F0}–{3:F0})  biten {4}/{5}  süt kaybı %{6:F0}  {7}", set, sum / ladderSeeds, lo, hi,
+                                                fin, ladderSeeds, 100f * milk / ladderSeeds, string.Join(", ", rs)));
+                    continue;
+                }
                 var r = Simulate(t, cfg);
                 sb.AppendLine(string.Format("  {0,-16} {1,6:F0} m  {2,4:F0} s  ort. {3,3:F0} km/sa  süt %{4,3:F0}  {5}", set, r.distance, r.time,
                                             r.distance / Mathf.Max(r.time, 0.1f) * 3.6f, r.fill * 100f, r.reason));
@@ -476,10 +557,196 @@ namespace SledSurfers.EditorTools
 
         struct SimResult
         {
-            public float distance, fill, time;
+            public float distance, fill, time, topSpeed;
             public RunEnd end;
             public string reason;
+            public RunStats stats;
         }
+
+        /// Başlangıç raporu (yol haritası aşama 0): oyuncu tipine göre ekonomi, süt kaybı matrisi, roket zamanlaması ve
+        /// usta-ortalama mesafe farkı. parts=eco,milk,rocket,gap (varsayılan hepsi); out=<dosya.md> raporu dosyaya da yazar.
+        public static void Baseline()
+        {
+            string parts = "eco,milk,rocket,gap", outPath = null;
+            foreach (var arg in System.Environment.GetCommandLineArgs())
+            {
+                if (arg.StartsWith("parts=")) parts = arg.Substring(6);
+                if (arg.StartsWith("out=")) outPath = arg.Substring(4);
+            }
+            var md = new StringBuilder("# Başlangıç raporu\n\n");
+            md.AppendLine("Sim tarihi: " + System.DateTime.Now.ToString("yyyy-MM-dd HH:mm") + ". Oyuncu tipleri: usta = otomatik pilot; ortalama = 0.25 s gecikmeli, hafif titrek direksiyon, bardağın eksik dengesinin yarısını gecikmeli düzeltir, roketi hız yarıya inince ateşler, atışların %40'ında mükemmel bırakış, elmasların %75'ini toplar; eğmeyen = ortalama gibi sürer, telefonu hiç eğmez.\n");
+            // Temsilî seviyeler (pist başına): o pistin ortası civarında bir oyuncunun seviyeleri.
+            int[][] mid = { new[] { 8, 8, 3, 7, 6 }, new[] { 15, 14, 7, 12, 10 }, new[] { 18, 17, 8, 15, 14 }, new[] { 19, 18, 9, 16, 16 } };
+
+            if (parts.Contains("eco"))
+            {
+                md.AppendLine("## 1. Ekonomi (pist başına atış)\n");
+                md.AppendLine("| Oyuncu | Çayır | Orman | Kanyon | Karlı Dağ | Toplam | İlerlemeyen atış | En uzun duraklama | Yeni piste ilk atış (O/K/KD) | Elmasla alınan kademe |");
+                md.AppendLine("|---|---|---|---|---|---|---|---|---|---|");
+                var cases = new (PlayerKind, bool)[] { (PlayerKind.Usta, false), (PlayerKind.Usta, true), (PlayerKind.Ortalama, true), (PlayerKind.Egmeyen, true) };
+                EconomyResult avg = null;
+                foreach (var (kind, gems) in cases)
+                {
+                    var e = RunEconomy(kind, gems, null);
+                    if (kind == PlayerKind.Ortalama) avg = e;
+                    int longest = 0;
+                    foreach (int l in e.longest) longest = Mathf.Max(longest, l);
+                    md.AppendLine(string.Format("| {0} | {1} | {2} | {3} | {4} | {5} | %{6:F0} | {7} | %{8:F0} / %{9:F0} / %{10:F0} | {11} |",
+                        e.label, R(e, 0), R(e, 1), R(e, 2), R(e, 3), e.Total, 100f * e.Stalled / Mathf.Max(e.Total, 1), longest,
+                        e.arrival[1] * 100f, e.arrival[2] * 100f, e.arrival[3] * 100f, e.gemBuys));
+                    Debug.Log("[SIM] Başlangıç ekonomi " + e.label + "\n" + e.Summary());
+                }
+                if (avg != null)
+                {
+                    float runs = Mathf.Max(avg.Total, 1);
+                    md.AppendLine("\nOrtalama oyuncuda atış başına yüzey kaybı (yaklaşık, gerçek m): çamur " + (avg.surfaceLoss[0] / runs).ToString("F1")
+                                  + " · su " + (avg.surfaceLoss[1] / runs).ToString("F1") + " · çimen " + (avg.surfaceLoss[2] / runs).ToString("F1")
+                                  + " · buz (kazanç) " + (-avg.surfaceLoss[3] / runs).ToString("F1") + "\n");
+                }
+            }
+
+            if (parts.Contains("milk"))
+            {
+                md.AppendLine("## 2. Süt kaybı (koşu başına ortalama, %)\n");
+                md.AppendLine("Seviyeler pistin ortasındaki bir oyuncununki, yalnız bardak değişir. Gürültülü oyuncular 5 tohumun ortalaması.\n");
+                md.AppendLine("| Pist | Oyuncu | Bardak 0 | 4 | 8 | 12 | 16 | 20 | Başlıca neden |");
+                md.AppendLine("|---|---|---|---|---|---|---|---|---|");
+                foreach (int t in new[] { 0, 1, 3 })
+                {
+                    var track = TrackLibrary.Get(t);
+                    foreach (PlayerKind kind in new[] { PlayerKind.Usta, PlayerKind.Ortalama, PlayerKind.Egmeyen })
+                    {
+                        var row = new StringBuilder("| " + track.name + " | " + SimPlayer.Name(kind) + " |");
+                        var causes = new float[(int)SpillCause.Count];
+                        foreach (int g in new[] { 0, 4, 8, 12, 16, 20 })
+                        {
+                            var lv = (int[])mid[t].Clone();
+                            lv[(int)UpgradeType.Glass] = g;
+                            int seeds = kind == PlayerKind.Usta ? 1 : 5;
+                            float loss = 0f;
+                            for (int sd = 1; sd <= seeds; sd++)
+                            {
+                                var r = Simulate(track, Upgrades.BuildConfig(lv), kind, sd * 31 + g);
+                                loss += 1f - r.fill;
+                                for (int i = 0; i < causes.Length; i++) causes[i] += r.stats.milkLost[i];
+                            }
+                            row.Append(" " + (100f * loss / seeds).ToString("F1") + " |");
+                        }
+                        int top = 0;
+                        for (int i = 1; i < causes.Length; i++) if (causes[i] > causes[top]) top = i;
+                        row.Append(" " + (causes[top] > 0.001f ? RunStats.CauseName((SpillCause)top) : "—") + " |");
+                        md.AppendLine(row.ToString());
+                    }
+                }
+                md.AppendLine();
+            }
+
+            if (parts.Contains("rocket"))
+            {
+                md.AppendLine("## 3. Roket zamanlaması (usta direksiyon, mesafe m)\n");
+                md.AppendLine("| Pist | Seviyeler | Geç (durmak üzere) | Yarı hızda | Erken (çıkışta) | Roketsiz |");
+                md.AppendLine("|---|---|---|---|---|---|");
+                for (int t = 0; t < TrackLibrary.Count; t++)
+                {
+                    var track = TrackLibrary.Get(t);
+                    var lv = mid[t];
+                    var cfg = Upgrades.BuildConfig(lv);
+                    var noRocket = (int[])lv.Clone();
+                    noRocket[(int)UpgradeType.Rocket] = 0;
+                    md.AppendLine(string.Format("| {0} | {1} | {2:F0} | {3:F0} | {4:F0} | {5:F0} |", track.name, string.Join("/", lv),
+                        Simulate(track, cfg, PlayerKind.Usta, 1, RocketPolicy.Gec).distance,
+                        Simulate(track, cfg, PlayerKind.Usta, 1, RocketPolicy.Yari).distance,
+                        Simulate(track, cfg, PlayerKind.Usta, 1, RocketPolicy.Erken).distance,
+                        Simulate(track, Upgrades.BuildConfig(noRocket), PlayerKind.Usta, 1).distance));
+                }
+                md.AppendLine();
+            }
+
+            if (parts.Contains("gap"))
+            {
+                md.AppendLine("## 4. Beceri farkı (aynı seviyeler, mesafe m; gürültülü oyuncular 5 tohum ortalaması ve en kötü-en iyi)\n");
+                md.AppendLine("| Pist | Seviyeler | Usta | Ortalama | Eğmeyen | Ortalama köprüden düşme |");
+                md.AppendLine("|---|---|---|---|---|---|");
+                for (int t = 0; t < TrackLibrary.Count; t++)
+                {
+                    var track = TrackLibrary.Get(t);
+                    var cfg = Upgrades.BuildConfig(mid[t]);
+                    float usta = Simulate(track, cfg, PlayerKind.Usta, 1).distance;
+                    string Avg(PlayerKind k, out int falls)
+                    {
+                        float sum = 0f, lo = float.MaxValue, hi = 0f;
+                        falls = 0;
+                        for (int sd = 1; sd <= 5; sd++)
+                        {
+                            var r = Simulate(track, cfg, k, sd * 101 + t);
+                            sum += r.distance; lo = Mathf.Min(lo, r.distance); hi = Mathf.Max(hi, r.distance);
+                            if (r.reason == SledPhysics.FellInCreek) falls++;
+                        }
+                        return (sum / 5f).ToString("F0") + " (" + lo.ToString("F0") + "–" + hi.ToString("F0") + ")";
+                    }
+                    string avgS = Avg(PlayerKind.Ortalama, out int f1);
+                    string noTilt = Avg(PlayerKind.Egmeyen, out _);
+                    md.AppendLine(string.Format("| {0} | {1} | {2:F0} | {3} | {4} | {5}/5 |", track.name, string.Join("/", mid[t]), usta, avgS, noTilt, f1));
+                }
+                md.AppendLine();
+            }
+
+            Debug.Log("[SIM] Başlangıç raporu\n" + md);
+            if (!string.IsNullOrEmpty(outPath)) System.IO.File.WriteAllText(outPath, md.ToString(), new UTF8Encoding(false));
+        }
+
+        /// Köprü düşmeleri: ortalama oyuncu (10 tohum) her köprüye hangi hız, sapma ve açıyla giriyor, kaçı düşüyor.
+        /// track=  levels=a,b,c,d,e
+        public static void BridgeFalls()
+        {
+            int track = 2;
+            int[] lv = { 18, 17, 8, 15, 14 };
+            var kind = PlayerKind.Ortalama;
+            foreach (var arg in System.Environment.GetCommandLineArgs())
+            {
+                if (arg.StartsWith("track=")) track = int.Parse(arg.Substring(6));
+                if (arg.StartsWith("levels=")) lv = System.Array.ConvertAll(arg.Substring(7).Split(','), int.Parse);
+                if (arg.StartsWith("player=")) kind = SimPlayer.Parse(arg.Substring(7));
+            }
+            var t = TrackLibrary.Get(track);
+            var cfg = Upgrades.BuildConfig(lv);
+            var sb = new StringBuilder("[SIM] Köprü düşmeleri " + t.name + " (" + SimPlayer.Name(kind) + ")\n");
+            foreach (var b in t.bridges) sb.AppendLine("  köprü " + b.r0.ToString("F0") + "-" + b.r1.ToString("F0") + " x " + b.x.ToString("F1"));
+            for (int seed = 1; seed <= 10; seed++)
+            {
+                var sled = new SledPhysics(t, cfg);
+                var liquid = new LiquidSim();
+                liquid.Reset(cfg);
+                sled.PlaceForAim(1f);
+                sled.Launch();
+                var player = new SimPlayer(kind, seed * 13);
+                float time = 0f;
+                var line = new StringBuilder("  tohum " + seed + ":");
+                int next = 0;
+                while (sled.end == RunEnd.None && time < 600f)
+                {
+                    Vector2 glass = player.Glass(sled, cfg, Dt);
+                    if (player.Fire(t, sled, cfg)) sled.FireRocket();
+                    sled.Step(player.Steer(t, sled, Dt), player.Pitch(t, sled, cfg), Dt);
+                    liquid.lidClosed = sled.position.z < cfg.lidDistance;
+                    liquid.Step(sled.acceleration, SimPlayer.GlassRotation(sled, glass), Dt);
+                    if (liquid.FillRatio < 0.12f) sled.ForceEnd(RunEnd.Spilled, "Bardak boşaldı!");
+                    if (next < t.bridges.Count && sled.position.z >= t.bridges[next].r0)
+                    {
+                        var b = t.bridges[next];
+                        line.AppendFormat("  [{0:F0}: sapma {1:+0.00;-0.00} m, açı {2:+0;-0}°, hız {3:F1}]", b.r0, sled.position.x - b.x,
+                                          sled.heading * Mathf.Rad2Deg, sled.Speed);
+                        next++;
+                    }
+                    time += Dt;
+                }
+                line.AppendFormat("  → {0:F0} m {1}", sled.maxDistance, sled.endReason);
+                sb.AppendLine(line.ToString());
+            }
+            Debug.Log(sb.ToString());
+        }
+
+        static string R(EconomyResult e, int t) => e.runs[t] + (e.finished[t] ? "" : "+");
 
         /// İnce köprü testi: her pistin köprüleri; en iyi kızak ilk köprüye otomatik pilotla gelir, tablada
         /// direksiyonu sağa kırarsa (kısa / uzun) dereye düşmeli, hiç kırmazsa geçmeli.
@@ -515,26 +782,32 @@ namespace SledSurfers.EditorTools
             Debug.Log(sb.ToString());
         }
 
-        static SimResult Simulate(TrackProfile track, SledConfig cfg)
+        static SimResult Simulate(TrackProfile track, SledConfig cfg, PlayerKind kind = PlayerKind.Usta, int seed = 0,
+                                  RocketPolicy rocket = RocketPolicy.Varsayilan)
         {
             var sled = new SledPhysics(track, cfg);
             var liquid = new LiquidSim();
             liquid.Reset(cfg);
             sled.PlaceForAim(1f);
             sled.Launch();
-            var pilot = new AutoPilot();
+            var player = new SimPlayer(kind, seed, rocket);
+            if (player.PerfectLaunch()) { sled.launchBoost = SledPhysics.PerfectLaunchBoost; sled.stats.perfectLaunch = true; }
             float t = 0f;
             while (sled.end == RunEnd.None && t < 600f)
             {
-                pilot.StepGlass(sled, Dt);
-                if (AutoPilot.ShouldFire(track, sled, cfg)) sled.FireRocket();
-                sled.Step(AutoPilot.Steer(track, sled), AutoPilot.Pitch(track, sled, cfg), Dt);
+                Vector2 glass = player.Glass(sled, cfg, Dt);
+                if (player.Fire(track, sled, cfg)) sled.FireRocket();
+                sled.Step(player.Steer(track, sled, Dt), player.Pitch(track, sled, cfg), Dt);
                 liquid.lidClosed = sled.position.z < cfg.lidDistance;
-                liquid.Step(sled.acceleration, sled.Orientation * Quaternion.Euler(pilot.glassPitch, 0f, -pilot.glassRoll), Dt);
+                float before = liquid.FillRatio;
+                liquid.Step(sled.acceleration, SimPlayer.GlassRotation(sled, glass), Dt);
+                float lost = before - liquid.FillRatio;
+                if (lost > 0f) sled.stats.milkLost[(int)RunStats.Classify(sled, track)] += lost;
                 if (liquid.FillRatio < 0.12f) sled.ForceEnd(RunEnd.Spilled, "Bardak boşaldı!");
                 t += Dt;
             }
-            return new SimResult { distance = sled.maxDistance, fill = liquid.FillRatio, end = sled.end, reason = sled.endReason, time = t };
+            return new SimResult { distance = sled.maxDistance, fill = liquid.FillRatio, end = sled.end, reason = sled.endReason, time = t,
+                                   stats = sled.stats, topSpeed = sled.topSpeed };
         }
 
         static void Run(StringBuilder sb, int trackIndex, string label, int[] levels, float pull, GlassPlayer player,

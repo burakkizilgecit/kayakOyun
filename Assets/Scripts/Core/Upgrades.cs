@@ -72,6 +72,8 @@ namespace SledSurfers
         static readonly float[] glassRadius = { 0.035f, 0.036f, 0.034f, 0.031f, 0.03f };
         static readonly float[] glassHeight = { 0.12f, 0.155f, 0.18f, 0.21f, 0.24f };
         static readonly float[] glassDamping = { 0.12f, 0.24f, 0.32f, 0.4f, 0.5f };
+        // Bardak ağzına kalan boşluk (m), bardak modeline göre; aynı bardakta her kademe +1 mm (simle ayarlanır).
+        public static float[] glassHeadroom = { 0.019f, 0.023f, 0.027f, 0.032f, 0.037f };
 
         public static int MaxLevel(int type) => Max;
 
@@ -95,8 +97,11 @@ namespace SledSurfers
             return Mathf.RoundToInt(price / 5f) * 5;
         }
 
-        /// Coin yetmediğinde kademe elmasla da alınabilir: 2 elmas + kademenin ait olduğu parkur.
-        public static int GemCost(int type, int level) => 2 + Mathf.Max(0, UnlockTier(type, level + 1));
+        /// Kademe elmasla alınırsa fiyatı (kullanıcı kararı 2026-10-09): coin fiyatıyla logaritmik büyür, en az 2.
+        /// ~70 coin → 2, 1 bin → 5, 10 bin → 8, 100 bin → 11, 500 bin → 14 elmas. Elmas takılınan yerde kestirme olur
+        /// ama pahalı kademeleri bedavalaştırmaz (eskiden tüm kademeler baştan açık olduğu için hepsi 2 elmastı).
+        public static int GemCost(int type, int level) =>
+            Mathf.Max(2, 2 + Mathf.FloorToInt(Mathf.Log(Mathf.Max(Cost(type, level), 1) / 100f, 2f)));
 
         public static float IncomeMultiplier(int level) => 1f + 0.125f * level;
 
@@ -113,6 +118,10 @@ namespace SledSurfers
         /// Bardak modeli: her ana seviye yeni bir bardak.
         public static int GlassModel(int level) => Mathf.Min(level / StageSize, GlassNames.Length - 1);
 
+        /// Bardak kartının aşama adı (0..5): son aşama aynı bardağın altın sürümü.
+        public static string GlassStageName(int stage) => stage >= Stages ? "Altın " + GlassNames[GlassNames.Length - 1]
+                                                         : GlassNames[Mathf.Clamp(stage, 0, GlassNames.Length - 1)];
+
         public static SledConfig BuildConfig(int[] levels, Perk perk = Perk.None)
         {
             var c = new SledConfig();
@@ -128,8 +137,11 @@ namespace SledSurfers
             int g = GlassModel(gl);
             c.glassRadius = glassRadius[g];
             c.glassHeight = glassHeight[g];
-            // Aynı bardakta her kademe biraz daha sönümlü (kapak contası, tutuş...)
-            c.sloshDamping = glassDamping[g] + 0.02f * (gl % StageSize);
+            // Aynı bardakta her kademe biraz daha sönümlü (kapak contası, tutuş...). Son bardakta 20. kademe de
+            // sayılır (eskiden gl % 4 ile 19→20'de sönüm 0.56'dan 0.50'ye düşüyordu).
+            c.sloshDamping = glassDamping[g] + 0.02f * (gl - g * StageSize);
+            c.glassGold = gl >= Max;
+            c.milkHeadroom = glassHeadroom[g] + 0.001f * (gl - g * StageSize);
             c.glassModel = g;
             c.glassReflex = 0.4f + 0.35f * gl / Max;   // iyi bardak = daha kolay dengelenir
 

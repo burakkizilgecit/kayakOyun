@@ -85,8 +85,9 @@ namespace SledSurfers
         /// dışına kayan kızak dereye düşer, koşu biter.
         public struct Bridge { public float z0, z1, r0, r1, x, y0, y1; }
         public readonly List<Bridge> bridges = new List<Bridge>();
-        /// Tablanın yarı genişliği (kızağın ortası bu aralıkta kalmalı; kızak 0.76 m genişliğinde).
-        public const float BridgeHalfWidth = 0.6f;
+        /// Tablanın yarı genişliği (kızağın ortası bu aralıkta kalmalı; kızak 0.76 m genişliğinde). 0.6'da simdeki
+        /// ortalama oyuncu Kanyon ve Karlı Dağ'ın ilk köprüsünden hep düşüyordu (yol haritası aşama 3).
+        public const float BridgeHalfWidth = 0.8f;
         public readonly List<SurfaceZone> surfaces = new List<SurfaceZone>();
         public readonly List<Flock> flocks = new List<Flock>();
         /// Roket tepelerinin zirve z'leri.

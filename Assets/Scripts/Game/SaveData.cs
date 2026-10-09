@@ -2,6 +2,9 @@ using UnityEngine;
 
 namespace SledSurfers
 {
+    /// Aşamalı öğretim ipuçları (yol haritası aşama 5): her biri ilgili an ilk geldiğinde birkaç kez gösterilir.
+    public enum Hint { Steer, Milk, Rocket, Nose, Bridge, Launch }
+
     public class SaveData
     {
         public int money;
@@ -16,6 +19,15 @@ namespace SledSurfers
         public long launchTicks;      // dolum sayacının başladığı an (UTC); haklar doluyken her an güncellenir
         public int hand = 1;   // 1 = sağ el, -1 = sol el
         public bool sound = true;
+        public int steerSens = 1;      // direksiyon hassasiyeti: 0 düşük, 1 orta, 2 yüksek
+        public int tutorialCounts;     // aşamalı öğretim: her ipucunun kaç kez gösterildiği (4 bit × ipucu)
+
+        public int TutorialCount(Hint h) => (tutorialCounts >> (4 * (int)h)) & 0xF;
+        public void BumpTutorial(Hint h)
+        {
+            int c = TutorialCount(h);
+            if (c < 15) tutorialCounts += 1 << (4 * (int)h);
+        }
         public int track;      // seçili parkur
         public int avatar;     // seçili karakter (AvatarLibrary)
         public int avatarsOwned = 0b11;   // sahip olunan karakterler (bit maskesi; ilk ikisi ücretsiz)
@@ -34,6 +46,10 @@ namespace SledSurfers
         public Perk Perk => AvatarLibrary.All[avatar].perk;
 
         public bool Finished(int i) => bests[i] >= TrackLibrary.Lengths[i];
+
+        /// Çayır ilk kez bitene kadar fırlatma hakkı düşmez (kullanıcı kararı 2026-10-09): yeni oyuncu öğretici pisti
+        /// kesintisiz oynar; hak sistemi Çayır bitince başlar (hak sayacı o ana kadar dolu kalır).
+        public bool LaunchesFree => !Finished(0);
 
         static long RegenPeriod => System.TimeSpan.FromMinutes(LaunchRegenMinutes).Ticks;
 
@@ -58,28 +74,51 @@ namespace SledSurfers
         public int SecondsToNextLaunch(long now) =>
             launches >= MaxLaunches ? 0 : Mathf.Max(0, Mathf.CeilToInt((float)((launchTicks + RegenPeriod - now) / 1e7)));
 
+        /// Kayıt anahtarlarının öneki. Otomatik test oyunları (AutoShot) "autotest." önekli ayrı anahtarlara yazar:
+        /// gerçek oyuncu kaydına hiç dokunmazlar.
+        public static string Prefix = "";
+        static string K(string name) => Prefix + name;
+
+        static System.Collections.Generic.IEnumerable<string> Keys()
+        {
+            foreach (var k in new[] { "money", "gems", "chest", "launches", "launchTicks", "hand", "sound", "track", "avatar", "avatars", "unlocked",
+                                      "sens", "tut" })
+                yield return k;
+            for (int i = 0; i < Upgrades.Count; i++) yield return "lvl" + i;
+            for (int i = 0; i < TrackLibrary.Count; i++) yield return "best_t" + i;
+        }
+
+        /// Geçerli önekle yazılmış bütün kayıt anahtarlarını siler (testler için; PlayerPrefs.DeleteAll yerine).
+        public static void ClearAll()
+        {
+            foreach (var k in Keys()) PlayerPrefs.DeleteKey(K(k));
+            PlayerPrefs.Save();
+        }
+
         public static SaveData Load()
         {
             var s = new SaveData
             {
-                money = PlayerPrefs.GetInt("money", 0),
-                gems = PlayerPrefs.GetInt("gems", 0),
-                chestReadyTicks = long.TryParse(PlayerPrefs.GetString("chest", "0"), out var ticks) ? ticks : 0,
-                hand = PlayerPrefs.GetInt("hand", 1),
-                sound = PlayerPrefs.GetInt("sound", 1) != 0,
-                unlocked = Mathf.Clamp(PlayerPrefs.GetInt("unlocked", 0), 0, TrackLibrary.Count - 1),
-                avatarsOwned = PlayerPrefs.GetInt("avatars", 0b11) | 0b11,
-                launches = Mathf.Clamp(PlayerPrefs.GetInt("launches", MaxLaunches), 0, MaxLaunches),
-                launchTicks = long.TryParse(PlayerPrefs.GetString("launchTicks", "0"), out var lt) ? lt : 0,
+                money = PlayerPrefs.GetInt(K("money"), 0),
+                gems = PlayerPrefs.GetInt(K("gems"), 0),
+                chestReadyTicks = long.TryParse(PlayerPrefs.GetString(K("chest"), "0"), out var ticks) ? ticks : 0,
+                hand = PlayerPrefs.GetInt(K("hand"), 1),
+                sound = PlayerPrefs.GetInt(K("sound"), 1) != 0,
+                steerSens = Mathf.Clamp(PlayerPrefs.GetInt(K("sens"), 1), 0, 2),
+                tutorialCounts = PlayerPrefs.GetInt(K("tut"), 0),
+                unlocked = Mathf.Clamp(PlayerPrefs.GetInt(K("unlocked"), 0), 0, TrackLibrary.Count - 1),
+                avatarsOwned = PlayerPrefs.GetInt(K("avatars"), 0b11) | 0b11,
+                launches = Mathf.Clamp(PlayerPrefs.GetInt(K("launches"), MaxLaunches), 0, MaxLaunches),
+                launchTicks = long.TryParse(PlayerPrefs.GetString(K("launchTicks"), "0"), out var lt) ? lt : 0,
             };
             s.RegenLaunches(System.DateTime.UtcNow.Ticks);
-            s.track = Mathf.Clamp(PlayerPrefs.GetInt("track", 0), 0, s.unlocked);
-            s.avatar = Mathf.Clamp(PlayerPrefs.GetInt("avatar", 0), 0, AvatarLibrary.Count - 1);
+            s.track = Mathf.Clamp(PlayerPrefs.GetInt(K("track"), 0), 0, s.unlocked);
+            s.avatar = Mathf.Clamp(PlayerPrefs.GetInt(K("avatar"), 0), 0, AvatarLibrary.Count - 1);
             if (!s.Owns(s.avatar)) s.avatar = 0;
             for (int i = 0; i < Upgrades.Count; i++)
-                s.levels[i] = Mathf.Clamp(PlayerPrefs.GetInt("lvl" + i, 0), 0, Upgrades.MaxLevel(i));
+                s.levels[i] = Mathf.Clamp(PlayerPrefs.GetInt(K("lvl" + i), 0), 0, Upgrades.MaxLevel(i));
             for (int i = 0; i < TrackLibrary.Count; i++)
-                s.bests[i] = PlayerPrefs.GetInt("best_t" + i, 0);
+                s.bests[i] = PlayerPrefs.GetInt(K("best_t" + i), 0);
             // Bir parkur bitmeden sonraki açılmaz (eski kayıtlar ve değişen pistler için de geçerli).
             while (s.unlocked > 0 && !s.Finished(s.unlocked - 1)) s.unlocked--;
             s.track = Mathf.Min(s.track, s.unlocked);
@@ -90,19 +129,21 @@ namespace SledSurfers
 
         public void Save()
         {
-            PlayerPrefs.SetInt("money", money);
-            PlayerPrefs.SetInt("gems", gems);
-            PlayerPrefs.SetString("chest", chestReadyTicks.ToString());
-            PlayerPrefs.SetInt("launches", launches);
-            PlayerPrefs.SetString("launchTicks", launchTicks.ToString());
-            PlayerPrefs.SetInt("hand", hand);
-            PlayerPrefs.SetInt("sound", sound ? 1 : 0);
-            PlayerPrefs.SetInt("track", track);
-            PlayerPrefs.SetInt("avatar", avatar);
-            PlayerPrefs.SetInt("avatars", avatarsOwned);
-            PlayerPrefs.SetInt("unlocked", unlocked);
-            for (int i = 0; i < Upgrades.Count; i++) PlayerPrefs.SetInt("lvl" + i, levels[i]);
-            for (int i = 0; i < TrackLibrary.Count; i++) PlayerPrefs.SetInt("best_t" + i, bests[i]);
+            PlayerPrefs.SetInt(K("money"), money);
+            PlayerPrefs.SetInt(K("gems"), gems);
+            PlayerPrefs.SetString(K("chest"), chestReadyTicks.ToString());
+            PlayerPrefs.SetInt(K("launches"), launches);
+            PlayerPrefs.SetString(K("launchTicks"), launchTicks.ToString());
+            PlayerPrefs.SetInt(K("hand"), hand);
+            PlayerPrefs.SetInt(K("sound"), sound ? 1 : 0);
+            PlayerPrefs.SetInt(K("sens"), steerSens);
+            PlayerPrefs.SetInt(K("tut"), tutorialCounts);
+            PlayerPrefs.SetInt(K("track"), track);
+            PlayerPrefs.SetInt(K("avatar"), avatar);
+            PlayerPrefs.SetInt(K("avatars"), avatarsOwned);
+            PlayerPrefs.SetInt(K("unlocked"), unlocked);
+            for (int i = 0; i < Upgrades.Count; i++) PlayerPrefs.SetInt(K("lvl" + i), levels[i]);
+            for (int i = 0; i < TrackLibrary.Count; i++) PlayerPrefs.SetInt(K("best_t" + i), bests[i]);
             PlayerPrefs.Save();
         }
     }

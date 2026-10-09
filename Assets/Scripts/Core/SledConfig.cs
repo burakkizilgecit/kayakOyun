@@ -34,11 +34,16 @@ namespace SledSurfers
         // Bardak (silindir)
         public float glassRadius = 0.035f;     // m
         public float glassHeight = 0.12f;      // m
-        public float initialFill = 0.075f;     // m, başlangıç sıvı yüksekliği
+        /// Bardak ağzına kalan boşluk (m). Yol haritası aşama 2: bardak ağzına kadar dolu başlar, süt gerçekten taşabilir;
+        /// iyi bardak daha çok boşluk bırakır (Upgrades.glassHeadroom). Eskiden hep 7.5 cm doldurulurdu, ilk bardakta
+        /// bile 4.5 cm boşluk kalıyor, süt hiç dökülmüyordu.
+        public float milkHeadroom = 0.019f;
+        public float InitialFill => UnityEngine.Mathf.Max(glassHeight - milkHeadroom, 0.02f);   // m, başlangıç sıvı yüksekliği
         public float sloshDamping = 0.12f;     // çalkalanma sönümü (ζ)
         public float glassReflex = 0.4f;       // karakterin savrulmayı kendiliğinden dengeleme oranı (0..1)
         public int glassModel;                 // görsel: hangi bardak (Upgrades.GlassNames)
-        public float lidDistance = 100f;       // m, kapak bu mesafede açılır (fırlatma sarsıntısında dökülmesin)
+        public bool glassGold;                 // görsel: 20. kademe, son bardağın altın sürümü
+        public float lidDistance = 15f;        // m, kapak bu mesafede açılır: yalnızca sapan itişini korur (eskiden 100 m)
 
         // Roket: koşuda butonla ateşlenir, rocketBurn saniye boyunca rocketThrust N iter.
         public float rocketThrust;             // N

@@ -83,7 +83,7 @@ namespace SledSurfers
                     var deco = new GameObject("Deco").transform;
                     deco.SetParent(root, false);
                     var glassMat = Mats.Glass();
-                    glassMat.color = new Color(0.85f, 0.95f, 1f, 0.45f);
+                    glassMat.color = cfg.glassGold ? RiderView.GoldGlassTint : new Color(0.85f, 0.95f, 1f, 0.45f);
                     var shell = new GameObject("Shell");
                     shell.transform.SetParent(root, false);
                     shell.AddComponent<MeshFilter>().sharedMesh = GlassModels.Build(cfg.glassModel, d, h, 1f, deco, glassMat, Layer);

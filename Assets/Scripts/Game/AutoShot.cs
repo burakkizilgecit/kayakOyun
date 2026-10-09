@@ -12,6 +12,9 @@ namespace SledSurfers
         string folder;
         string mode = "";   // "-shots avatars": yalnızca karakter çekimleri (hızlı deneme)
 
+        /// Oyun otomatik test için mi başlatıldı ("-autoshot <klasör>")? Kayıt yüklenmeden önce sorulur.
+        public static bool Requested => System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-autoshot") >= 0;
+
         public static void AttachIfRequested(GameController game)
         {
             var args = System.Environment.GetCommandLineArgs();
@@ -34,12 +37,12 @@ namespace SledSurfers
 
         IEnumerator Start()
         {
-            PlayerPrefs.DeleteAll();
+            SaveData.ClearAll();   // yalnız test önekli kayıt (gerçek kayıt korunur)
             float t;
             if (mode == "avatars")
             {
                 yield return AvatarShots();
-                PlayerPrefs.DeleteAll();
+                SaveData.ClearAll();   // yalnız test önekli kayıt (gerçek kayıt korunur)
                 Application.Quit();
                 yield break;
             }
@@ -291,7 +294,7 @@ namespace SledSurfers
             while (!game.DebugInResult && game.DebugDistance < sz && t < 120f) { t += Time.deltaTime; yield return null; }
             yield return Shot("14_snow_gap");
 
-            PlayerPrefs.DeleteAll();
+            SaveData.ClearAll();   // yalnız test önekli kayıt (gerçek kayıt korunur)
             Application.Quit();
         }
 

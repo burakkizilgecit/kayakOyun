@@ -15,7 +15,7 @@ namespace SledSurfers
         class Item
         {
             public Vector3 pos;
-            public bool gem, taken;
+            public bool gem, taken, small;   // small: köprü tablasında (görüşü kapatmasın)
             public Transform tf;
             public float phase, popClock = -1f;
         }
@@ -74,7 +74,8 @@ namespace SledSurfers
                 for (int i = 0; i <= n; i++)
                 {
                     float zz = Mathf.Lerp(b.r0, b.r1, (float)i / n);
-                    Add(new Vector3(b.x, TrackProfile.DeckHeight(b, zz) + 0.8f, zz), i == n / 2);
+                    Add(new Vector3(b.x, TrackProfile.DeckHeight(b, zz) + 0.6f, zz), i == n / 2);
+                    items[items.Count - 1].small = true;
                 }
             }
 
@@ -107,6 +108,40 @@ namespace SledSurfers
 
             foreach (var it in items) { if (it.gem) GemCount++; else CoinCount++; }
             Spawn();
+        }
+
+        /// Pistteki elmasların z konumları, kurulumla aynı kural (köprü ortası, köprüsüz çukur yayının tepesi,
+        /// %45 ve %82). Simler elmas gelirini bununla hesaplar; kurulum kuralı değişirse bu da değişmeli.
+        public static List<float> GemZs(TrackProfile track)
+        {
+            var list = new List<float>();
+            foreach (var b in track.bridges)
+            {
+                int n = Mathf.Max(3, Mathf.RoundToInt((b.r1 - b.r0) / 2.2f));
+                list.Add(Mathf.Lerp(b.r0, b.r1, (float)(n / 2) / n));
+            }
+            foreach (var w in track.water)
+            {
+                if (track.BridgeAt((w.x + w.y) * 0.5f, out _)) continue;
+                float z0 = w.x - 2f, z1 = w.y + 2f;
+                int n = Mathf.Clamp(Mathf.RoundToInt((z1 - z0) / 3.2f), 4, 40);
+                list.Add(Mathf.Lerp(z0, z1, (float)(n / 2) / n));
+            }
+            foreach (float f in new[] { 0.45f, 0.82f })
+            {
+                float z = track.finishZ * f;
+                for (int k = 0; k < 20 && NearWaterZ(track, z, 8f); k++) z += 6f;
+                list.Add(z);
+            }
+            list.Sort();
+            return list;
+        }
+
+        static bool NearWaterZ(TrackProfile track, float z, float margin)
+        {
+            foreach (var w in track.water)
+                if (z > w.x - margin && z < w.y + margin) return true;
+            return false;
         }
 
         static bool Blocked(TrackProfile track, float lane, float z0, float z1)
@@ -169,6 +204,7 @@ namespace SledSurfers
                     go.transform.localScale = it.gem ? Vector3.one * GemSize : new Vector3(CoinSize, 0.06f, CoinSize);
                     go.GetComponent<Renderer>().sharedMaterial = it.gem ? gemMat : Mats.Solid(new Color(1f, 0.8f, 0.2f), 0.7f);
                 }
+                if (it.small) go.transform.localScale *= 0.6f;
                 foreach (var r in go.GetComponentsInChildren<Renderer>()) r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 go.transform.position = it.pos;
                 it.tf = go.transform;

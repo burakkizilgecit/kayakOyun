@@ -9,6 +9,10 @@ namespace SledSurfers
     public struct HudInfo
     {
         public int money, best, distance, hand;
+        public bool freeLaunches;   // Çayır bitene kadar hak düşmez: sayaç "∞" gösterir
+        public int sensitivity;     // direksiyon hassasiyeti (0..2)
+        public float milkDanger;    // süt taşmaya ne kadar yakın (0..1)
+        public bool perfectWindow;  // sapan tam gerildi: şimdi bırakırsa mükemmel atış
         public float progress, bestProgress, speedKmh, fill, pull, runTime;
         public bool airborne, canGlide, dragging, tiltMode, sound;
         public Rect glassRect;   // bardak kamerasının ekran oranı cinsinden alanı (alt-sol orijinli)
@@ -34,6 +38,7 @@ namespace SledSurfers
         public int unlockedLength;
         public bool lastTrack;                   // son parkur da bitti
         public int coins, gems;                  // pistte toplanan coin ve elmas
+        public string tip;                       // bir sonraki atış için öneri (RunTips); boşsa gösterilmez
     }
 
     /// UI Toolkit ile koddan kurulan oyun arayüzü: Ana ekran (yükseltmeler) → Nişan → Koşu → Sonuç → Ana ekran.
@@ -47,6 +52,7 @@ namespace SledSurfers
         public event Action<int> ClaimChest;   // çarpan: 1 ya da 3 (reklamla)
         public event Action<int> Buy, SetHand, SelectTrack;
         public event Action<bool> SetSound;
+        public event Action<int> SetSensitivity;
         public event Action WatchLaunchAd;   // hak bitti penceresinde reklam izlendi: +1 hak
 
         static readonly Color Ink = new Color32(0x2B, 0x23, 0x40, 0xFF);
@@ -123,7 +129,7 @@ namespace SledSurfers
         Action adDone;
 
         // Sonuç: toplananlar
-        Label resLoot;
+        Label resLoot, resTip;
 
         // Karakterler
         VisualElement hubAvatarPortrait;
@@ -178,6 +184,8 @@ namespace SledSurfers
         Icon playHand;
         VisualElement hubTrackFill, settings, settingsCard;
         Button handLeft, handRight, soundOn, soundOff;
+        readonly Button[] sensButtons = new Button[3];
+        float hintTime;
 
         // Harita
         readonly MapCard[] mapCards = new MapCard[TrackLibrary.Count];
@@ -214,6 +222,7 @@ namespace SledSurfers
 
         // Bardak (nişan + koşu)
         VisualElement glassHud, glassFrame, milkPill, milkFill;
+        float milkDangerShown;
         Label milkLabel;
         Icon milkIcon, lidIcon;
         int shownMilk = -1;
@@ -233,8 +242,9 @@ namespace SledSurfers
         {
             public VisualElement root, fill, bar, pipRow, preview, shine, top;
             public readonly VisualElement[] pips = new VisualElement[Upgrades.StageSize];
-            public Label badge, sub, cost, level;
+            public Label badge, sub, cost, level, gain;
             public bool canBuy;
+            public string gainText = "";
             public Button buy;
             public Icon coin, gem, lockIcon;
             public float bump, shake;
@@ -450,6 +460,8 @@ namespace SledSurfers
             resBonus.text = "Bitiş ödülü: +" + summary.finishBonus;
             resLoot.text = "Toplanan: " + summary.coins + " coin" + (summary.gems > 0 ? "  ·  " + summary.gems + " pembe elmas" : "");
             resLoot.style.display = summary.coins > 0 || summary.gems > 0 ? DisplayStyle.Flex : DisplayStyle.None;
+            resTip.text = summary.tip ?? "";
+            resTip.style.display = string.IsNullOrEmpty(summary.tip) ? DisplayStyle.None : DisplayStyle.Flex;
             resMilk.text = "%" + Mathf.RoundToInt(Mathf.Clamp01(summary.fill) * 100f);
             resDist.text = "0 m";
             resCoins.text = "+0";
@@ -482,8 +494,12 @@ namespace SledSurfers
         public void SetRunGems(IList<float> fractions) => runColumn.SetGems(fractions);
 
         /// Koşuda kapak açılınca kısa bir kutlama yazısı.
-        public void LidOpened()
+        public void LidOpened() => Toast("KAPAK AÇILDI!");
+
+        /// Koşuda ekranın ortasında kısa bir yazı (kapak, roket kilidi...).
+        public void Toast(string text)
         {
+            toastLabel.text = text;
             toastClock = 0f;
             toastLabel.style.display = DisplayStyle.Flex;
         }
@@ -783,6 +799,10 @@ namespace SledSurfers
             top.Add(lvl);
             c.badge = L("0/20", "pcard-count");
             top.Add(c.badge);
+            // Bir sonraki kademenin bu pistte yaklaşık kazandıracağı mesafe (GainPredictor)
+            c.gain = L("", "pcard-gain");
+            c.gain.style.display = DisplayStyle.None;
+            top.Add(c.gain);
 
             var ribbon = E("pcard-name");
             var name = L(Upgrades.Names[i].ToUpper(Tr), "outlined");
@@ -876,6 +896,22 @@ namespace SledSurfers
         }
 
         /// Kartları kayıtla eşitler; bought >= 0 ise o kart "satın alındı" diye zıplar.
+        /// Kartlarda bir sonraki kademenin tahmini mesafe kazancı ("+120 m"); hesaplanmadıysa ya da ihmal edilebilirse gizli.
+        public void SetGains(GainPredictor g)
+        {
+            for (int i = 0; i < cards.Length; i++)
+            {
+                var c = cards[i];
+                if (c == null || c.gain == null) continue;
+                float m = g.Gain(i);
+                string text = m >= 1f ? "+" + TrackLibrary.Show(m) + " m" : "";
+                if (text == c.gainText) continue;
+                c.gainText = text;
+                c.gain.text = text;
+                c.gain.style.display = text.Length > 0 ? DisplayStyle.Flex : DisplayStyle.None;
+            }
+        }
+
         public void RefreshHub(SaveData save, int bought)
         {
             int tier = save.unlocked;
@@ -1007,6 +1043,7 @@ namespace SledSurfers
             handRight.EnableInClassList("on", h.hand > 0);
             soundOn.EnableInClassList("on", h.sound);
             soundOff.EnableInClassList("on", !h.sound);
+            for (int k = 0; k < sensButtons.Length; k++) sensButtons[k]?.EnableInClassList("on", h.sensitivity == k);
         }
 
         void BuildSettings()
@@ -1032,6 +1069,17 @@ namespace SledSurfers
             hand.Add(handLeft);
             hand.Add(handRight);
             settingsCard.Add(hand);
+
+            settingsCard.Add(SettingLabel("Direksiyon hassasiyeti"));
+            var sens = E("seg");
+            string[] sensNames = { "DÜŞÜK", "ORTA", "YÜKSEK" };
+            for (int k = 0; k < 3; k++)
+            {
+                int v = k;
+                sensButtons[k] = Seg(sensNames[k], () => SetSensitivity?.Invoke(v));
+                sens.Add(sensButtons[k]);
+            }
+            settingsCard.Add(sens);
 
             settingsCard.Add(SettingLabel("Ses"));
             var sound = E("seg");
@@ -1620,10 +1668,12 @@ namespace SledSurfers
             power.style.display = pulling ? DisplayStyle.Flex : DisplayStyle.None;
             if (pulling)
             {
-                powerLabel.text = "GÜÇ %" + Mathf.RoundToInt(h.pull * 100f);
+                // Tam gerilince kısa bir an "BIRAK!": o anda bırakmak mükemmel atış (lastik %6 güçlü).
+                powerLabel.text = h.perfectWindow ? "BIRAK!" : "GÜÇ %" + Mathf.RoundToInt(h.pull * 100f);
                 powerBar.Set(h.pull, 0f);
-                powerBar.fill.style.backgroundColor = Color.Lerp(new Color32(0xFF, 0xC9, 0x3C, 0xFF), new Color32(0xFF, 0x4D, 0x3D, 0xFF), h.pull);
-                float s = 1f + 0.04f * h.pull * Mathf.Sin(time * 40f);
+                powerBar.fill.style.backgroundColor = h.perfectWindow ? (Color)new Color32(0x3F, 0xD1, 0x5B, 0xFF)
+                    : Color.Lerp(new Color32(0xFF, 0xC9, 0x3C, 0xFF), new Color32(0xFF, 0x4D, 0x3D, 0xFF), h.pull);
+                float s = h.perfectWindow ? 1.18f + 0.06f * Mathf.Sin(time * 30f) : 1f + 0.04f * h.pull * Mathf.Sin(time * 40f);
                 powerLabel.style.scale = new Scale(new Vector2(s, s));
             }
         }
@@ -1788,18 +1838,23 @@ namespace SledSurfers
                 rocketBtn.style.scale = new Scale(new Vector2(pulse, pulse));
             }
 
-            bool tut = h.runTime < 3.5f && !debugHideTutorial;
+            // Aşamalı öğretim: ilgili an gelince tek ipucu (GameController.ShowHint), birkaç saniye görünür.
+            hintTime -= dt;
+            bool tut = hintTime > 0f && !debugHideTutorial;
             tutorial.style.display = tut ? DisplayStyle.Flex : DisplayStyle.None;
-            if (tut && tutorial.childCount == 0)
-            {
-                tutorial.Add(TutorialRow(IconKind.Swap, h.tiltMode ? "Sağa-sola sürükle: yön" : "A / D: yön · W / S: burun"));
-                tutorial.Add(TutorialRow(IconKind.Glass, h.tiltMode ? "Telefonu eğ: bardak dengesi" : "I J K L: bardak dengesi"));
-                if (h.hasRocket)
-                    tutorial.Add(TutorialRow(IconKind.Rocket, h.tiltMode ? "Roket butonu: kısa itiş" : "R: roketi ateşle"));
-                tutorial.Query<VisualElement>().ForEach(e => e.pickingMode = PickingMode.Ignore);
-            }
-            if (tut) tutorial.style.opacity = Mathf.Clamp01((3.5f - h.runTime) / 0.4f);
+            if (tut) tutorial.style.opacity = Mathf.Clamp01(hintTime / 0.4f);
         }
+
+        /// Koşuda tek satırlık ipucu kartı (aşamalı öğretim).
+        public void ShowHint(IconKind icon, string text, float seconds = 3.2f)
+        {
+            tutorial.Clear();
+            tutorial.Add(TutorialRow(icon, text));
+            tutorial.Query<VisualElement>().ForEach(e => e.pickingMode = PickingMode.Ignore);
+            hintTime = seconds;
+        }
+
+        public void HideHint() => hintTime = 0f;
 
         VisualElement TutorialRow(IconKind kind, string text)
         {
@@ -1867,8 +1922,11 @@ namespace SledSurfers
                                                : fill > 0.25f ? (Color)new Color32(0xFF, 0xE0, 0x8A, 0xFF)
                                                : (Color)new Color32(0xFF, 0x9C, 0x8F, 0xFF);
             }
-            float s = fill < 0.3f ? 1f + 0.06f * Mathf.Abs(Mathf.Sin(time * 7f)) : 1f;
+            // Süt ağza yaklaşınca gösterge büyür ve kızarır (dikkat bardağa); güvendeyken sade kalır.
+            milkDangerShown = Mathf.MoveTowards(milkDangerShown, Mathf.InverseLerp(0.55f, 0.95f, h.milkDanger), Time.deltaTime * 6f);
+            float s = 1f + 0.12f * milkDangerShown + (fill < 0.3f ? 0.06f * Mathf.Abs(Mathf.Sin(time * 7f)) : 0f);
             milkPill.style.scale = new Scale(new Vector2(s, s));
+            milkPill.style.backgroundColor = Color.Lerp(Color.white, new Color(1f, 0.45f, 0.35f), milkDangerShown);
         }
 
         // ================================================================ sonuç
@@ -1949,6 +2007,20 @@ namespace SledSurfers
             resLoot.style.marginTop = 14;
             resLoot.style.color = Muted;
             resultCard.Add(resLoot);
+
+            // Bir sonraki atış için öneri (neden + yapılacak şey)
+            resTip = L("", "heavy");
+            resTip.style.fontSize = 34;
+            resTip.style.marginTop = 16;
+            resTip.style.paddingLeft = resTip.style.paddingRight = 22;
+            resTip.style.paddingTop = resTip.style.paddingBottom = 12;
+            resTip.style.whiteSpace = WhiteSpace.Normal;
+            resTip.style.unityTextAlign = TextAnchor.MiddleCenter;
+            resTip.style.backgroundColor = (Color)new Color32(0xFF, 0xF1, 0xC9, 0xFF);
+            resTip.style.borderTopLeftRadius = resTip.style.borderTopRightRadius = 22;
+            resTip.style.borderBottomLeftRadius = resTip.style.borderBottomRightRadius = 22;
+            resTip.style.color = (Color)new Color32(0x6B, 0x4A, 0x10, 0xFF);
+            resultCard.Add(resTip);
 
             resBonus = L("", "heavy");
             resBonus.style.color = (Color)new Color32(0x22, 0xA0, 0x3C, 0xFF);
@@ -2082,22 +2154,24 @@ namespace SledSurfers
 
         void UpdateLaunches(in HudInfo h)
         {
-            if (h.launches != shownLaunches)
+            int key = h.freeLaunches ? -2 : h.launches;
+            if (key != shownLaunches)
             {
-                shownLaunches = h.launches;
-                foreach (var l in launchLabels) l.text = h.launches + "/" + SaveData.MaxLaunches;
+                shownLaunches = key;
+                foreach (var l in launchLabels) l.text = h.freeLaunches ? "∞" : h.launches + "/" + SaveData.MaxLaunches;
                 if (launchModalCount != null) launchModalCount.text = h.launches + "/" + SaveData.MaxLaunches;
                 // Hak geldiyse pencere kendiliğinden kapanır.
                 if (h.launches > 0 && launchModal != null && launchModal.style.display.value == DisplayStyle.Flex) HideNoLaunches();
             }
-            if (h.launchSeconds != shownLaunchSeconds)
+            int secs = h.freeLaunches ? 0 : h.launchSeconds;
+            if (secs != shownLaunchSeconds)
             {
-                shownLaunchSeconds = h.launchSeconds;
-                string t = h.launchSeconds > 0 ? Clock(h.launchSeconds) : "";
+                shownLaunchSeconds = secs;
+                string t = secs > 0 ? Clock(secs) : "";
                 foreach (var l in launchTimers)
                 {
                     l.text = t;
-                    l.style.display = h.launchSeconds > 0 ? DisplayStyle.Flex : DisplayStyle.None;
+                    l.style.display = secs > 0 ? DisplayStyle.Flex : DisplayStyle.None;
                 }
                 if (launchModalTimer != null) launchModalTimer.text = "Yeni hak: " + (h.launchSeconds > 0 ? Clock(h.launchSeconds) : "hazır");
             }

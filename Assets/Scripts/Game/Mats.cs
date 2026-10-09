@@ -36,7 +36,7 @@ namespace SledSurfers
             if (ripples == null) ripples = RippleNormals();
             m.EnableKeyword("_NORMALMAP");
             m.SetTexture("_BumpMap", ripples);
-            m.SetFloat("_BumpScale", 0.55f);
+            m.SetFloat("_BumpScale", 0.3f);   // sade dünyaya uysun: dalgacıklar yumuşak
             WaterAnimator.Register(m);
             return m;
         }

@@ -10,7 +10,7 @@ namespace SledSurfers
 
         public static readonly string[] Names = { "Çayır", "Orman", "Kanyon", "Karlı Dağ" };
         /// Atış kazancı çarpanı: zor pistler metre başına daha çok öder (son seviyeler pahalı, koşular kısa kalır).
-        public static float[] PayFactors = { 4f, 6.2f, 7f, 15f };   // 2026-10-08 kısa pistler (×3.6 gösterim), sim: 42 / 33 / 25 / 46 atış
+        public static float[] PayFactors = { 4f, 3.2f, 2.5f, 2.2f };   // 2026-10-09 aşama 4: ortalama oyuncu + elmas simiyle 28 / 37 / 17 / 29 atış
 
         // Gerçek uzunluklar (m). Ekranda ×DisplayScale gösterilir (Sled Surfers gibi: Çayır "3600 m").
         public static readonly float[] Lengths = { 1000f, 1200f, 1400f, 1600f };
@@ -239,8 +239,8 @@ namespace SledSurfers
 
         /// Pist başına süzülme ayarları: yavaşlama yamacı eğimi (pist başında → sonunda; sona doğru düzleşir, her kızak
         /// seviyesi bir iki yamaç daha aşar), yamaç uzunluğu, kanal eğimi ve uzunluğu.
-        public static float[] SlowGrade = { 0.143f, 0.08f, 0.082f, 0.077f };
-        public static float[] SlowGradeEnd = { 0.138f, 0.075f, 0.082f, 0.077f };
+        public static float[] SlowGrade = { 0.143f, 0.095f, 0.1f, 0.1f };
+        public static float[] SlowGradeEnd = { 0.138f, 0.092f, 0.1f, 0.1f };
         public static Vector2[] SlowLength = { new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f) };
         public static float[] BoostGrade = { 0.42f, 0.36f, 0.36f, 0.34f };
         public static float[] BoostLength = { 25f, 25f, 25f, 25f };
@@ -284,15 +284,19 @@ namespace SledSurfers
                     kick = false;
                     kickH = 0f;
                     float span = Mathf.Lerp(BridgeSpan.x, BridgeSpan.y, t);
-                    p.Hills(10f, 1, 0f, slowGrade * 10f);
+                    // Kanal çıkışından 20 m sonra: kızak biraz yavaşlamış, köprüye hizalanacak zaman var.
+                    p.Hills(20f, 1, 0f, slowGrade * 20f);
                     p.Bridge(span, BridgeDepth, slowGrade);
                     lastBridge = p.z;
-                    L = Mathf.Max(25f, L - 10f - span);   // köprü yamacın parçası: döngünün enerji dengesi değişmesin
+                    L = Mathf.Max(25f, L - 20f - span);   // köprü yamacın parçası: döngünün enerji dengesi değişmesin
                 }
                 else if (kick)
                 {
+                    // Kanaldan doğrudan rampaya geçiş 2.5 g'lik sıkışma yapıp sütü bir anda boşaltıyordu: önce 10 m yamaç.
+                    p.Hills(10f, 1, 0f, slowGrade * 10f);
                     p.Ramp(8f, kickH, 0.8f);
                     Pickup(4f);
+                    L = Mathf.Max(25f, L - 10f);
                 }
                 float side = rnd.Next(2) == 0 ? -1f : 1f;
                 // Yamaçtaki yüzey (yamaç başına göre): buz şeridi (hızlı yol), patikayı kesen su/çamur (yanından dolaş)

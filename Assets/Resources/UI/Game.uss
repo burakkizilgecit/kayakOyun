@@ -324,6 +324,11 @@
     background-color: rgba(30, 24, 48, 0.55); color: #FFFFFF; font-size: 22px; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf");
     -unity-text-align: middle-center; -unity-text-outline-width: 0;
 }
+.pcard-gain {
+    position: absolute; right: 8px; top: 50px; height: 34px; padding: 2px 10px 0 10px; border-radius: 17px;
+    background-color: #3FD15B; color: #FFFFFF; font-size: 22px; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf");
+    -unity-text-align: middle-center; -unity-text-outline-width: 0;
+}
 .pcard-name {
     position: absolute; left: 0; right: 0; bottom: 0; height: 40px; background-color: rgba(30, 24, 48, 0.42);
     align-items: center; justify-content: center;

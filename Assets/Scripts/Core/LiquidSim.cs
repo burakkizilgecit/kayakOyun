@@ -27,12 +27,16 @@ namespace SledSurfers
         SledConfig cfg;
 
         public Vector3 ArmOffset => armOffset;
+        /// Taşma tehlikesi (0..1): yüzeyin en yüksek noktası bardak ağzına ne kadar yaklaştı (1 = taşıyor).
+        /// Arayüz süt göstergesini buna göre uyarır.
+        public float Danger => cfg == null || lidClosed ? 0f
+            : Mathf.Clamp01(slope.magnitude * cfg.glassRadius / Mathf.Max(cfg.glassHeight - fill, 0.001f));
         public float FillRatio => initialFill > 0f ? fill / initialFill : 0f;
 
         public void Reset(SledConfig config)
         {
             cfg = config;
-            initialFill = fill = config.initialFill;
+            initialFill = fill = config.InitialFill;
             slope = slopeVel = Vector2.zero;
             lidClosed = true;
             armOffset = armVel = smoothAccel = Vector3.zero;

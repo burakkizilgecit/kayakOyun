@@ -42,6 +42,8 @@ namespace SledSurfers
             new Color(0.85f, 0.95f, 1f, 0.28f), new Color(1f, 0.92f, 0.75f, 0.4f), new Color(0.75f, 0.8f, 0.88f, 0.45f),
             new Color(0.75f, 1f, 0.82f, 0.32f), new Color(0.88f, 0.78f, 1f, 0.38f),
         };
+        /// 20. kademe: son bardağın altın sürümü.
+        public static readonly Color GoldGlassTint = new Color(1f, 0.82f, 0.35f, 0.5f);
         float lidClock = -1f;   // < 0: kapak bardakta; >= 0: fırlayıp düşüyor
         static readonly Vector3 TorsoPivot = new Vector3(0f, 0.42f, -0.2f);   // kalça
         readonly Material steel;
@@ -674,7 +676,7 @@ namespace SledSurfers
             else hand.localPosition = new Vector3(0.45f * side, 0.86f, 0.32f);
             float d = cfg.glassRadius * 2f * GlassScale;
             float h = cfg.glassHeight * GlassScale;
-            glassMat.color = GlassTints[Mathf.Clamp(cfg.glassModel, 0, GlassTints.Length - 1)];
+            glassMat.color = cfg.glassGold ? GoldGlassTint : GlassTints[Mathf.Clamp(cfg.glassModel, 0, GlassTints.Length - 1)];
             if (cfg.glassModel != builtGlass || side != builtSide)
             {
                 builtGlass = cfg.glassModel;

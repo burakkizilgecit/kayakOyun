@@ -73,13 +73,17 @@ namespace SledSurfers
         /// Otomatik pilotun direksiyonunu ezer (NaN: kapalı) — köprüden düşme çekimi için.
         public float debugSteer = float.NaN;
         readonly AutoPilot pilot = new AutoPilot();
+        /// Kartlardaki "+X m" önizlemesi: ana ekrandayken arka planda hesaplanır.
+        readonly GainPredictor gains = new GainPredictor();
 
         void Awake()
         {
             Application.targetFrameRate = 60;
             if (Application.isMobilePlatform) Screen.orientation = ScreenOrientation.Portrait;
 
+            if (AutoShot.Requested) SaveData.Prefix = "autotest.";   // test oyunu gerçek kayda dokunmaz
             save = SaveData.Load();
+            input.sensitivity = save.steerSens;
             SetupEnvironment();
             LoadTrack(save.track);
             rider = new RiderView();
@@ -89,6 +93,7 @@ namespace SledSurfers
             new PartPreview();   // kart önizlemeleri (arayüzden önce)
             cam.cullingMask &= ~(1 << 31);
             ui = new GameUI(gameObject, sfx.Click);
+            input.blocksPointer = ui.BlocksPointer;
             PushGemMarks();
             WireUi();
             EnterHub();
@@ -326,11 +331,16 @@ namespace SledSurfers
 
         /// Ekran görüntüsü testi onlarca kez fırlatır: kota uygulanmaz.
         public bool debugUnlimitedLaunches;
+        static bool NoTiltDevice => Application.isMobilePlatform && !SystemInfo.supportsAccelerometer;
+        /// Mükemmel bırakış: sapan tam gerildikten (≥%97) sonraki bu süre içinde bırakılırsa lastik %6 güçlü iter.
+        const float PerfectWindow = 0.35f;
+        float fullPullTime = -1f;
+        bool PerfectWindowOpen => fullPullTime >= 0f && Time.time - fullPullTime <= PerfectWindow;
         Light fillLight;
 
         void EnterAim()
         {
-            if (!debugUnlimitedLaunches && save.launches <= 0)
+            if (!debugUnlimitedLaunches && !save.LaunchesFree && save.launches <= 0)
             {
                 // Hak yok: ana ekranda bekleme/reklam penceresi.
                 if (state != State.Hub) EnterHub();
@@ -345,12 +355,16 @@ namespace SledSurfers
 
         void Launch()
         {
-            if (!debugUnlimitedLaunches)
+            if (!debugUnlimitedLaunches && !save.LaunchesFree)
             {
                 save.RegenLaunches(System.DateTime.UtcNow.Ticks);
                 save.launches = Mathf.Max(0, save.launches - 1);
                 save.Save();
             }
+            bool perfect = PerfectWindowOpen;
+            fullPullTime = -1f;
+            sled.launchBoost = perfect ? SledPhysics.PerfectLaunchBoost : 1f;
+            sled.stats.perfectLaunch = perfect;
             sled.Launch();
             state = State.Run;
             runTime = 0f;
@@ -360,6 +374,9 @@ namespace SledSurfers
             sfx.Twang(pull);
             world.ShowGuide(aim, 0f);
             ui.ShowRun();
+            if (perfect) ui.Toast("MÜKEMMEL ATIŞ!");
+            hintedRocket = hintedNose = hintedBridge = false;
+            ShowHint(Hint.Steer, IconKind.Swap, input.TiltMode ? "Sağa-sola sürükle: yön" : "A / D: yön", 3);
         }
 
         void EndRun()
@@ -421,6 +438,7 @@ namespace SledSurfers
                 fill = fill,
                 progress = Mathf.Clamp01(distance / track.finishZ),
                 bestProgress = Mathf.Clamp01(previousBest / track.finishZ),
+                tip = RunTips.Tip(sled.stats, sled.end, sled.endReason, cfg, sled.maxDistance),
             };
         }
 
@@ -433,6 +451,9 @@ namespace SledSurfers
             switch (state)
             {
                 case State.Hub:
+                    gains.Request(track, save.levels, save.Perk);
+                    gains.Tick();
+                    ui.SetGains(gains);
                     // Ana ekranda boş bir yere dokunmak oyunu başlatır (düğmeler ve kartlar hariç).
                     if (ui.Current == GameUI.Page.Hub && input.pointerDown && !ui.BlocksPointer(input.pointerPos)) EnterAim();
                     break;
@@ -516,6 +537,8 @@ namespace SledSurfers
             }
 
             bool released = (aimDragging && input.pointerUp) || (aimArmed && input.spaceUp);
+            if (pull >= 0.97f) { if (fullPullTime < 0f) fullPullTime = Time.time; }
+            else if (pull < 0.95f) fullPullTime = -1f;
             sled.PlaceForAim(pull, aim);
             world.ShowGuide(aim, pull);
 
@@ -588,13 +611,15 @@ namespace SledSurfers
         void UpdateRun(float dt)
         {
             runTime += dt;
+            RunHints();
             accumulator += dt;
             if (rocketRequested || Input.GetKeyDown(KeyCode.R)) TryFireRocket();
             rocketRequested = false;
             while (accumulator >= PhysicsStep)
             {
                 accumulator -= PhysicsStep;
-                reflex.Step(sled, cfg.glassReflex, PhysicsStep);
+                // İvmeölçeri olmayan telefonda oyuncu bardağı eğemez: karakter dengelemeyi büyük ölçüde üstlenir.
+                reflex.Step(sled, NoTiltDevice ? Mathf.Max(cfg.glassReflex, 0.9f) : cfg.glassReflex, PhysicsStep);
                 if (debugAutopilot)
                 {
                     pilot.StepGlass(sled, PhysicsStep);
@@ -610,8 +635,12 @@ namespace SledSurfers
                     rider.PopLid();
                     sfx.Pop();
                     ui.LidOpened();
+                    ShowHint(Hint.Milk, IconKind.Glass, input.TiltMode ? "Telefonu eğ: süt dökülmesin" : "I J K L: bardağı eğ, süt dökülmesin", 3);
                 }
+                float fillBefore = liquid.FillRatio;
                 liquid.Step(sled.acceleration, GlassRotation(), PhysicsStep);
+                float spilled = fillBefore - liquid.FillRatio;
+                if (spilled > 0f) sled.stats.milkLost[(int)RunStats.Classify(sled, track)] += spilled;
                 Pickup();
                 if (sled.end == RunEnd.None && liquid.FillRatio < EmptyLimit)
                     sled.ForceEnd(RunEnd.Spilled, "Bardak boşaldı!");
@@ -643,9 +672,49 @@ namespace SledSurfers
             }
         }
 
+        bool hintedRocket, hintedNose, hintedBridge;
+
+        /// Aşamalı öğretim: ipucu, oyuncu o anı ilk birkaç kez yaşarken gösterilir (yol haritası aşama 5).
+        void ShowHint(Hint h, IconKind icon, string text, int times)
+        {
+            if (save.TutorialCount(h) >= times) return;
+            save.BumpTutorial(h);
+            ui.ShowHint(icon, text);
+        }
+
+        /// Koşu sırasında bağlama göre ipuçları: roket hazır, ilk gerçek uçuş, köprü yaklaşıyor.
+        void RunHints()
+        {
+            if (!hintedRocket && cfg.rocketCharges > 0 && runTime > 1.5f && sled.CanFireRocket)
+            {
+                hintedRocket = true;
+                ShowHint(Hint.Rocket, IconKind.Rocket, input.TiltMode ? "Roket: kızak hızlıyken bas" : "R: roketi hızlıyken ateşle", 3);
+            }
+            if (!hintedNose && !sled.grounded && !sled.launching
+                && sled.position.y - track.Height(sled.position.x, sled.position.z) > 1.5f)
+            {
+                hintedNose = true;
+                ShowHint(Hint.Nose, IconKind.Wing, input.TiltMode ? "Havada yukarı-aşağı sürükle: burun" : "W / S: havada burun", 2);
+            }
+            if (!hintedBridge && track.BridgeAt(sled.position.z + 30f, out _))
+            {
+                hintedBridge = true;
+                ShowHint(Hint.Bridge, IconKind.Runners, "İnce köprü! Ortadan düz git", 3);
+            }
+        }
+
         void TryFireRocket()
         {
-            if (!sled.FireRocket()) return;
+            if (!sled.FireRocket())
+            {
+                // Havada alınan son roket hakkı inişe kadar kilitli: oyuncuya neden basamadığını söyle.
+                if (state == State.Run && sled.pickupAwaitingLanding && sled.rocketCharges > 0)
+                {
+                    ui.Toast("İNİNCE HAZIR!");
+                    sfx.Deny();
+                }
+                return;
+            }
             sfx.Pop();
             shakeAmount = Mathf.Max(shakeAmount, 0.12f);
         }
@@ -730,12 +799,13 @@ namespace SledSurfers
             float c = track.CenterX(p.z);
             float bend = (track.CenterX(p.z + 6f) - track.CenterX(p.z - 6f)) / 12f;
             float lateral = (p.x - c) * 0.85f;   // yamaca çıkan kızak ekranın ortasına yakın kalsın
-            float lookX = c + bend * 7f + lateral;
+            float lookX = c + bend * 8f + lateral;
             // İnişte bakış biraz aşağı: yamaç yukarıdan okunsun (ileri zeminle kızak arası).
             // Vadinin üstünde (zemin çok aşağıda) kamera suya dönmesin: bakış kızağın en çok 1.5 m altına iner.
-            float lookY = Mathf.Max(Mathf.Lerp(p.y + 1f, track.Height(lookX, p.z + 7f) + 1.2f, 0.5f), p.y - 1.5f);
-            look = new Vector3(lookX, lookY, p.z + 7f);
-            var camPos = new Vector3(c - bend * 8f + lateral, p.y + 3.0f, p.z - 8f);
+            float lookY = Mathf.Max(Mathf.Lerp(p.y + 1f, track.Height(lookX, p.z + 8f) + 1.2f, 0.5f), p.y - 1.5f);
+            // Yol haritası aşama 6: kamera 8 m yerine 6.5 m geride, biraz alçak (karakter büyük görünür); bakış 8 m ileri.
+            look = new Vector3(lookX, lookY, p.z + 8f);
+            var camPos = new Vector3(c - bend * 6.5f + lateral, p.y + 2.6f, p.z - 6.5f);
             camPos.y = AboveGround(camPos, p + new Vector3(0f, 0.8f, 0f));
             return camPos;
         }
@@ -869,6 +939,12 @@ namespace SledSurfers
             };
             ui.Buy += Buy;
             ui.SetHand += SetHand;
+            ui.SetSensitivity += v =>
+            {
+                save.steerSens = v;
+                input.sensitivity = v;
+                save.Save();
+            };
             ui.SetSound += on =>
             {
                 save.sound = on;
@@ -908,7 +984,7 @@ namespace SledSurfers
                 var tr = new System.Globalization.CultureInfo("tr-TR");
                 int stage = Upgrades.Stage(save.levels[i]);
                 string detail = i == (int)UpgradeType.Runners ? Upgrades.RunnerStageNames[stage - 1].ToUpper(tr)
-                              : i == (int)UpgradeType.Glass ? Upgrades.GlassNames[Upgrades.GlassModel(save.levels[i])].ToUpper(tr)
+                              : i == (int)UpgradeType.Glass ? Upgrades.GlassStageName(stage).ToUpper(tr)
                               : "YENİ GÖRÜNÜM";
                 ui.StageUp(Upgrades.Names[i].ToUpper(tr) + " " + stage + ". SEVİYE!\n" + detail);
                 rider.Punch();
@@ -962,15 +1038,20 @@ namespace SledSurfers
                 best = save.best,
                 hand = save.hand,
                 sound = save.sound,
+                sensitivity = save.steerSens,
                 distance = Mathf.FloorToInt(sled.maxDistance),
                 progress = Mathf.Clamp01(sled.maxDistance / track.finishZ),
                 bestProgress = Mathf.Clamp01(save.best / track.finishZ),
                 speedKmh = sled.Speed * 3.6f,
                 fill = liquid.FillRatio,
+                milkDanger = state == State.Run ? liquid.Danger : 0f,
                 pull = pull,
+                perfectWindow = state == State.Aim && PerfectWindowOpen,
                 runTime = runTime,
-                airborne = state == State.Run && !sled.grounded && !sled.launching,
-                canGlide = cfg.wingArea > 0f,
+                // Yalnızca gerçek uçuşta (yerden 1.2 m'den yüksek) yazı çıkar; "SÜZÜL!" kanat hâlâ taşıyorsa.
+                airborne = state == State.Run && !sled.grounded && !sled.launching
+                           && sled.position.y - track.Height(sled.position.x, sled.position.z) > 1.2f,
+                canGlide = sled.WingsOpen,
                 dragging = aimDragging,
                 tiltMode = input.TiltMode,
                 glassRect = rider.glassCam.rect,
@@ -985,6 +1066,7 @@ namespace SledSurfers
                 runGems = loot.gems,
                 chestSeconds = ChestSeconds(),
                 launches = save.launches,
+                freeLaunches = save.LaunchesFree,
                 crashScene = rider.Crashing,
                 launchSeconds = save.SecondsToNextLaunch(System.DateTime.UtcNow.Ticks),
                 rocketFuel = sled.RocketFiring ? Mathf.Clamp01(sled.rocketTime / Mathf.Max(sled.rocketBurn, 0.01f)) : 0f,
