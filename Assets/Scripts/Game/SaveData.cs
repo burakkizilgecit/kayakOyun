@@ -3,7 +3,7 @@ using UnityEngine;
 namespace SledSurfers
 {
     /// Aşamalı öğretim ipuçları (yol haritası aşama 5): her biri ilgili an ilk geldiğinde birkaç kez gösterilir.
-    public enum Hint { Steer, Milk, Rocket, Nose, Bridge, Launch }
+    public enum Hint { Steer, Milk, Rocket, Nose, Bridge, Launch, Fork }
 
     public class SaveData
     {
@@ -32,7 +32,17 @@ namespace SledSurfers
         public int avatar;     // seçili karakter (AvatarLibrary)
         public int avatarsOwned = 0b11;   // sahip olunan karakterler (bit maskesi; ilk ikisi ücretsiz)
         public int unlocked;   // açılmış en ileri parkur
-        public readonly int[] levels = new int[Upgrades.Count];
+        /// Pist başına yükseltme kademeleri (kullanıcı kararı 2026-10-09): yeni pistte kartlar sıfırdan başlar.
+        public readonly int[][] trackLevels = NewTrackLevels();
+        /// Geçerli pistin kademeleri (çağıranlar her zaman o anki pistinkini görür).
+        public int[] levels => trackLevels[Mathf.Clamp(track, 0, TrackLibrary.Count - 1)];
+
+        static int[][] NewTrackLevels()
+        {
+            var a = new int[TrackLibrary.Count][];
+            for (int t = 0; t < a.Length; t++) a[t] = new int[Upgrades.Count];
+            return a;
+        }
         public readonly int[] bests = new int[TrackLibrary.Count];
 
         /// Seçili parkurun rekoru (m).
@@ -84,7 +94,8 @@ namespace SledSurfers
             foreach (var k in new[] { "money", "gems", "chest", "launches", "launchTicks", "hand", "sound", "track", "avatar", "avatars", "unlocked",
                                       "sens", "tut" })
                 yield return k;
-            for (int i = 0; i < Upgrades.Count; i++) yield return "lvl" + i;
+            for (int t = 0; t < TrackLibrary.Count; t++)
+                for (int i = 0; i < Upgrades.Count; i++) yield return "lvl" + t + "_" + i;
             for (int i = 0; i < TrackLibrary.Count; i++) yield return "best_t" + i;
         }
 
@@ -115,15 +126,15 @@ namespace SledSurfers
             s.track = Mathf.Clamp(PlayerPrefs.GetInt(K("track"), 0), 0, s.unlocked);
             s.avatar = Mathf.Clamp(PlayerPrefs.GetInt(K("avatar"), 0), 0, AvatarLibrary.Count - 1);
             if (!s.Owns(s.avatar)) s.avatar = 0;
-            for (int i = 0; i < Upgrades.Count; i++)
-                s.levels[i] = Mathf.Clamp(PlayerPrefs.GetInt(K("lvl" + i), 0), 0, Upgrades.MaxLevel(i));
+            // Pist başına kademeler ("lvl{pist}_{kart}"). Eski tek dizi ("lvl{kart}") yeni sistemde anlam taşımadığı için okunmaz.
+            for (int t = 0; t < TrackLibrary.Count; t++)
+                for (int i = 0; i < Upgrades.Count; i++)
+                    s.trackLevels[t][i] = Mathf.Clamp(PlayerPrefs.GetInt(K("lvl" + t + "_" + i), 0), 0, Upgrades.MaxFor(t));
             for (int i = 0; i < TrackLibrary.Count; i++)
                 s.bests[i] = PlayerPrefs.GetInt(K("best_t" + i), 0);
             // Bir parkur bitmeden sonraki açılmaz (eski kayıtlar ve değişen pistler için de geçerli).
             while (s.unlocked > 0 && !s.Finished(s.unlocked - 1)) s.unlocked--;
             s.track = Mathf.Min(s.track, s.unlocked);
-            for (int i = 0; i < Upgrades.Count; i++)
-                s.levels[i] = Mathf.Min(s.levels[i], Upgrades.Cap(i, s.unlocked));
             return s;
         }
 
@@ -142,7 +153,8 @@ namespace SledSurfers
             PlayerPrefs.SetInt(K("avatar"), avatar);
             PlayerPrefs.SetInt(K("avatars"), avatarsOwned);
             PlayerPrefs.SetInt(K("unlocked"), unlocked);
-            for (int i = 0; i < Upgrades.Count; i++) PlayerPrefs.SetInt(K("lvl" + i), levels[i]);
+            for (int t = 0; t < TrackLibrary.Count; t++)
+                for (int i = 0; i < Upgrades.Count; i++) PlayerPrefs.SetInt(K("lvl" + t + "_" + i), trackLevels[t][i]);
             for (int i = 0; i < TrackLibrary.Count; i++) PlayerPrefs.SetInt(K("best_t" + i), bests[i]);
             PlayerPrefs.Save();
         }

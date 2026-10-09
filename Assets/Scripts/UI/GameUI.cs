@@ -82,7 +82,8 @@ namespace SledSurfers
         static readonly Color[] TrackColors =
         {
             new Color32(0x5C, 0xC4, 0x5A, 0xFF), new Color32(0x2E, 0x8B, 0x57, 0xFF), new Color32(0xE8, 0x74, 0x3B, 0xFF),
-            new Color32(0x4F, 0x9F, 0xE0, 0xFF),
+            new Color32(0x4F, 0x9F, 0xE0, 0xFF), new Color32(0xE8, 0xB9, 0x3B, 0xFF), new Color32(0xD8, 0x3A, 0x2A, 0xFF),
+            new Color32(0xB8, 0x5A, 0x3C, 0xFF),
         };
         static readonly IconKind[] UpgradeIcons =
             { IconKind.Slingshot, IconKind.Runners, IconKind.Glass, IconKind.Income, IconKind.Rocket };
@@ -189,6 +190,7 @@ namespace SledSurfers
 
         // Harita
         readonly MapCard[] mapCards = new MapCard[TrackLibrary.Count];
+        ScrollView mapScroll;
 
         // Yükseltme kartları
         readonly UpgradeCard[] cards = new UpgradeCard[Upgrades.Count];
@@ -242,7 +244,7 @@ namespace SledSurfers
         {
             public VisualElement root, fill, bar, pipRow, preview, shine, top;
             public readonly VisualElement[] pips = new VisualElement[Upgrades.StageSize];
-            public Label badge, sub, cost, level, gain;
+            public Label badge, sub, cost, level, gain, title;
             public bool canBuy;
             public string gainText = "";
             public Button buy;
@@ -805,7 +807,7 @@ namespace SledSurfers
             top.Add(c.gain);
 
             var ribbon = E("pcard-name");
-            var name = L(Upgrades.Names[i].ToUpper(Tr), "outlined");
+            var name = c.title = L(Upgrades.Names[i].ToUpper(Tr), "outlined");
             name.style.fontSize = 30;
             ribbon.Add(name);
             top.Add(ribbon);
@@ -918,7 +920,9 @@ namespace SledSurfers
             for (int i = 0; i < Upgrades.Count; i++)
             {
                 var c = cards[i];
-                int lvl = save.levels[i], cap = Upgrades.Cap(i, tier), max = Upgrades.MaxLevel(i);
+                // Yükseltmeler pist başına: kademe sınırı ve kartın adı (Kızak kartı pistin aracı) geçerli pistin.
+                int lvl = save.levels[i], max = Upgrades.MaxLevel(i), cap = max;
+                c.title.text = Upgrades.Name(i).ToUpper(Tr);
                 c.badge.text = lvl + "/" + max;
                 c.level.text = Mathf.Min(lvl / Upgrades.StageSize + 1, Upgrades.Stages).ToString();
                 var preview = PartPreview.Instance;
@@ -956,7 +960,7 @@ namespace SledSurfers
                 c.gem.style.display = gemPay ? DisplayStyle.Flex : DisplayStyle.None;
                 c.lockIcon.style.display = tierLocked ? DisplayStyle.Flex : DisplayStyle.None;
                 if (maxed) c.cost.text = "MAKS";
-                else if (tierLocked) c.cost.text = TrackLibrary.Names[Mathf.Max(0, Upgrades.UnlockTier(i, lvl + 1))].ToUpper(Tr);
+                else if (tierLocked) c.cost.text = "MAKS";
                 else c.cost.text = gemPay ? gemCost.ToString() : cost.ToString();
                 c.cost.style.fontSize = tierLocked ? 26 : 34;
 
@@ -1508,14 +1512,29 @@ namespace SledSurfers
             top.Add(CoinPill());
             p.Add(top);
 
-            var list = E("grow");
-            list.style.justifyContent = Justify.Center;
+            // 7 parkur ekrana sığmıyor: liste kaydırılır, açılışta güncel parkura gidilir.
+            mapScroll = new ScrollView(ScrollViewMode.Vertical);
+            mapScroll.style.flexGrow = 1;
+            mapScroll.style.flexShrink = 1;
+            mapScroll.verticalScrollerVisibility = ScrollerVisibility.Hidden;
+            mapScroll.horizontalScrollerVisibility = ScrollerVisibility.Hidden;
+            mapScroll.touchScrollBehavior = ScrollView.TouchScrollBehavior.Elastic;
+            mapScroll.style.overflow = Overflow.Hidden;
+            var inner = mapScroll.Q(className: "unity-scroll-view__content-and-vertical-scroll-container");
+            if (inner != null) { inner.style.flexGrow = 1; inner.style.flexShrink = 1; inner.style.flexDirection = FlexDirection.Row; }
+            mapScroll.contentViewport.style.flexGrow = 1;
+            mapScroll.contentViewport.style.flexShrink = 1;
+            mapScroll.contentViewport.style.overflow = Overflow.Hidden;
+            mapScroll.contentContainer.style.flexShrink = 0;
+            mapScroll.contentContainer.style.paddingTop = mapScroll.contentContainer.style.paddingBottom = 20;
+            var list = mapScroll.contentContainer;
             for (int i = 0; i < TrackLibrary.Count; i++)
             {
                 if (i > 0)
                 {
                     // Kartları birleştiren noktalı yol
                     var dots = E("col");
+                    dots.style.flexShrink = 0;
                     dots.style.paddingTop = dots.style.paddingBottom = 6;
                     for (int k = 0; k < 3; k++)
                     {
@@ -1532,6 +1551,7 @@ namespace SledSurfers
 
                 int index = i;
                 var c = new MapCard { root = B(() => SelectTrack?.Invoke(index), "btn", "btn-white", "map-card") };
+                c.root.style.flexShrink = 0;
                 c.badge = E("map-badge");
                 c.badge.style.backgroundColor = TrackColors[i];
                 c.number = L((i + 1).ToString(), "outlined");
@@ -1563,7 +1583,7 @@ namespace SledSurfers
                 mapCards[i] = c;
                 list.Add(c.root);
             }
-            p.Add(list);
+            p.Add(mapScroll);
         }
 
         public void ShowMap(SaveData save)
@@ -1598,6 +1618,9 @@ namespace SledSurfers
                 }
             }
             SetPage(Page.Map);
+            // Yerleşim hesaplanınca güncel parkuru görünür yap
+            var cur = mapCards[Mathf.Clamp(save.track, 0, TrackLibrary.Count - 1)].root;
+            mapScroll.schedule.Execute(() => mapScroll.ScrollTo(cur)).StartingIn(30);
         }
 
         // ================================================================ nişan

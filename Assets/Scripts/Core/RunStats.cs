@@ -25,6 +25,7 @@ namespace SledSurfers
         public int rocketsFired;
         public float launchSpeed = -1f;                  // sapandan çıkış hızı (m/s)
         public bool perfectLaunch;                       // mükemmel bırakış (lastik %6 güçlü)
+        public bool fellInRavine;                        // köprüden dereye (lav, kratere...) düştü
         public float airTime, longestAir;
         public int bridgesCrossed;
 
@@ -37,6 +38,7 @@ namespace SledSurfers
             rocketSpeed = rocketZ = launchSpeed = -1f;
             rocketsFired = 0;
             perfectLaunch = false;
+            fellInRavine = false;
             airTime = longestAir = 0f;
             bridgesCrossed = 0;
         }

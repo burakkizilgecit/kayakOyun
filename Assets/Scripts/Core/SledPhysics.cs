@@ -11,13 +11,16 @@ namespace SledSurfers
     /// Havada yerçekimi + hava direnci + (varsa) kanat kaldırma kuvveti çalışır.
     public class SledPhysics
     {
-        public const float Gravity = 9.81f;
+        /// Yerçekimi (m/s²): pist başına (Mars 0.38 g). Kızak kurulurken pistten alınır; sıvı, refleks ve otomatik
+        /// pilot da bunu okur (aynı anda tek pist koşar).
+        public static float Gravity = 9.81f;
+        public const float EarthGravity = 9.81f;
         const float AirDensity = 1.2f;
         public const float MaxAim = 0.44f;   // rad (~25°), sapanın en fazla yan açısı
         const float MaxHeading = 0.8f;   // rad (~46°): vadi kıvrılır, patika S çizer
         const float MaxSideGrip = 16f;   // m/s², yana dönüşte en büyük ivme (kıvrımlı patikayı izleyebilsin)
         const float MaxTurnRate = 1.6f;  // rad/s
-        const float DeckAlignRate = 0.6f;   // rad/s: köprü tablasında kızağın kendiliğinden hizalanma hızı
+        const float DeckAlignRate = 1.0f;   // rad/s: köprü tablasında kızağın kendiliğinden hizalanma hızı
         const float PitchRate = 1.8f;    // rad/s
         /// Kanadın profil sürükleme katsayısı. Küçük kanatlarda 0.12; büyük (üst seviye) kanatlar daha ince ve temizdir:
         /// toplam profil sürüklemesi (Cd0·alan) sabit kalır, böylece büyük kanat kızağı yavaşlatmaz, daha iyi süzülür.
@@ -79,6 +82,7 @@ namespace SledSurfers
 
         public SledPhysics(TrackProfile track, SledConfig cfg)
         {
+            Gravity = track.gravity;
             this.track = track;
             this.cfg = cfg;
         }
@@ -222,7 +226,7 @@ namespace SledSurfers
             if (!launching && speed > 0.3f)
             {
                 var surf = track.SurfaceAt(position.z, position.x);
-                float extra = (mu - cfg.groundFriction) * normalAcc + track.SurfaceResist(position.z, position.x) * speed * speed;
+                float extra = (mu - cfg.groundFriction) * normalAcc + track.SurfaceResist(position.z, position.x) * (Gravity / EarthGravity) * speed * speed;
                 var ls = surf == Surface.Mud ? LossSurface.Mud : surf == Surface.Puddle ? LossSurface.Puddle
                        : surf == Surface.Ice ? LossSurface.Ice : track.OnPath(position.z, position.x) ? LossSurface.Count : LossSurface.Grass;
                 if (ls != LossSurface.Count)
@@ -240,7 +244,7 @@ namespace SledSurfers
             }
             else
             {
-                float drag = (0.5f * AirDensity * cfg.dragArea / m + track.SurfaceResist(position.z, position.x)) * speed;
+                float drag = (0.5f * AirDensity * cfg.dragArea / m + track.SurfaceResist(position.z, position.x) * (Gravity / EarthGravity)) * speed;   // su/çamur direnci yerçekimiyle (Mars tozu hafif)
                 Vector3 vNew = v + (a - friction * v / speed - drag * v) * dt;
                 // Sürtünme hareketi tersine çeviremez.
                 if (Vector3.Dot(vNew, v) < 0f && a.magnitude <= friction) vNew = Vector3.zero;
@@ -252,6 +256,8 @@ namespace SledSurfers
             speed = v.magnitude;
             if (speed > 0.5f && !launching)
             {
+                // Yanal tutuş yerçekiminden bağımsız (arcade): Mars'ta hover aracı iticilerle döner; tutuş yerçekimiyle
+                // azalınca ortalama oyuncu köprüye hizalanamıyordu.
                 float rate = Mathf.Min(MaxSideGrip / speed, MaxTurnRate);
                 float turn = steer * rate * dt;
                 float h = Mathf.Atan2(v.x, v.z);
@@ -261,10 +267,12 @@ namespace SledSurfers
             // Köprü tablası (arcade yardımı): direksiyona sert basılmazsa kızak yavaşça tablanın yönüne hizalanır.
             // Beceri, köprüye ortadan girmek ve tablada oynamamak; hafif bir açı artık ölümcül değil (simde ortalama
             // oyuncu hızlandıkça her köprüden düşüyordu, yükseltme köprüyü zorlaştırıyordu).
-            if (speed > 0.5f && Mathf.Abs(steer) < 0.3f && track.OnDeck(position.x, position.z))
+            if (speed > 0.5f && Mathf.Abs(steer) < 0.3f && track.OnDeck(position.x, position.z) && track.BridgeAt(position.z, out var deck))
             {
+                // Hafif oluk: hem tablanın yönüne hem ortasına doğru (en çok ~6°'lik açıyla) döner.
                 float h = Mathf.Atan2(v.x, v.z);
-                float turn = Mathf.Clamp(-h, -DeckAlignRate * dt, DeckAlignRate * dt);
+                float want = Mathf.Clamp(0.5f * (deck.x - position.x) / Mathf.Max(speed * 0.5f, 1f), -0.1f, 0.1f);
+                float turn = Mathf.Clamp(want - h, -DeckAlignRate * dt, DeckAlignRate * dt);
                 v = Quaternion.AngleAxis(turn * Mathf.Rad2Deg, n) * v;
             }
             if (speed > 0.3f) heading = Mathf.Atan2(v.x, Mathf.Max(v.z, 0.5f));
@@ -454,7 +462,8 @@ namespace SledSurfers
             if ((underDeck || track.OverRavine(position.x, position.z)) && position.y <= ground + 0.9f)
             {
                 velocity = Vector3.zero;
-                ForceEnd(RunEnd.Crashed, FellInCreek);
+                stats.fellInRavine = true;
+                ForceEnd(RunEnd.Crashed, track.fallText);
                 return;
             }
             if (position.y <= ground) Land(ground);

@@ -9,8 +9,8 @@ namespace SledSurfers
         public static string Tip(RunStats s, RunEnd end, string reason, SledConfig cfg, float distance)
         {
             if (end == RunEnd.Finished) return "";
-            if (reason == SledPhysics.FellInCreek)
-                return "Köprüye yaklaşırken kızağı tablanın ortasına hizala ve düz git.";
+            if (s.fellInRavine)
+                return "Köprüye yaklaşırken aracı tablanın ortasına hizala ve düz git.";
             if (reason == SledPhysics.WentOffTrack)
                 return "Yamacın tepesini aşınca pistten çıkarsın: yana bu kadar sert tırmanma.";
             if (end == RunEnd.Crashed)

@@ -47,6 +47,14 @@ namespace SledSurfers
                 yield break;
             }
 
+            if (mode == "tracks")
+            {
+                yield return TrackShots();
+                SaveData.ClearAll();   // yalnız test önekli kayıt (gerçek kayıt korunur)
+                Application.Quit();
+                yield break;
+            }
+
             // Ana ekran (başlangıç)
             game.DebugReset(new[] { 0, 0, 0, 0, 0 }, 300);
             game.DebugHub();
@@ -296,6 +304,37 @@ namespace SledSurfers
 
             SaveData.ClearAll();   // yalnız test önekli kayıt (gerçek kayıt korunur)
             Application.Quit();
+        }
+
+        /// Her parkur: ana ekran (araç), koşu ve ilk çatal (yaklaşırken ve içinde); en sonda harita listesi.
+        IEnumerator TrackShots()
+        {
+            game.DebugHideTutorial();
+            game.debugAutopilot = true;
+            for (int tr = 0; tr < TrackLibrary.Count; tr++)
+            {
+                game.DebugReset(new[] { 20, 20, 16, 20, 20 }, 0);   // çatala ulaşsın
+                game.DebugTrack(tr, tr);
+                yield return new WaitForSeconds(1.5f);
+                yield return Shot("t" + tr + "_0hub");
+                game.DebugAim();
+                yield return new WaitForSeconds(0.5f);
+                game.DebugLaunch(1f);
+                yield return new WaitForSeconds(5f);
+                yield return Shot("t" + tr + "_1run");
+                float fz = game.DebugForkZ(0);
+                if (fz < 0f) continue;
+                float t = 0f;
+                while (!game.DebugInResult && game.DebugDistance < fz - 16f && t < 120f) { t += Time.deltaTime; yield return null; }
+                yield return Shot("t" + tr + "_2fork_ahead");
+                while (!game.DebugInResult && game.DebugDistance < fz + 22f && t < 120f) { t += Time.deltaTime; yield return null; }
+                yield return Shot("t" + tr + "_3fork_in");
+            }
+            game.DebugReset(new[] { 16, 16, 12, 16, 16 }, 0);
+            game.DebugTrack(4, 4);
+            game.DebugMap();
+            yield return new WaitForSeconds(1.2f);
+            yield return Shot("t_map");
         }
 
         /// Meshy karakterleri: kart, ana ekran, nişan, koşu ve düşüp kalkma sahnesi.

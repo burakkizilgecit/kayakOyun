@@ -50,7 +50,8 @@ namespace SledSurfers
             for (int i = 0; i < Upgrades.Count; i++)
             {
                 int stage = Mathf.Clamp(Upgrades.Stage(levels[i]), 0, 5);
-                int key = i == (int)UpgradeType.Runners ? levels[i] : stage;   // kızakta kanat boyu her kademede büyür
+                // Kızakta kanat boyu her kademede büyür; pist değişince (araç, aşama sayısı) hepsi yeniden çizilir.
+                int key = (i == (int)UpgradeType.Runners ? levels[i] : stage) + 1000 * Upgrades.Track;
                 if (key == shown[i] && targets[i].IsCreated()) continue;
                 shown[i] = key;
                 Render(i, stage, levels[i]);
@@ -141,12 +142,25 @@ namespace SledSurfers
 
         static void BuildSled(Transform root, int stage, int level)
         {
+            var kind = TrackLibrary.Vehicles[Upgrades.Track];
+            if (kind != VehicleKind.Sled)
+            {
+                VehicleModels.Build(kind, root).SetStage(Upgrades.Stage(level));
+                BuildWings(root, stage, level);
+                return;
+            }
             var runner = Mats.Solid(RiderView.RunnerColors[stage >= 5 ? 3 : stage >= 4 ? 2 : stage >= 2 ? 1 : 0], stage >= 2 ? 0.9f : 0.6f);
             var parts = SledModel.Build(root, runner);
             parts.SetStage(stage);
             if (stage >= 1)
                 Mats.PlaceBetween(Mats.Prim(PrimitiveType.Cylinder, "Rope", root, Vector3.zero, Vector3.one, Mats.Solid(new Color(1f, 0.76f, 0.2f), 0.2f)),
                                   SledModel.NoseEye, new Vector3(0.15f, 0.62f, 0.25f), 0.022f);
+            BuildWings(root, stage, level);
+        }
+
+        /// Kademedeki kanatlar (her araçta aynı bağlantı noktası).
+        static void BuildWings(Transform root, int stage, int level)
+        {
             var cfg = Upgrades.BuildConfig(new[] { 0, level, 0, 0, 0 });
             if (cfg.wingArea > 0f)
             {

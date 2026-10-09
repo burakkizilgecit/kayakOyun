@@ -42,6 +42,8 @@ namespace SledSurfers
         public float sloshDamping = 0.12f;     // çalkalanma sönümü (ζ)
         public float glassReflex = 0.4f;       // karakterin savrulmayı kendiliğinden dengeleme oranı (0..1)
         public int glassModel;                 // görsel: hangi bardak (Upgrades.GlassNames)
+        public int glassStage;                 // bardak aşaması (0..6): kristal / altın sürüm ve renk
+        public VehicleKind vehicle;            // pistin aracı (görünüş)
         public bool glassGold;                 // görsel: 20. kademe, son bardağın altın sürümü
         public float lidDistance = 15f;        // m, kapak bu mesafede açılır: yalnızca sapan itişini korur (eskiden 100 m)
 

@@ -22,6 +22,16 @@ namespace SledSurfers
         /// Karlı tema: zemin kar dokusu, kamera önünde kar yağışı.
         public bool snowy;
 
+        // Yüzeylerin görünüşü (fizik aynı): çamur = bataklık kumu / kül / kızıl toz, buz = tuz / obsidyen / Mars buzu.
+        public Color mudA = new Color(0.37f, 0.25f, 0.15f), mudB = new Color(0.27f, 0.17f, 0.09f), mudSpot = new Color(0.2f, 0.12f, 0.06f);
+        public Color iceA = new Color(0.74f, 0.91f, 1f), iceB = new Color(0.56f, 0.81f, 0.97f), iceC = new Color(0.42f, 0.7f, 0.93f);
+        public Color frost = Color.clear;   // şeffaf: varsayılan (karlı pistte beyaz, değilse açık buz mavisi)
+        public Color puddleShallow = new Color(0.42f, 0.62f, 0.7f, 0.85f), puddleDeep = new Color(0.18f, 0.34f, 0.48f, 0.9f);
+        /// Hazır kaya/bitki modellerinin renk tonu (Volkan koyu, Mars kızıl).
+        public Color propTint = Color.white;
+        /// Köprü altındaki "su" lav: parlayan turuncu.
+        public bool lava;
+
         public Texture2D GroundTexture() => snowy ? TextureKit.Snow() : TextureKit.Grass();
 
         // Bitki örtüsü: pistin yanı (yakın), orta bant (ağaçlar), uzak bant
@@ -92,6 +102,72 @@ namespace SledSurfers
                         far = new[] { "Nature/tree_pineTallA", "Nature/tree_pineTallB", "Nature/tree_pineTallC", "Nature/rock_tallB", "Nature/rock_tallD" },
                         nearHeight = new Vector2(0.4f, 1.2f), midHeight = new Vector2(5f, 12f), farHeight = new Vector2(10f, 20f),
                         nearChance = 0.35f, midStep = 5.5f,
+                    };
+                case 4:   // Çöl Kumulları: sıcak öğle, kum tepeleri, kaktüs ve palmiyeler
+                    return new TrackTheme
+                    {
+                        horizon = new Color(0.98f, 0.88f, 0.7f), skyTint = new Color(0.75f, 0.65f, 0.5f), skyGround = new Color(0.8f, 0.65f, 0.45f),
+                        skyTop = new Color(0.36f, 0.6f, 0.92f), exposure = 1.4f, sunColor = new Color(1f, 0.9f, 0.7f), sunEuler = new Vector3(55f, -30f, 0f),
+                        sunIntensity = 1.15f, ambientSky = new Color(0.8f, 0.75f, 0.65f), ambientEquator = new Color(0.75f, 0.62f, 0.48f),
+                        ambientGround = new Color(0.5f, 0.4f, 0.28f), fogStart = 90f, fogEnd = 420f, contrast = 1.06f, saturation = 1.12f,
+                        gradeTint = new Color(1.04f, 1f, 0.94f),
+                        grass = new Color(0.93f, 0.78f, 0.5f), grassB = new Color(0.9f, 0.74f, 0.46f), rock = new Color(0.8f, 0.6f, 0.4f),
+                        trackA = new Color(0.97f, 0.86f, 0.62f), trackB = new Color(0.92f, 0.8f, 0.56f), kerb = new Color(0.2f, 0.6f, 0.7f),
+                        water = new Color(0.2f, 0.7f, 0.75f, 0.85f), hillHeight = 18f, mountainHeight = 50f,
+                        mudA = new Color(0.78f, 0.6f, 0.38f), mudB = new Color(0.66f, 0.5f, 0.3f), mudSpot = new Color(0.55f, 0.4f, 0.24f),
+                        iceA = new Color(0.98f, 0.96f, 0.91f), iceB = new Color(0.95f, 0.93f, 0.87f), iceC = new Color(0.91f, 0.89f, 0.83f),
+                        frost = new Color(1f, 0.98f, 0.94f),
+                        puddleShallow = new Color(0.3f, 0.75f, 0.75f, 0.85f), puddleDeep = new Color(0.1f, 0.45f, 0.55f, 0.9f),
+                        near = new[] { "Nature/cactus_short", "Nature/rock_smallA", "Nature/rock_smallB", "Nature/rock_smallC", "Nature/plant_bushSmall",
+                                       "Nature/grass_leafs" },
+                        mid = new[] { "Nature/cactus_tall", "Nature/cactus_short", "Nature/tree_palmTall", "Nature/tree_palmBend", "Nature/rock_largeA",
+                                      "Nature/rock_tallA", "Nature/cactus_tall" },
+                        far = new[] { "Nature/rock_tallD", "Nature/rock_tallE", "Nature/tree_palmTall", "Nature/rock_tallF" },
+                        nearHeight = new Vector2(0.4f, 1.2f), midHeight = new Vector2(3f, 8f), farHeight = new Vector2(12f, 30f),
+                        nearChance = 0.35f, midStep = 9f, farStep = 18f,
+                    };
+                case 5:   // Volkan: dumanlı kızıl gökyüzü, bazalt zemin, lav nehirleri, koyu kayalar
+                    return new TrackTheme
+                    {
+                        horizon = new Color(0.55f, 0.35f, 0.3f), skyTint = new Color(0.4f, 0.25f, 0.22f), skyGround = new Color(0.2f, 0.12f, 0.1f),
+                        skyTop = new Color(0.22f, 0.15f, 0.2f), exposure = 1.3f, sunColor = new Color(1f, 0.68f, 0.45f), sunEuler = new Vector3(38f, 140f, 0f),
+                        sunIntensity = 1.25f, ambientSky = new Color(0.75f, 0.58f, 0.54f), ambientEquator = new Color(0.64f, 0.48f, 0.43f),
+                        ambientGround = new Color(0.4f, 0.26f, 0.2f), fogStart = 60f, fogEnd = 300f, contrast = 1.1f, saturation = 1.1f,
+                        vignette = 0.32f, gradeTint = new Color(1.05f, 0.97f, 0.94f),
+                        grass = new Color(0.36f, 0.31f, 0.3f), grassB = new Color(0.3f, 0.26f, 0.26f), rock = new Color(0.34f, 0.28f, 0.27f),
+                        trackA = new Color(0.55f, 0.45f, 0.4f), trackB = new Color(0.49f, 0.4f, 0.36f), kerb = new Color(1f, 0.4f, 0.1f),
+                        water = new Color(1f, 0.35f, 0.05f, 1f), lava = true, hillHeight = 16f, mountainHeight = 110f,
+                        mudA = new Color(0.45f, 0.45f, 0.47f), mudB = new Color(0.35f, 0.35f, 0.37f), mudSpot = new Color(0.27f, 0.27f, 0.29f),
+                        iceA = new Color(0.24f, 0.22f, 0.3f), iceB = new Color(0.15f, 0.13f, 0.21f), iceC = new Color(0.08f, 0.07f, 0.12f),
+                        frost = new Color(0.55f, 0.38f, 0.62f), propTint = new Color(0.45f, 0.38f, 0.38f),
+                        near = new[] { "Nature/rock_smallA", "Nature/rock_smallB", "Nature/rock_smallC", "Nature/stone_smallA", "Nature/stone_smallB",
+                                       "Nature/stump_old" },
+                        mid = new[] { "Nature/rock_tallA", "Nature/rock_tallB", "Nature/rock_tallC", "Nature/rock_largeA", "Nature/rock_largeD",
+                                      "Nature/stone_tallA", "Nature/stone_tallB", "Nature/stump_round" },
+                        far = new[] { "Nature/rock_tallD", "Nature/rock_tallE", "Nature/rock_tallF" },
+                        nearHeight = new Vector2(0.4f, 1.2f), midHeight = new Vector2(3f, 9f), farHeight = new Vector2(18f, 45f),
+                        nearChance = 0.4f, midStep = 8f, farStep = 16f,
+                    };
+                case 6:   // Mars: kızıl toz, soluk pembe gökyüzü, kızıl kayalar, buzlu kraterler
+                    return new TrackTheme
+                    {
+                        horizon = new Color(0.92f, 0.66f, 0.52f), skyTint = new Color(0.8f, 0.55f, 0.42f), skyGround = new Color(0.6f, 0.35f, 0.25f),
+                        skyTop = new Color(0.62f, 0.44f, 0.4f), exposure = 1.25f, sunColor = new Color(1f, 0.9f, 0.78f), sunEuler = new Vector3(35f, -50f, 0f),
+                        sunIntensity = 1f, ambientSky = new Color(0.78f, 0.58f, 0.5f), ambientEquator = new Color(0.68f, 0.48f, 0.4f),
+                        ambientGround = new Color(0.42f, 0.27f, 0.22f), fogStart = 80f, fogEnd = 380f, contrast = 1.06f, saturation = 1.08f,
+                        gradeTint = new Color(1.04f, 0.98f, 0.95f),
+                        grass = new Color(0.74f, 0.4f, 0.24f), grassB = new Color(0.68f, 0.36f, 0.21f), rock = new Color(0.56f, 0.3f, 0.2f),
+                        trackA = new Color(0.84f, 0.54f, 0.36f), trackB = new Color(0.78f, 0.49f, 0.32f), kerb = new Color(0.95f, 0.95f, 1f),
+                        water = new Color(0.35f, 0.18f, 0.12f, 1f), hillHeight = 20f, mountainHeight = 100f,
+                        mudA = new Color(0.6f, 0.3f, 0.18f), mudB = new Color(0.5f, 0.24f, 0.14f), mudSpot = new Color(0.42f, 0.2f, 0.12f),
+                        iceA = new Color(0.92f, 0.96f, 1f), iceB = new Color(0.82f, 0.9f, 0.98f), iceC = new Color(0.72f, 0.84f, 0.96f),
+                        frost = new Color(0.95f, 0.95f, 1f), propTint = new Color(0.9f, 0.55f, 0.42f),
+                        near = new[] { "Nature/rock_smallA", "Nature/rock_smallB", "Nature/rock_smallC", "Nature/stone_smallA", "Nature/stone_smallC" },
+                        mid = new[] { "Nature/rock_largeA", "Nature/rock_largeB", "Nature/rock_largeE", "Nature/rock_tallA", "Nature/rock_tallC",
+                                      "Nature/stone_tallC" },
+                        far = new[] { "Nature/rock_tallD", "Nature/rock_tallE", "Nature/rock_tallF", "Nature/rock_largeF" },
+                        nearHeight = new Vector2(0.3f, 1f), midHeight = new Vector2(3f, 10f), farHeight = new Vector2(20f, 50f),
+                        nearChance = 0.3f, midStep = 10f, farStep = 18f,
                     };
                 default:  // Çayır: parlak öğle, meşeler, çiçekler
                     return new TrackTheme
@@ -249,6 +325,21 @@ namespace SledSurfers
         public void Add(Mesh mesh, Material mat, Matrix4x4 world) =>
             Group(world.m23, mat).Add(new CombineInstance { mesh = mesh, subMeshIndex = 0, transform = world });
 
+        /// Hazır modellerin renk tonu (tema): beyaz değilse malzemenin tonlu kopyası kullanılır.
+        public Color tint = Color.white;
+        readonly Dictionary<Material, Material> tinted = new Dictionary<Material, Material>();
+
+        Material Tinted(Material m)
+        {
+            if (tint == Color.white || m == null) return m;
+            if (!tinted.TryGetValue(m, out var t))
+            {
+                t = new Material(m) { color = m.color * tint };
+                tinted[m] = t;
+            }
+            return t;
+        }
+
         public void Build(Transform parent)
         {
             foreach (var kv in groups)
@@ -259,7 +350,7 @@ namespace SledSurfers
                 var go = new GameObject("Props " + kv.Key.Item1 + " " + kv.Key.Item2.name);
                 go.transform.SetParent(parent, false);
                 go.AddComponent<MeshFilter>().sharedMesh = mesh;
-                go.AddComponent<MeshRenderer>().sharedMaterial = kv.Key.Item2;
+                go.AddComponent<MeshRenderer>().sharedMaterial = Tinted(kv.Key.Item2);
             }
             groups.Clear();
         }
@@ -301,6 +392,7 @@ namespace SledSurfers
         {
             BuildValley();
             BuildPath();
+            BuildForkRidges();
             BuildSurfaces();
             BuildTerrain();
             BuildWater();
@@ -310,6 +402,7 @@ namespace SledSurfers
             BuildStartArea();
             BuildFinish();
             BuildClouds();
+            props.tint = theme.propTint;
             props.Build(root);
         }
 
@@ -424,17 +517,25 @@ namespace SledSurfers
         {
             var mat = Textured(Mats.Solid(theme.trackA, 0.1f), TextureKit.Dirt());
             float first = track.startZ, last = track.EndZ;
-            const float step = 0.5f;
+            // Çatalda patika iki şeride ayrılır: ana şerit sola, ikinci şerit (yalnızca çatal boyunca) sağa açılır.
+            float Lane(float z, float side) => track.PathX(z) + side * TrackProfile.ForkOffset * track.ForkWeight(z);
             for (float c0 = first; c0 < last; c0 += 150f)
+                BuildStrip(mat, c0, Mathf.Min(last, c0 + 150f), z => Lane(z, -1f), "Path " + c0);
+            foreach (var f in track.forks)
+                BuildStrip(mat, f.z0, f.z1, z => Lane(z, 1f), "Fork " + f.z0);
+        }
+
+        void BuildStrip(Material mat, float c0, float c1, System.Func<float, float> center, string name)
+        {
+            const float step = 0.5f;
             {
-                float c1 = Mathf.Min(last, c0 + 150f);
                 var verts = new List<Vector3>();
                 var uvs = new List<Vector2>();
                 var tris = new List<int>();
                 for (float z = c0; z <= c1 + 0.01f; z += step)
                 {
-                    float px = track.PathX(z);
-                    float dir = (track.PathX(z + 0.5f) - track.PathX(z - 0.5f));   // kıvrımda genişlik sabit kalsın
+                    float px = center(z);
+                    float dir = (center(z + 0.5f) - center(z - 0.5f));   // kıvrımda genişlik sabit kalsın
                     float w = TrackProfile.PathHalfWidth * Mathf.Sqrt(1f + dir * dir);
                     float wob = 0.12f * Mathf.Sin(z * 0.9f) + 0.06f * Mathf.Sin(z * 2.3f);   // kenar hafif düzensiz (yumuşak dalga)
                     float xa = px - w - wob, xb = px + w + wob;
@@ -461,13 +562,26 @@ namespace SledSurfers
                 mesh.SetTriangles(tris, 0);
                 mesh.RecalculateNormals();
                 mesh.RecalculateBounds();
-                var go = new GameObject("Path " + c0);
+                var go = new GameObject(name);
                 go.transform.SetParent(root, false);
                 go.AddComponent<MeshFilter>().sharedMesh = mesh;
                 var mr = go.AddComponent<MeshRenderer>();
                 mr.sharedMaterial = mat;
                 mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             }
+        }
+
+        /// Çatal sırtı: tepesinde alçak çalılar ve çiçekler (iki yolu ayıran yeşil ada; çarpışma yok, sırt yumuşak).
+        void BuildForkRidges()
+        {
+            foreach (var f in track.forks)
+                for (float z = f.z0 + TrackProfile.ForkBlend * 0.8f; z < f.z1 - TrackProfile.ForkBlend * 0.8f; z += R(1.6f, 2.6f))
+                {
+                    float x = track.CenterX(z) + R(-0.35f, 0.35f);
+                    var pos = new Vector3(x, track.TerrainHeight(x, z) - 0.05f, z);
+                    // Alçak kalır (en çok 0.4 m): kızak sırtın üstünden geçerse süsün içinden geçiyormuş gibi görünmesin.
+                    PlaceHeight(Pick(theme.near), pos, Mathf.Min(theme.nearHeight.x, 0.4f) * R(0.6f, 1f), R(0f, 360f));
+                }
         }
 
         /// Su, çamur ve buz lekeleri: yumuşak loblu düzgün ovaller, araziyi izler (fizikteki kenarla aynı).
@@ -477,22 +591,23 @@ namespace SledSurfers
         {
             if (track.surfaces.Count == 0) return;
             // Su: kenarda sığ ve açık, ortada derin ve koyu; ince köpük kenarı.
-            var shallow = Mats.Water(new Color(0.42f, 0.62f, 0.7f, 0.85f));
-            var deep = Mats.Water(new Color(0.18f, 0.34f, 0.48f, 0.9f));
+            var shallow = Mats.Water(theme.puddleShallow);
+            var deep = Mats.Water(theme.puddleDeep);
             var foam = Mats.Solid(new Color(0.86f, 0.95f, 0.98f), 0.6f);
             // Çamur: kenarı açık kahve, ortası koyu ve ıslak parlak; üstünde birikinti benekleri.
-            var mudOuter = Mats.Solid(new Color(0.37f, 0.25f, 0.15f), 0.35f);   // çekirdeğe yakın: açık bant gibi durmasın
-            var mudCore = Mats.Solid(new Color(0.27f, 0.17f, 0.09f), 0.55f);   // ıslak ama düz: dalgacık dokusu çevreye göre fazla ayrıntılıydı
-            var mudSpot = Mats.Solid(new Color(0.2f, 0.12f, 0.06f), 0.8f);
+            var mudOuter = Mats.Solid(theme.mudA, 0.35f);   // çekirdeğe yakın: açık bant gibi durmasın
+            var mudCore = Mats.Solid(theme.mudB, 0.55f);    // ıslak ama düz: dalgacık dokusu çevreye göre fazla ayrıntılıydı
+            var mudSpot = Mats.Solid(theme.mudSpot, 0.8f);
             var shoreGrass = Mats.Solid(Color.Lerp(theme.grass, Color.black, theme.snowy ? 0.12f : 0.28f), 0.2f);
             var shorePath = Mats.Solid(Color.Lerp(theme.trackA, Color.black, 0.3f), 0.3f);
             // Buz: donmuş göl; dıştan içe koyulaşan mavi, çapraz ışık yansımaları ve ince çatlaklar.
             var iceTex = IceTexture();
-            var iceOuter = Textured(Mats.Solid(new Color(0.74f, 0.91f, 1f), 0.95f), iceTex);
-            var iceMid = Textured(Mats.Solid(new Color(0.56f, 0.81f, 0.97f), 0.97f), iceTex);
-            var iceCore = Textured(Mats.Solid(new Color(0.42f, 0.7f, 0.93f), 0.98f), iceTex);
+            float gloss = theme.lava ? 0.6f : 1f;   // obsidyen: gökyüzünü yansıtıp soluk cam levha gibi durmasın
+            var iceOuter = Textured(Mats.Solid(theme.iceA, 0.95f * gloss), iceTex);
+            var iceMid = Textured(Mats.Solid(theme.iceB, 0.97f * gloss), iceTex);
+            var iceCore = Textured(Mats.Solid(theme.iceC, 0.98f * gloss), iceTex);
             // Don kenarı: saf beyaz değil, açık buz mavisi (çimenin üstünde beyaz leke gibi durmasın); karlı pistte beyaz.
-            var frost = Mats.Solid(theme.snowy ? new Color(0.96f, 0.98f, 1f) : new Color(0.8f, 0.93f, 1f), 0.5f);
+            var frost = Mats.Solid(theme.frost.a > 0f ? theme.frost : theme.snowy ? new Color(0.96f, 0.98f, 1f) : new Color(0.8f, 0.93f, 1f), 0.5f);
             foreach (var zone in track.surfaces)
             {
                 // Lekenin ortası patikada mı (kıyı rengi altındaki zemine uysun)?
@@ -753,7 +868,15 @@ namespace SledSurfers
         void BuildWater()
         {
             if (track.water.Count == 0) return;
-            var mat = Mats.Water(theme.water);
+            Material mat;
+            if (theme.lava)
+            {
+                // Lav: parlayan turuncu, dalgacıksız
+                mat = Mats.Solid(theme.water, 0.3f);
+                mat.EnableKeyword("_EMISSION");
+                mat.SetColor("_EmissionColor", new Color(1f, 0.32f, 0.04f) * 1.6f);
+            }
+            else mat = Mats.Water(theme.water);
             foreach (var w in track.water)
             {
                 const float half = 230f;

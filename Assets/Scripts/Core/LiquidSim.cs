@@ -42,6 +42,8 @@ namespace SledSurfers
             armOffset = armVel = smoothAccel = Vector3.zero;
         }
 
+        public static float HolderPull => Mathf.Max(0f, 0.65f * (SledPhysics.EarthGravity - SledPhysics.Gravity));
+
         /// anchorAccel: elin (kızağın) dünya ivmesi. glassRotation: bardağın dünya yönelimi.
         public void Step(Vector3 anchorAccel, Quaternion glassRotation, float dt)
         {
@@ -68,7 +70,9 @@ namespace SledSurfers
             }
             Vector3 glassAccel = Vector3.ClampMagnitude(anchorAccel + (armVel - prevVel) / dt, MaxAccel);
 
-            Vector3 gEff = new Vector3(0f, -SledPhysics.Gravity, 0f) - glassAccel;
+            // Düşük yerçekiminde (Mars) hover aracının jiroskoplu bardaklığı sütü aşağı bastırır: yanal ivmeye karşı
+            // etkin yerçekimi Dünya'ya yaklaşır (yoksa virajdaki ivme 0.38 g'ye göre çok büyük, süt hep dökülüyordu).
+            Vector3 gEff = new Vector3(0f, -SledPhysics.Gravity - (rawWeightless ? 0f : HolderPull), 0f) - glassAccel;
             Vector3 local = Quaternion.Inverse(glassRotation) * gEff;
             float g = local.magnitude;
             float r = cfg.glassRadius;

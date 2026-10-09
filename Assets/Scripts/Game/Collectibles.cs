@@ -40,6 +40,8 @@ namespace SledSurfers
             var rng = new System.Random(track.name.GetHashCode() ^ 0x5eed);
             float R(float a, float b) => a + (b - a) * (float)rng.NextDouble();
 
+            bool NearFork(float z) => track.ForkAt(z, out _);
+
             bool NearWater(float z, float margin)
             {
                 foreach (var w in track.water)
@@ -54,6 +56,7 @@ namespace SledSurfers
                 int n = 5 + rng.Next(4);
                 float length = n * 2.2f;
                 if (NearWater(z, 10f) || NearWater(z + length, 10f)) continue;
+                if (NearFork(z - 4f) || NearFork(z + length + 4f)) continue;   // çatalda altınlar şeridine dizilir (aşağıda)
                 float lane = lanes[rng.Next(lanes.Length)];
                 for (int tries = 0; tries < 3 && Blocked(track, lane, z, z + length); tries++)
                     lane = lanes[(System.Array.IndexOf(lanes, lane) + 1) % lanes.Length];
@@ -66,6 +69,14 @@ namespace SledSurfers
                 }
                 z += length;
             }
+
+            // 1b) Çatalın iyi şeridi boyunca altın sırası: hangi yolun seçileceğini gösterir.
+            foreach (var f in track.forks)
+                for (float zz = f.z0 + TrackProfile.ForkBlend; zz <= f.z1 - TrackProfile.ForkBlend; zz += 2.4f)
+                {
+                    float x = track.GuideX(zz);
+                    Add(new Vector3(x, track.Height(x, zz) + 0.8f, zz), false);
+                }
 
             // 2) Köprülerin tablası boyunca coin sırası (ortada pembe elmas): düz ve tam ortadan geçmenin ödülü.
             foreach (var b in track.bridges)
@@ -102,7 +113,7 @@ namespace SledSurfers
             {
                 float z = track.finishZ * f;
                 for (int k = 0; k < 20 && NearWater(z, 8f); k++) z += 6f;
-                float gx = track.PathX(z);
+                float gx = track.GuideX(z);
                 Add(new Vector3(gx, track.Height(gx, z) + 1.1f, z), true);
             }
 

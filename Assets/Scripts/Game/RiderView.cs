@@ -17,6 +17,11 @@ namespace SledSurfers
         float wingFold;   // 0 açık, 1 katlı
         // Aşama görünümleri
         readonly SledModel.Parts sledParts;
+        // Araçlar (pist başına): kızak hep kurulu; kum sörfü, bobsled ve hover gerektiğinde kurulur.
+        readonly Transform sledRoot;
+        readonly System.Collections.Generic.Dictionary<VehicleKind, (Transform root, VehicleModels.Parts parts)> vehicles =
+            new System.Collections.Generic.Dictionary<VehicleKind, (Transform, VehicleModels.Parts)>();
+        VehicleKind shownVehicle = VehicleKind.Sled;
         readonly Material wingMat, wingletMat, rocketBodyMat, rocketTrimMat;
         public static readonly Color[] RunnerColors = { new Color(0.25f, 0.27f, 0.3f), new Color(0.78f, 0.8f, 0.85f), new Color(0.12f, 0.13f, 0.18f), new Color(1f, 0.76f, 0.18f) };
         public static readonly Color[] WingColors = { new Color(0.95f, 0.95f, 0.98f), new Color(0.35f, 0.7f, 1f), new Color(1f, 0.8f, 0.25f) };
@@ -84,7 +89,9 @@ namespace SledSurfers
             var wing = wingMat;
 
             // Kızak: sörf tahtası + raylar; burundan sürücünün eline ip
-            sledParts = SledModel.Build(root, steel);
+            sledRoot = new GameObject("Vehicle Sled").transform;
+            sledRoot.SetParent(root, false);
+            sledParts = SledModel.Build(sledRoot, steel);
             rope = Mats.Prim(PrimitiveType.Cylinder, "Rope", root, Vector3.zero, Vector3.one, Mats.Solid(new Color(1f, 0.76f, 0.2f), 0.2f));
 
             // Kanatlar: mesh Apply'da kanat boyuna göre üretilir; uçta turuncu dikey kanatçık.
@@ -634,7 +641,8 @@ namespace SledSurfers
             // 16 mavi kanat, 20 jet kanat.
             int rs = Mathf.Clamp(cfg.runnerStage, 0, 5);
             sledParts.SetStage(rs);
-            rope.gameObject.SetActive(rs >= 1);
+            ShowVehicle(cfg.vehicle, cfg.runnerStage);
+            rope.gameObject.SetActive(rs >= 1 && (cfg.vehicle == VehicleKind.Sled || cfg.vehicle == VehicleKind.Sandboard));
             int metal = rs >= 5 ? 3 : rs >= 4 ? 2 : rs >= 2 ? 1 : 0;
             steel.color = RunnerColors[metal];
             steel.SetFloat("_Glossiness", metal == 0 ? 0.6f : 0.9f);
@@ -700,10 +708,31 @@ namespace SledSurfers
         }
 
         /// torsoPitch: + = öne eğilme (derece), torsoRoll: + = sağa yatma, shake: gerilim titremesi (m)
+        /// Pistin aracını gösterir (son üç haritada araç tamamen değişir) ve aşamasını uygular.
+        void ShowVehicle(VehicleKind kind, int stage)
+        {
+            if (kind != VehicleKind.Sled && !vehicles.ContainsKey(kind))
+            {
+                var t = new GameObject("Vehicle " + kind).transform;
+                t.SetParent(root, false);
+                vehicles[kind] = (t, VehicleModels.Build(kind, t));
+            }
+            shownVehicle = kind;
+            sledRoot.gameObject.SetActive(kind == VehicleKind.Sled);
+            foreach (var kv in vehicles)
+            {
+                kv.Value.root.gameObject.SetActive(kv.Key == kind);
+                if (kv.Key == kind) kv.Value.parts.SetStage(stage);
+            }
+        }
+
         public void Sync(SledPhysics sled, LiquidSim liquid, float glassPitch, float glassRoll,
                          float torsoPitch, float torsoRoll, Vector3 shake)
         {
             root.SetPositionAndRotation(sled.position + shake, sled.Orientation);
+            // Hover aracı yerin biraz üstünde hafifçe salınır.
+            if (shownVehicle == VehicleKind.Hover && vehicles.TryGetValue(VehicleKind.Hover, out var hv))
+                hv.root.localPosition = new Vector3(0f, 0.05f + 0.02f * Mathf.Sin(Time.time * 4f), 0f);
             // Süzülme süresi dolunca kanatlar kısmen yukarı katlanır (taşıma azalır), yere inince açılır.
             wingFold = Mathf.MoveTowards(wingFold, (1f - sled.WingLift) / 0.65f, Time.deltaTime * 3f);
             leftWing.localRotation = Quaternion.Euler(0f, 0f, -80f * wingFold);

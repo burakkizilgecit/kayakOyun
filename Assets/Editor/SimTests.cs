@@ -105,9 +105,9 @@ namespace SledSurfers.EditorTools
             {
                 if (arg.StartsWith("base=")) Upgrades.baseCosts = System.Array.ConvertAll(arg.Substring(5).Split(','), int.Parse);
                 if (arg.StartsWith("growth=")) Upgrades.growth = System.Array.ConvertAll(arg.Substring(7).Split(','), ParseF);
-                if (arg.StartsWith("later=")) Upgrades.laterGrowth = System.Array.ConvertAll(arg.Substring(6).Split(','), ParseF);
-                if (arg.StartsWith("top=")) Upgrades.topGrowth = System.Array.ConvertAll(arg.Substring(4).Split(','), ParseF);
-                if (arg.StartsWith("final=")) Upgrades.FinalMultiplier = ParseF(arg.Substring(6));
+                if (arg.StartsWith("scale=")) TrackLibrary.CostScale = System.Array.ConvertAll(arg.Substring(6).Split(','), ParseF);
+                if (arg.StartsWith("pstart=")) TrackLibrary.PowerStart = System.Array.ConvertAll(arg.Substring(7).Split(','), ParseF);
+                if (arg.StartsWith("pend=")) TrackLibrary.PowerEnd = System.Array.ConvertAll(arg.Substring(5).Split(','), ParseF);
                 if (arg.StartsWith("pay=")) TrackLibrary.PayFactors = System.Array.ConvertAll(arg.Substring(4).Split(','), ParseF);
                 if (arg.StartsWith("player=")) kind = SimPlayer.Parse(arg.Substring(7));
                 if (arg.StartsWith("gems=")) gems = arg.Substring(5) == "1";
@@ -127,6 +127,7 @@ namespace SledSurfers.EditorTools
             public float[] arrival = new float[TrackLibrary.Count], milkLoss = new float[TrackLibrary.Count];
             public int gemsEarned, gemsSpent, gemBuys;
             public bool[] finished = new bool[TrackLibrary.Count];
+            public string[] endLevels = new string[TrackLibrary.Count];
             public readonly float[] surfaceLoss = new float[(int)LossSurface.Count];
             public readonly float[] milkByCause = new float[(int)SpillCause.Count];
             public int Total { get { int s = 0; foreach (int r in runs) s += r; return s; } }
@@ -136,8 +137,8 @@ namespace SledSurfers.EditorTools
             {
                 var sb = new StringBuilder();
                 for (int t = 0; t < TrackLibrary.Count; t++)
-                    sb.AppendLine(string.Format("  {0,-10} {1,3} atış{2}  ilerlemeyen {3,3}  en uzun duraklama {4,2}  ilk atış %{5,3:F0}  süt kaybı %{6,4:F1}",
-                        TrackLibrary.Names[t], runs[t], finished[t] ? " " : "!", stalled[t], longest[t], arrival[t] * 100f, milkLoss[t] * 100f));
+                    sb.AppendLine(string.Format("  {0,-13} {1,3} atış{2}  ilerlemeyen {3,3}  en uzun duraklama {4,2}  ilk atış %{5,3:F0}  süt kaybı %{6,4:F1}  bitişte {7}",
+                        TrackLibrary.Names[t], runs[t], finished[t] ? " " : "!", stalled[t], longest[t], arrival[t] * 100f, milkLoss[t] * 100f, endLevels[t]));
                 sb.AppendLine(string.Format("  Toplam {0} atış · ilerlemeyen %{1:F0} · elmas kazanılan {2}, harcanan {3} ({4} kademe)",
                     Total, 100f * Stalled / Mathf.Max(Total, 1), gemsEarned, gemsSpent, gemBuys));
                 return sb.ToString();
@@ -150,15 +151,16 @@ namespace SledSurfers.EditorTools
         static EconomyResult RunEconomy(PlayerKind kind, bool useGems, StringBuilder log)
         {
             var res = new EconomyResult { label = SimPlayer.Name(kind) + (useGems ? " + elmas" : "") };
-            var levels = new int[Upgrades.Count];
+            int[] levels;
             int money = 0, gems = 0, seed = 0;
             var rnd = new System.Random(17 + (int)kind);
             float pickChance = kind == PlayerKind.Usta ? 1f : 0.75f;
             for (int t = 0; t < TrackLibrary.Count; t++)
             {
-                var track = TrackLibrary.Get(t);
+                var track = TrackLibrary.Get(t);   // yükseltme bağlamı bu pist
+                levels = new int[Upgrades.Count];   // yükseltmeler pist başına: yeni pistte sıfırdan
                 var gemZs = Collectibles.GemZs(track);
-                log?.AppendLine("Parkur " + (t + 1) + " — " + track.name);
+                log?.AppendLine("Parkur " + (t + 1) + " — " + track.name + " (" + Upgrades.Max + " kademe)");
                 int runs = 0, streak = 0;
                 float best = 0f, milk = 0f;
                 bool finished = false;
@@ -187,7 +189,7 @@ namespace SledSurfers.EditorTools
                         int pick = -1, bestCost = int.MaxValue;
                         for (int u = 0; u < Upgrades.Count; u++)
                         {
-                            if (levels[u] >= Upgrades.Cap(u, t)) continue;
+                            if (levels[u] >= Upgrades.MaxLevel(u)) continue;
                             int c = Upgrades.Cost(u, levels[u]);
                             if (c < bestCost) { pick = u; bestCost = c; }
                         }
@@ -202,6 +204,7 @@ namespace SledSurfers.EditorTools
                 }
                 res.runs[t] = runs;
                 res.finished[t] = finished;
+                res.endLevels[t] = string.Join("/", levels) + " (en çok " + Upgrades.Max + ")";
                 res.milkLoss[t] = milk / Mathf.Max(runs, 1);
                 log?.AppendLine(string.Format("  => {0} atış{1}", runs, finished ? "" : " (bitmedi!)"));
             }
@@ -224,6 +227,7 @@ namespace SledSurfers.EditorTools
                 if (arg.StartsWith("sets=")) sets = arg.Substring(5);
                 if (arg.StartsWith("player=")) ladderKind = SimPlayer.Parse(arg.Substring(7));
                 if (arg.StartsWith("seeds=")) ladderSeeds = int.Parse(arg.Substring(6));
+                if (arg == "forks=0") System.Array.Clear(TrackLibrary.ForkChance, 0, TrackLibrary.ForkChance.Length);
                 if (arg.StartsWith("meadow="))   // çayır: net,araTepe,yokuşEğimi,tepeA,tepeB,zorluA,zorluB
                 {
                     var v = System.Array.ConvertAll(arg.Substring(7).Split(','), ParseF);
@@ -477,6 +481,8 @@ namespace SledSurfers.EditorTools
         /// Süt nerede dökülüyor: her dökülme anı sebebine göre sınıflanır (iniş darbesi, su/çamur, buz, viraj,
         /// zemin geçişi, havada). Bardağı hiç eğmeyen oyuncu ile usta oyuncu karşılaştırılır.
         /// track=, sets=a/b/c/d/e;... (bardağı hiç eğmeyen = klavyesiz PC oyuncusu, usta = otomatik pilot)
+        static float traceA = -1f, traceB = -2f;
+
         [MenuItem("Sled Surfers/Döküm Analizi")]
         public static void Spill()
         {
@@ -487,6 +493,11 @@ namespace SledSurfers.EditorTools
                 if (arg.StartsWith("track=")) track = int.Parse(arg.Substring(6));
                 if (arg.StartsWith("sets=")) sets = arg.Substring(5);
                 if (arg.StartsWith("bumpy=")) TrackLibrary.MeadowBumpy = ParseF(arg.Substring(6));
+                if (arg.StartsWith("trace="))
+                {
+                    var r = arg.Substring(6).Split('-');
+                    traceA = ParseF(r[0]); traceB = ParseF(r[1]);
+                }
             }
             var t = TrackLibrary.Get(track);
             var sb = new StringBuilder("[SIM] Döküm analizi " + TrackLibrary.Names[track] + "\n");
@@ -522,6 +533,14 @@ namespace SledSurfers.EditorTools
                                                : sled.Orientation * Quaternion.Euler(reflex.pitch, 0f, -reflex.roll);
                         liquid.Step(sled.acceleration, rot, Dt);
                         float lost = before - liquid.FillRatio;
+                        float tz = sled.position.z;
+                        if (tz >= traceA && tz <= traceB && Mathf.Repeat(time, 0.1f) < Dt)
+                        {
+                            var e = sled.Orientation.eulerAngles;
+                            sb.AppendLine(string.Format("      iz z {0:0.0} x {1:0.0} yer {2:0.0} {3} v {4:0.0} vy {5:0.0} ivme {6} yön {7:0} {8:0} {9:0} süt %{10:0.0}",
+                                tz, sled.position.x, sled.position.y - t.Height(sled.position.x, tz), sled.grounded ? "Y" : "H", sled.Speed,
+                                sled.velocity.y, sled.acceleration.ToString("0.0"), e.x, e.y, e.z, liquid.FillRatio * 100f));
+                        }
                         if (lost > 0f)
                         {
                             var surf = t.SurfaceAt(sled.position.z, sled.position.x);
@@ -680,7 +699,7 @@ namespace SledSurfers.EditorTools
                         {
                             var r = Simulate(track, cfg, k, sd * 101 + t);
                             sum += r.distance; lo = Mathf.Min(lo, r.distance); hi = Mathf.Max(hi, r.distance);
-                            if (r.reason == SledPhysics.FellInCreek) falls++;
+                            if (r.stats.fellInRavine) falls++;
                         }
                         return (sum / 5f).ToString("F0") + " (" + lo.ToString("F0") + "–" + hi.ToString("F0") + ")";
                     }
@@ -697,6 +716,37 @@ namespace SledSurfers.EditorTools
 
         /// Köprü düşmeleri: ortalama oyuncu (10 tohum) her köprüye hangi hız, sapma ve açıyla giriyor, kaçı düşüyor.
         /// track=  levels=a,b,c,d,e
+        /// Çatalların geometrisi: şerit konumları, patikada mı, sırt yüksekliği.
+        static int ProbeTrack;
+        public static void ForkProbe()
+        {
+            foreach (var arg in System.Environment.GetCommandLineArgs())
+                if (arg.StartsWith("track=")) ProbeTrack = int.Parse(arg.Substring(6));
+            var sb = new System.Text.StringBuilder("[SIM] Çatallar" + System.Environment.NewLine);
+            for (int t = 0; t < TrackLibrary.Count; t++)
+            {
+                var track = TrackLibrary.Get(t);
+                sb.AppendLine("Parkur " + track.name + "  çatal " + track.forks.Count);
+                foreach (var f in track.forks)
+                {
+                    sb.AppendLine(string.Format("  {0:0}-{1:0} iyi {2}", f.z0, f.z1, f.good));
+                    if (t != ProbeTrack) continue;
+                    foreach (var bm in track.bumps)
+                        if (bm.z0 > f.z0 - 30f && bm.z0 < f.z1 + 10f)
+                            sb.AppendLine(string.Format("   tümsek {0:0} uzunluk {1:0.0} yük {2:0.00} xc {3:0.0} yarı {4:0.0}", bm.z0, bm.length, bm.height, bm.xc, bm.halfWidth));
+                    for (float z = f.z0 - 12f; z <= f.z1 + 4f; z += 4f)
+                    {
+                        float c = track.CenterX(z), w = track.ForkWeight(z);
+                        sb.AppendLine(string.Format("   z {0:0} c {1:0.0} path {2:0.0} w {3:0.00} sol {4} sağ {5} orta {6}  sırt {7:0.00} yüz {8}/{9}",
+                            z, c, track.PathX(z), w, track.OnPath(z, c - 3.1f), track.OnPath(z, c + 3.1f), track.OnPath(z, c),
+                            track.BumpHeight(c, z), track.SurfaceAt(z, c - 3.1f), track.SurfaceAt(z, c + 3.1f))
+                            + string.Format("  y {0:0.0} eğim {1:0.00}", track.Height(z), track.Slope(z)));
+                    }
+                }
+            }
+            Debug.Log(sb.ToString());
+        }
+
         public static void BridgeFalls()
         {
             int track = 2;

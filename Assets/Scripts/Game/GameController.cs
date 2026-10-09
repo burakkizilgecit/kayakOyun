@@ -172,6 +172,7 @@ namespace SledSurfers
         }
 
         /// i. vadinin (su) başladığı z; yoksa -1.
+        public float DebugForkZ(int i) => track != null && i < track.forks.Count ? track.forks[i].z0 : -1f;
         public float DebugGapZ(int i) => track != null && i < track.water.Count ? track.water[i].x : -1f;
 
         /// 300 m'den sonraki ilk verilen türde yüzey lekesinin başladığı z; yoksa -1.
@@ -197,7 +198,7 @@ namespace SledSurfers
 
         public void DebugReset(int[] levels, int money)
         {
-            levels.CopyTo(save.levels, 0);
+            foreach (var tl in save.trackLevels) levels.CopyTo(tl, 0);   // test: her pistte aynı seviyeler
             save.money = money;
             save.unlocked = save.track = 0;
             System.Array.Clear(save.bests, 0, save.bests.Length);
@@ -223,6 +224,7 @@ namespace SledSurfers
         void LoadTrack(int index)
         {
             world?.Destroy();
+            Upgrades.Track = index;   // yükseltmeler pist başına: aşama sayısı, fiyat ve güç bu pistin
             track = TrackLibrary.Get(index);
             var theme = TrackTheme.Get(index);
             world = new WorldView(track, theme);
@@ -375,7 +377,7 @@ namespace SledSurfers
             world.ShowGuide(aim, 0f);
             ui.ShowRun();
             if (perfect) ui.Toast("MÜKEMMEL ATIŞ!");
-            hintedRocket = hintedNose = hintedBridge = false;
+            hintedRocket = hintedNose = hintedBridge = hintedFork = false;
             ShowHint(Hint.Steer, IconKind.Swap, input.TiltMode ? "Sağa-sola sürükle: yön" : "A / D: yön", 3);
         }
 
@@ -415,7 +417,7 @@ namespace SledSurfers
                 // Karakter kızaktan fırlar, yuvarlanır, ayağa kalkıp "Tekrar deneyelim!" der: sonuç kartı bekler.
                 rider.Crash(preCrashVelocity);
                 resultDelay = 4.8f;
-                if (sled.endReason == SledPhysics.FellInCreek)
+                if (sled.stats.fellInRavine && track.ravineIsWater)
                 {
                     rider.Splash(1f, true);   // dereye düşüş: büyük sıçrama
                     sfx.Splash(1.4f);
@@ -672,7 +674,7 @@ namespace SledSurfers
             }
         }
 
-        bool hintedRocket, hintedNose, hintedBridge;
+        bool hintedRocket, hintedNose, hintedBridge, hintedFork;
 
         /// Aşamalı öğretim: ipucu, oyuncu o anı ilk birkaç kez yaşarken gösterilir (yol haritası aşama 5).
         void ShowHint(Hint h, IconKind icon, string text, int times)
@@ -700,6 +702,11 @@ namespace SledSurfers
             {
                 hintedBridge = true;
                 ShowHint(Hint.Bridge, IconKind.Runners, "İnce köprü! Ortadan düz git", 3);
+            }
+            if (!hintedFork && track.ForkAt(sled.position.z + 25f, out _))
+            {
+                hintedFork = true;
+                ShowHint(Hint.Fork, IconKind.Runners, "Yol ayrılıyor! Şeridini seç", 3);
             }
         }
 
@@ -956,7 +963,7 @@ namespace SledSurfers
         void Buy(int i)
         {
             int lvl = save.levels[i];
-            if (lvl >= Upgrades.Cap(i, save.unlocked))
+            if (lvl >= Upgrades.MaxLevel(i))
             {
                 ui.Deny(i);
                 sfx.Deny();
@@ -983,10 +990,10 @@ namespace SledSurfers
             {
                 var tr = new System.Globalization.CultureInfo("tr-TR");
                 int stage = Upgrades.Stage(save.levels[i]);
-                string detail = i == (int)UpgradeType.Runners ? Upgrades.RunnerStageNames[stage - 1].ToUpper(tr)
+                string detail = i == (int)UpgradeType.Runners ? Vehicles.StageName(TrackLibrary.Vehicles[save.track], stage).ToUpper(tr)
                               : i == (int)UpgradeType.Glass ? Upgrades.GlassStageName(stage).ToUpper(tr)
                               : "YENİ GÖRÜNÜM";
-                ui.StageUp(Upgrades.Names[i].ToUpper(tr) + " " + stage + ". SEVİYE!\n" + detail);
+                ui.StageUp(Upgrades.Name(i).ToUpper(tr) + " " + stage + ". SEVİYE!\n" + detail);
                 rider.Punch();
             }
         }

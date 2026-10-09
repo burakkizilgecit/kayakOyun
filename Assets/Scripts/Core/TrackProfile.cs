@@ -69,6 +69,11 @@ namespace SledSurfers
     public class TrackProfile
     {
         public readonly string name;
+        /// Pistin yerçekimi (m/s²): Mars 0.38 g. SledPhysics bunu kullanır.
+        public float gravity = 9.81f;
+        /// Köprü açıklığına düşünce çıkan yazı (dere / kanal / lav / krater) ve düşülen şey su mu (sıçrama).
+        public string fallText = "Dereye düştün!";
+        public bool ravineIsWater = true;
         public readonly float startZ;
         public readonly float finishZ;
         public readonly float halfWidth;   // vadi tabanının yarı genişliği (düz kısım)
@@ -88,6 +93,53 @@ namespace SledSurfers
         /// Tablanın yarı genişliği (kızağın ortası bu aralıkta kalmalı; kızak 0.76 m genişliğinde). 0.6'da simdeki
         /// ortalama oyuncu Kanyon ve Karlı Dağ'ın ilk köprüsünden hep düşüyordu (yol haritası aşama 3).
         public const float BridgeHalfWidth = 0.8f;
+
+        /// Çatal: patika z0..z1 boyunca ikiye ayrılır; ortada çimenli alçak sırt, iki yanda birer şerit (vadi ortasından
+        /// ±ForkOffset). Şeritlerden biri yavaş (su/çamur/tümsek), öteki hızlı ya da temiz: oyuncu seçer, seçimi mesafeye
+        /// yansır. good: altınların dizildiği (iyi) şeridin yönü (-1 sol, +1 sağ).
+        public struct Fork { public float z0, z1; public int good; }
+        public readonly List<Fork> forks = new List<Fork>();
+        public const float ForkOffset = 3.1f, ForkRidge = 0.75f, ForkRidgeHalf = 1.9f, ForkBlend = 14f;
+
+        /// Çatalın açıklığı: 0 tek patika, 1 tam ayrık iki şerit (giriş ve çıkışta yumuşakça).
+        public float ForkWeight(float z)
+        {
+            for (int i = 0; i < forks.Count; i++)
+            {
+                var f = forks[i];
+                if (z <= f.z0 || z >= f.z1) continue;
+                return Mathf.SmoothStep(0f, 1f, Mathf.Min((z - f.z0) / ForkBlend, (f.z1 - z) / ForkBlend));
+            }
+            return 0f;
+        }
+
+        public bool ForkAt(float z, out Fork fork)
+        {
+            foreach (var f in forks)
+                if (z > f.z0 && z < f.z1) { fork = f; return true; }
+            fork = default;
+            return false;
+        }
+
+        /// Altınların ve ipuçlarının izlediği çizgi: çatalda iyi şeridin ortası, başka yerde patika.
+        public float GuideX(float z)
+        {
+            float w = ForkWeight(z);
+            if (w <= 0f) return PathX(z);
+            ForkAt(z, out var f);
+            return PathX(z) + f.good * ForkOffset * w;
+        }
+
+        /// Çatal sırtının yüksekliği (yuvarlak kesit).
+        float ForkHeight(float x, float z)
+        {
+            if (forks.Count == 0) return 0f;
+            float w = ForkWeight(z);
+            if (w <= 0f) return 0f;
+            // Sırt şeritlerle birlikte daralır: giriş/çıkışta birbirine yaklaşan şeritler sırtın yamacına tırmanmasın.
+            float r = Mathf.Abs(x - CenterX(z)) / (ForkRidgeHalf * Mathf.Max(w, 0.05f));
+            return r >= 1f ? 0f : w * ForkRidge * 0.5f * (1f + Mathf.Cos(r * Mathf.PI));
+        }
         public readonly List<SurfaceZone> surfaces = new List<SurfaceZone>();
         public readonly List<Flock> flocks = new List<Flock>();
         /// Roket tepelerinin zirve z'leri.
@@ -274,10 +326,17 @@ namespace SledSurfers
         public float PathX(float z)
         {
             float k = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(25f, 70f, z));
+            k *= 1f - ForkWeight(z);   // çatalda patika vadinin ortasına gelir, şeritler ondan ayrılır
             return CenterX(z) + k * pathAmp * Mathf.Sin(Bend(z) * 6.2832f / pathLength + phaseC);
         }
 
-        public bool OnPath(float z, float x) => Mathf.Abs(x - PathX(z)) <= PathHalfWidth;
+        public bool OnPath(float z, float x)
+        {
+            float w = ForkWeight(z), px = PathX(z);
+            if (w <= 0f) return Mathf.Abs(x - px) <= PathHalfWidth;
+            float d = Mathf.Abs(Mathf.Abs(x - px) - ForkOffset * w);
+            return d <= PathHalfWidth;
+        }
 
         /// Yamaç yüksekliği; dx: vadi eksenine uzaklık.
         public float Bank(float dx)
@@ -344,10 +403,11 @@ namespace SledSurfers
         /// Bu noktadaki tümseklerin toplam yüksekliği.
         public float BumpHeight(float x, float z)
         {
-            if (bumpIndex == null) return 0f;
+            float fh = ForkHeight(x, z);
+            if (bumpIndex == null) return fh;
             int k = Mathf.FloorToInt((z - startZ) / BumpBucket);
-            if (k < 0 || k >= bumpIndex.Length || bumpIndex[k] == null) return 0f;
-            float h = 0f, center = float.NaN;
+            if (k < 0 || k >= bumpIndex.Length || bumpIndex[k] == null) return fh;
+            float h = fh, center = float.NaN;
             foreach (int i in bumpIndex[k])
             {
                 var b = bumps[i];

@@ -6,14 +6,27 @@ namespace SledSurfers
     /// Parkurlar sırayla açılır: biri %100 bitince sonraki açılır.
     public static class TrackLibrary
     {
-        public const int Count = 4;
+        public const int Count = 7;
 
-        public static readonly string[] Names = { "Çayır", "Orman", "Kanyon", "Karlı Dağ" };
+        public static readonly string[] Names = { "Çayır", "Orman", "Kanyon", "Karlı Dağ", "Çöl Kumulları", "Volkan", "Mars" };
         /// Atış kazancı çarpanı: zor pistler metre başına daha çok öder (son seviyeler pahalı, koşular kısa kalır).
-        public static float[] PayFactors = { 4f, 3.2f, 2.5f, 2.2f };   // 2026-10-09 aşama 4: ortalama oyuncu + elmas simiyle 28 / 37 / 17 / 29 atış
+        public static float[] PayFactors = { 4f, 3.2f, 2.5f, 2.2f, 2.2f, 2.2f, 2f };
+
+        // Pist başına geliştirme (kullanıcı kararı 2026-10-09): yeni pistte kartlar sıfırdan başlar. Zor pistler 6 aşama
+        // (24 kademe) ister. Kademe gücü [PowerStart, PowerEnd] güç endeksine eşlenir (Upgrades.Power); fiyatlar
+        // pistin ölçeğiyle büyür (CostScale). Değerler ortalama oyuncu simiyle ayarlanır.
+        public static readonly int[] UpgradeStages = { 5, 5, 6, 6, 6, 6, 6 };
+        /// Bardak ağız boşluğu çarpanı: Mars'ın düşük yerçekiminde süt yavaş ama kolay çalkalanır, bardak daha az doldurulur.
+        public static readonly float[] MilkHeadroomScale = { 1f, 1f, 1f, 1f, 1f, 1f, 1.8f };
+        public static float[] PowerStart = { 0f, 5f, 7f, 8f, 9f, 10f, 10f };
+        public static float[] PowerEnd = { 15f, 18f, 21f, 23f, 24f, 25f, 25f };
+        public static float[] CostScale = { 1f, 3f, 3.5f, 6.5f, 18f, 15f, 26f };
+        /// Pistin aracı: son üç haritada aracın şekli tamamen değişir.
+        public static readonly VehicleKind[] Vehicles =
+            { VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sandboard, VehicleKind.Bobsled, VehicleKind.Hover };
 
         // Gerçek uzunluklar (m). Ekranda ×DisplayScale gösterilir (Sled Surfers gibi: Çayır "3600 m").
-        public static readonly float[] Lengths = { 1000f, 1200f, 1400f, 1600f };
+        public static readonly float[] Lengths = { 1000f, 1200f, 1400f, 1600f, 1800f, 2000f, 2200f };
 
         /// Ekrandaki mesafe ölçeği (kullanıcı kararı, videodaki gibi): gösterilen metre = gerçek × 3.6. Böylece km/s
         /// cinsinden hız, ekranda saniyede geçen metreye eşit olur; koşular 20 sn - 2 dk.
@@ -22,12 +35,17 @@ namespace SledSurfers
         /// Ekranda gösterilecek mesafe (tamsayı metre).
         public static int Show(float realMeters) => Mathf.RoundToInt(realMeters * DisplayScale);
 
+        /// Pisti kurar ve yükseltme bağlamını o piste geçirir (yükseltmeler pist başına: Upgrades.Track).
         public static TrackProfile Get(int index)
         {
+            Upgrades.Track = Mathf.Clamp(index, 0, Count - 1);
             switch (index)
             {
                 case 1: return Forest();
                 case 2: return Canyon();
+                case 4: return Desert();
+                case 5: return Volcano();
+                case 6: return Mars();
                 case 3: return Snow();
                 default: return Meadow();
             }
@@ -56,7 +74,11 @@ namespace SledSurfers
             public readonly List<Bump> bumps = new List<Bump>();
             /// Köprülerin dere açıklıkları (z0, z1); tabla Build'de kurulur.
             public readonly List<Vector2> bridges = new List<Vector2>();
+            /// Çatallar: (z0, z1, iyi şerit yönü).
+            public readonly List<Vector3> forks = new List<Vector3>();
             public float lastLip;
+            /// true iken Lane yüzey eklemez (çatallı yamaç).
+            public bool mute;
             public float z, y;
 
             public Path(float startZ)
@@ -149,8 +171,38 @@ namespace SledSurfers
             /// length: z boyunca uzunluğu, x0..x1: yanal kapladığı aralık (vadi ya da onPath ise patika ortasına göre).
             public Path Lane(Surface type, float offset, float length, float x0, float x1, bool onPath = false)
             {
+                if (mute) return this;
                 surfaces.Add(SurfaceZone.Blob(type, z + offset + length * 0.5f, (x0 + x1) * 0.5f, length * 0.5f, (x1 - x0) * 0.5f,
                                               (z + offset) * 0.61f + x0, onPath));
+                return this;
+            }
+
+            /// Çatal: offset ileride başlayan length boyunca patika ikiye ayrılır (pist ilerlemez). variant:
+            /// 0 bir şeritte su (çamur), öteki temiz; 1 bir şeritte çamur, ötekinde buz (hızlı yol); 2 altınlı şeritte
+            /// küçük su birikintisi (altın mı mesafe mi); 3 altınlı şeritte tümsekler (altın mı süt mü).
+            /// good: altınların dizildiği şerit (-1/+1).
+            public Path Fork(float offset, float length, int variant, int good, bool wetIsMud, bool allowIce)
+            {
+                float z0 = z + offset, off = TrackProfile.ForkOffset, mid = offset + length * 0.5f;
+                int bad = -good;
+                forks.Add(new Vector3(z0, z0 + length, good));
+                straight.Add(new Vector2(z0, z0 + length));   // çatal boyunca vadi düz: iki yol net görünsün, kıvrımda sırta sürtünmesin
+                Path LaneAt(Surface type, int side, float lo, float len) =>
+                    Lane(type, lo, len, side * off - 1.6f, side * off + 1.6f);
+                switch (variant)
+                {
+                    case 0: LaneAt(wetIsMud ? Surface.Mud : Surface.Puddle, bad, mid - 5f, 10f); break;
+                    case 1:
+                        LaneAt(Surface.Mud, bad, mid - 4f, 8f);
+                        if (allowIce) LaneAt(Surface.Ice, good, offset + 10f, length - 20f);
+                        break;
+                    case 2: LaneAt(wetIsMud ? Surface.Mud : Surface.Puddle, good, mid - 3f, 6f); break;
+                    case 3:
+                        for (int k = 0; k < 3; k++)
+                            bumps.Add(new Bump { z0 = z0 + TrackProfile.ForkBlend + 2f + k * 5f, length = 4f, height = 0.45f,
+                                                 xc = good * off, halfWidth = 1.1f });
+                        break;
+                }
                 return this;
             }
 
@@ -167,6 +219,7 @@ namespace SledSurfers
                 var cliffs = bridges.ConvertAll(b => new Vector2(b.x - 3f, b.y + 3f));
                 var t = new TrackProfile(name, points.ToArray(), length, ValleyHalfWidth, corners, sharp, rawZones: cliffs);
                 t.SetValley(meander, meanderWave, pathAmp, pathWave, seed, straight);
+                foreach (var f in forks) t.forks.Add(new TrackProfile.Fork { z0 = f.x, z1 = f.y, good = (int)f.z });
                 t.water.AddRange(water);
                 t.surfaces.AddRange(surfaces);
                 t.flocks.AddRange(flocks);
@@ -201,6 +254,50 @@ namespace SledSurfers
             }
         }
 
+        // ------------------------------------------------------------------ yeni haritalar (2026-10-09)
+        // Kullanıcı kararı: üç yeni harita ve her birinde tamamen farklı araç. Yüzeyler aynı fizikle temaya göre görünür:
+        // buz = hızlı yol (tuz düzlüğü / obsidyen / buz), çamur = yavaşlatan (bataklık kumu / kül / kızıl toz).
+
+        /// Parkur 5 — Çöl Kumulları: kum sörfü. Vaha birikintileri, tuz düzlüğü şeritleri, köprüler vaha kanalı üstünde.
+        public static TrackProfile Desert()
+        {
+            var gp = GlideStart(4, false);
+            var gobs = Glide(gp, 4, 71, 0.35f, false, true);
+            var gt = gp.Build(Names[4], Lengths[4], 9f, 220f, 2.4f, 85f, 11);
+            gt.fallText = "Kanala düştün!";
+            ScatterRocks(gt, 71, 24f);
+            AddObstacles(gt, gobs);
+            return gt;
+        }
+
+        /// Parkur 6 — Volkan: obsidyen bobsled. Obsidyen cam (hızlı) ve kül (yavaş) lekeleri, köprüler lav nehri üstünde.
+        public static TrackProfile Volcano()
+        {
+            var gp = GlideStart(5, false);
+            var gobs = Glide(gp, 5, 83, 0.3f, true, true);
+            var gt = gp.Build(Names[5], Lengths[5], 5f, 320f, 2f, 110f, 13);
+            gt.fallText = "Lava düştün!";
+            gt.ravineIsWater = false;
+            ScatterRocks(gt, 83, 20f);
+            AddObstacles(gt, gobs);
+            return gt;
+        }
+
+        /// Parkur 7 — Mars: hover kızak, düşük yerçekimi (0.38 g): uzun sıçramalar, süt yavaş ama kolay çalkalanır;
+        /// dönüş geniş (yanal tutuş yerçekimiyle azalır), bu yüzden vadi az kıvrılır. Köprüler kraterler üstünde.
+        public static TrackProfile Mars()
+        {
+            var gp = GlideStart(6, false);
+            var gobs = Glide(gp, 6, 97, 0.35f, true, true);
+            var gt = gp.Build(Names[6], Lengths[6], 3f, 420f, 1.4f, 150f, 17);
+            gt.gravity = 0.38f * SledPhysics.EarthGravity;
+            gt.fallText = "Kratere düştün!";
+            gt.ravineIsWater = false;
+            ScatterRocks(gt, 97, 22f);
+            AddObstacles(gt, gobs);
+            return gt;
+        }
+
         /// Parkur 1 — Çayır (gerçek 1 km, ekranda 3600 m). Kanatsız bitirilebilir.
         /// Başta düzlük (sapan belirler), sonra basamaklar: her basamak bir iniş ve bir tepe. Basamağın net yükseklik
         /// kaybı en iyi kızağın sürtünme + hava direnci kaybını ancak karşılar; tepeler pist boyunca yükselir, böylece
@@ -212,7 +309,8 @@ namespace SledSurfers
             {
                 var gp = GlideStart(0, true);
                 var gobs = Glide(gp, 0, 21, 0.35f, false, false);   // Çayır: buz yok, kanal da buzsuz
-                var gt = gp.Build(Names[0], Lengths[0], 7f, 260f, 2f, 110f, 3);
+                // Kullanıcı isteği (2026-10-09): yol çok düzdü; vadi belirgin kıvrılır, patika içinde S çizer.
+                var gt = gp.Build(Names[0], Lengths[0], 11f, 170f, 2.6f, 72f, 3);
                 ScatterRocks(gt, 21, 26f);
                 AddObstacles(gt, gobs);
                 return gt;
@@ -239,21 +337,25 @@ namespace SledSurfers
 
         /// Pist başına süzülme ayarları: yavaşlama yamacı eğimi (pist başında → sonunda; sona doğru düzleşir, her kızak
         /// seviyesi bir iki yamaç daha aşar), yamaç uzunluğu, kanal eğimi ve uzunluğu.
-        public static float[] SlowGrade = { 0.143f, 0.095f, 0.1f, 0.1f };
-        public static float[] SlowGradeEnd = { 0.138f, 0.092f, 0.1f, 0.1f };
-        public static Vector2[] SlowLength = { new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f) };
-        public static float[] BoostGrade = { 0.42f, 0.36f, 0.36f, 0.34f };
-        public static float[] BoostLength = { 25f, 25f, 25f, 25f };
+        public static float[] SlowGrade = { 0.143f, 0.095f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f };
+        public static float[] SlowGradeEnd = { 0.138f, 0.092f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f };
+        public static Vector2[] SlowLength = { new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f) };
+        public static float[] BoostGrade = { 0.42f, 0.36f, 0.36f, 0.34f, 0.34f, 0.34f, 0.32f };
+        public static float[] BoostLength = { 25f, 25f, 25f, 25f, 25f, 25f, 25f };
         /// İnce köprü olasılığı (yamaç başına) ve iki köprü arası en az mesafe; köprü uzunluğu pist boyunca uzar.
-        public static float[] BridgeChance = { 0.5f, 0.45f, 0.35f, 0.5f };
+        public static float[] BridgeChance = { 0.5f, 0.45f, 0.35f, 0.5f, 0.4f, 0.45f, 0.4f };
         public const float BridgeSpacing = 120f, BridgeDepth = 5f;
         public static Vector2 BridgeSpan = new Vector2(14f, 22f);
+        /// Çatal olasılığı (yüzeysiz yamaç başına).
+        public static float[] ForkChance = { 0.9f, 0.8f, 0.45f, 0.5f, 0.45f, 0.5f, 0.3f };
+        public const float ForkLength = 44f;
 
         static List<Vector2> Glide(Path p, int track, int seed, float kickChance, bool snow, bool allowIce)
         {
             float length = Lengths[track], slowGrade, boostGrade = BoostGrade[track], boostLen = BoostLength[track];
             var rnd = new System.Random(seed);
             var brnd = new System.Random(seed ^ 0xb21d);   // köprüler ayrı: pistin geri kalanının dizilişi değişmesin
+            var frnd = new System.Random(seed ^ 0xf04c);   // çatallar da ayrı
             float R(float a, float b) => a + (b - a) * (float)rnd.NextDouble();
             var obstacles = new List<Vector2>();
             void Pickup(float ahead)
@@ -301,6 +403,18 @@ namespace SledSurfers
                 float side = rnd.Next(2) == 0 ? -1f : 1f;
                 // Yamaçtaki yüzey (yamaç başına göre): buz şeridi (hızlı yol), patikayı kesen su/çamur (yanından dolaş)
                 int kind = rnd.Next(5);
+                // Yüzeysiz yamaçta çatal: patika ikiye ayrılır, seçilen şerit mesafeyi (ya da altını, sütü) etkiler.
+                // Rampa ya da köprüden hemen sonra değil: inişte şerit değiştirmek için sert direksiyon sütü döküyordu.
+                bool fork = kind != 1 && !kick && !bridge && L >= 62f && p.z > 60f && p.z + L < length
+                            && frnd.NextDouble() < ForkChance[track];
+                if (fork)
+                {
+                    float fo = 12f + (float)frnd.NextDouble() * (L - ForkLength - 16f);   // kanal çıkışından sonra (kızak çok hızlı)
+                    int variant = frnd.Next(4), good = frnd.Next(2) == 0 ? -1 : 1;
+                    p.Fork(fo, ForkLength, variant, good, snow, allowIce);
+                }
+                // Çatallı yamaçta kendi su/çamur şeridi konmaz (rastgele sayılar yine çekilir: pistin geri kalanı aynı kalsın).
+                p.mute = fork;
                 switch (kind)
                 {
                     case 1:
@@ -318,6 +432,7 @@ namespace SledSurfers
                         float x0 = R(-5.8f, 2.5f), w = ice ? R(2.5f, 5f) : R(1.8f, 3.2f);
                         p.Lane(ice ? Surface.Ice : Surface.Mud, R(10f, L - 30f), ice ? R(14f, 28f) : R(6f, 10f), x0, Mathf.Min(x0 + w, 5.8f));
                     }
+                p.mute = false;
                 // Yamaç (rampadan sonra başlar; su/çamur ve buz konumları buna göre)
                 p.Hills(L, Mathf.Max(1, Mathf.RoundToInt(L / 70f)), 0.6f, slowGrade * L + Mathf.Max(0f, kickH - 0.8f), kick ? 1.4f : 1f);
                 // Hız toplatan iniş kanalı (Çayır'da buzsuz)
@@ -679,7 +794,7 @@ namespace SledSurfers
             {
                 var gp = GlideStart(1, false);
                 var gobs = Glide(gp, 1, 33, 0.3f, false, true);
-                var gt = gp.Build(Names[1], Lengths[1], 5f, 320f, 2f, 110f, 5);
+                var gt = gp.Build(Names[1], Lengths[1], 8f, 220f, 2.3f, 85f, 5);
                 ScatterRocks(gt, 33, 24f);
                 AddObstacles(gt, gobs);
                 return gt;
@@ -724,7 +839,7 @@ namespace SledSurfers
             {
                 var gp = GlideStart(2, false);
                 var gobs = Glide(gp, 2, 47, 0.3f, false, true);
-                var gt = gp.Build(Names[2], Lengths[2], 5f, 340f, 2f, 120f, 7);
+                var gt = gp.Build(Names[2], Lengths[2], 7f, 240f, 2.2f, 90f, 7);
                 ScatterRocks(gt, 47, 22f);
                 AddObstacles(gt, gobs);
                 return gt;
