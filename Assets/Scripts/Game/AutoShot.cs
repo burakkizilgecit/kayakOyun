@@ -47,6 +47,13 @@ namespace SledSurfers
                 yield break;
             }
 
+            if (mode == "surfaces")
+            {
+                yield return SurfaceShots();
+                SaveData.ClearAll();   // yalnız test önekli kayıt (gerçek kayıt korunur)
+                Application.Quit();
+                yield break;
+            }
             if (mode == "tracks")
             {
                 yield return TrackShots();
@@ -304,6 +311,29 @@ namespace SledSurfers
 
             SaveData.ClearAll();   // yalnız test önekli kayıt (gerçek kayıt korunur)
             Application.Quit();
+        }
+
+        /// Su birikintisi, çamur ve buz lekelerine yaklaşırken (Çayır, Karlı Dağ, Çöl, Volkan).
+        IEnumerator SurfaceShots()
+        {
+            game.DebugHideTutorial();
+            game.debugAutopilot = true;
+            foreach (int tr in new[] { 0, 3, 4, 5 })
+                foreach (var type in new[] { Surface.Puddle, Surface.Mud, Surface.Ice })
+                {
+                    game.DebugReset(new[] { 20, 20, 16, 20, 20 }, 0);
+                    game.DebugTrack(tr, tr);
+                    yield return new WaitForSeconds(1f);
+                    float sz = game.DebugSurfaceZ(type, 40f);
+                    if (sz < 0f) continue;
+                    game.DebugAim();
+                    yield return new WaitForSeconds(0.5f);
+                    game.DebugLaunch(1f);
+                    float t = 0f;
+                    while (!game.DebugInResult && game.DebugDistance < sz - 2f && t < 90f) { t += Time.deltaTime; yield return null; }
+                    if (game.DebugDistance < sz - 2f) continue;   // ulaşamadı
+                    yield return Shot("s" + tr + "_" + type.ToString().ToLowerInvariant());
+                }
         }
 
         /// Her parkur: ana ekran (araç), koşu ve ilk çatal (yaklaşırken ve içinde); en sonda harita listesi.

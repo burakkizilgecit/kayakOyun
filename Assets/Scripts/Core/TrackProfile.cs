@@ -22,9 +22,22 @@ namespace SledSurfers
                                      z0 = cz - rz * m, z1 = cz + rz * m, x0 = cx - rx * m, x1 = cx + rx * m };
         }
 
-        /// Kenarın merkeze uzaklık çarpanı (açıya göre): yalnızca 2-3 yumuşak loblu düzgün organik oval (tırtıksız).
+        /// Kenarın merkeze uzaklık çarpanı (açıya göre): büyük loblar + küçük girinti çıkıntılar (kullanıcı: yuvarlak
+        /// ovaller yapay duruyordu). Fizik de aynı kenarı kullanır.
         public float Edge(float angle) =>
-            1f + 0.1f * Mathf.Sin(2f * angle + seed) + 0.06f * Mathf.Sin(3f * angle + seed * 1.7f);
+            1f + 0.1f * Mathf.Sin(2f * angle + seed) + 0.06f * Mathf.Sin(3f * angle + seed * 1.7f)
+               + 0.05f * Mathf.Sin(5f * angle + seed * 2.3f) + 0.03f * Mathf.Sin(7f * angle + seed * 3.1f)
+               + 0.018f * Mathf.Sin(11f * angle + seed * 4.7f);
+
+        /// Görsel iç katman: merkezi (yarıçap biriminde) kaydırılmış, başka biçimli leke (iç içe halka gibi durmasın).
+        public SurfaceZone Inner(float du, float dv, float seedAdd)
+        {
+            var z = this;
+            z.cz += du * rz;
+            z.cx += dv * rx;
+            z.seed += seedAdd;
+            return z;
+        }
 
         /// dx: vadi ya da patika ortasına göre yanal konum.
         public bool Contains(float z, float dx)
@@ -32,7 +45,7 @@ namespace SledSurfers
             if (z < z0 || z > z1 || dx < x0 || dx > x1) return false;
             float u = (z - cz) / rz, v = (dx - cx) / rx;
             float r2 = u * u + v * v;
-            if (r2 < 0.55f) return true;
+            if (r2 < 0.48f) return true;   // en içteki kenar ~0.7
             return Mathf.Sqrt(r2) <= Edge(Mathf.Atan2(v, u));
         }
     }

@@ -176,12 +176,13 @@ namespace SledSurfers
         public float DebugGapZ(int i) => track != null && i < track.water.Count ? track.water[i].x : -1f;
 
         /// 300 m'den sonraki ilk verilen türde yüzey lekesinin başladığı z; yoksa -1.
-        public float DebugSurfaceZ(Surface type)
+        public float DebugSurfaceZ(Surface type, float after = 300f)
         {
             if (track == null) return -1f;
+            float best = -1f;
             foreach (var s in track.surfaces)
-                if (s.type == type && s.z0 > 300f) return s.z0;
-            return -1f;
+                if (s.type == type && s.z0 > after && (best < 0f || s.z0 < best)) best = s.z0;
+            return best;
         }
 
         public float DebugRocketPickupZ => track != null && track.hasRocketPickup ? track.rocketPickup.z : -1f;

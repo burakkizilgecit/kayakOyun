@@ -602,17 +602,26 @@ namespace SledSurfers
         {
             if (track.surfaces.Count == 0) return;
             // Su: kenarda sığ ve açık, ortada derin ve koyu; ince köpük kenarı.
-            var shallow = Mats.Water(theme.puddleShallow);
-            var deep = Mats.Water(theme.puddleDeep);
+            // Su birikintisi: Meshy taban dokusu (çakıllı çamur, ışık desenleri) üstünde yarı saydam su.
+            var bedTex = Resources.Load<Texture2D>("Surfaces/PuddleBed");
+            var bed = Textured(Mats.Solid(Color.Lerp(theme.mudB, theme.puddleDeep, 0.35f), 0.2f), bedTex);
+            // Sığ su koyu ve saydam, yansıma ölçülü: gökyüzünü yansıtan soluk levha gibi durmasın, çamurlu taban görünsün.
+            var sc = Color.Lerp(theme.puddleShallow, theme.puddleDeep, 0.5f);
+            var shallow = Mats.Water(new Color(sc.r, sc.g, sc.b, bedTex != null ? 0.32f : theme.puddleShallow.a));
+            var deep = Mats.Water(new Color(theme.puddleDeep.r, theme.puddleDeep.g, theme.puddleDeep.b, bedTex != null ? 0.5f : theme.puddleDeep.a));
+            if (bedTex != null) { shallow.SetFloat("_Glossiness", 0.42f); deep.SetFloat("_Glossiness", 0.5f); }   // yatık açıda gökyüzü yansıması parlaklıkla artar
             var foam = Mats.Solid(new Color(0.86f, 0.95f, 0.98f), 0.6f);
             // Çamur: kenarı açık kahve, ortası koyu ve ıslak parlak; üstünde birikinti benekleri.
-            var mudOuter = Mats.Solid(theme.mudA, 0.35f);   // çekirdeğe yakın: açık bant gibi durmasın
-            var mudCore = Mats.Solid(theme.mudB, 0.55f);    // ıslak ama düz: dalgacık dokusu çevreye göre fazla ayrıntılıydı
+            // Meshy çamur dokusu (ıslak kıvrımlar, su gözleri; gri ton, renk temadan). ~5.7 m'de bir tekrar.
+            var mudTex = Resources.Load<Texture2D>("Surfaces/Mud");
+            var mudOuter = Textured(Mats.Solid(theme.mudA, 0.35f), mudTex);
+            var mudCore = Textured(Mats.Solid(theme.mudB, 0.55f), mudTex);
+            if (mudTex != null) { mudOuter.mainTextureScale = mudCore.mainTextureScale = Vector2.one * 0.5f; }
             var mudSpot = Mats.Solid(theme.mudSpot, 0.8f);
             var shoreGrass = Mats.Solid(Color.Lerp(theme.grass, Color.black, theme.snowy ? 0.12f : 0.28f), 0.2f);
             var shorePath = Mats.Solid(Color.Lerp(theme.trackA, Color.black, 0.3f), 0.3f);
             // Buz: donmuş göl; dıştan içe koyulaşan mavi, çapraz ışık yansımaları ve ince çatlaklar.
-            var iceTex = IceTexture();
+            var iceTex = Resources.Load<Texture2D>("Surfaces/Ice") ?? IceTexture();   // Meshy: çatlaklar ve hava kabarcıkları
             float gloss = theme.lava ? 0.35f : 1f;   // obsidyen: gökyüzünü yansıtıp soluk cam levha gibi durmasın
             var iceOuter = Textured(Mats.Solid(theme.iceA, 0.95f * gloss), iceTex);
             var iceMid = Textured(Mats.Solid(theme.iceB, 0.97f * gloss), iceTex);
@@ -628,16 +637,17 @@ namespace SledSurfers
                 {
                     case Surface.Puddle:
                         Blob(zone, 1.07f, 0.03f, overPath ? shorePath : shoreGrass, "Shore");
+                        if (bedTex != null) Blob(zone, 1f, 0.038f, bed, "Puddle Bed", 0f, true);
                         Blob(zone, 1f, 0.045f, shallow, "Puddle");
-                        Blob(zone, 0.68f, 0.05f, deep, "Puddle Deep");
-                        Ring(zone, 0.94f, 1f, 0.055f, foam, "Foam");
+                        Blob(zone.Inner(R(-0.12f, 0.12f), R(-0.1f, 0.1f), 13f), 0.5f, 0.05f, deep, "Puddle Deep");
+                        Ring(zone, 0.96f, 1f, 0.055f, foam, "Foam");
                         Pebbles(zone);
                         break;
                     case Surface.Mud:
                         // Yol haritası aşama 6: kalın açık kenar halkası zeminden ayrı bir nesne gibi duruyordu.
                         Blob(zone, 1.03f, 0.03f, overPath ? shorePath : shoreGrass, "Shore");
                         Blob(zone, 1f, 0.045f, mudOuter, "Mud");
-                        Blob(zone, 0.82f, 0.05f, mudCore, "Mud Wet");
+                        Blob(zone.Inner(R(-0.1f, 0.1f), R(-0.08f, 0.08f), 7f), 0.6f, 0.05f, mudCore, "Mud Wet");
                         // Islak benekler (küçük birikintiler)
                         for (int k = 0; k < 2 + rng.Next(3); k++)
                         {
@@ -650,8 +660,8 @@ namespace SledSurfers
                         break;
                     case Surface.Ice:
                         Blob(zone, 1f, 0.045f, iceOuter, "Ice", 0f, true);
-                        Blob(zone, 0.74f, 0.05f, iceMid, "Ice Mid", 0f, true);
-                        Blob(zone, 0.42f, 0.055f, iceCore, "Ice Core", 0f, true);
+                        Blob(zone.Inner(R(-0.1f, 0.1f), R(-0.08f, 0.08f), 5f), 0.58f, 0.05f, iceMid, "Ice Mid", 0f, true);
+                        Blob(zone.Inner(R(-0.12f, 0.12f), R(-0.1f, 0.1f), 11f), 0.3f, 0.055f, iceCore, "Ice Core", 0f, true);
                         Ring(zone, 0.97f, 1.03f, 0.058f, frost, "Frost Rim");
                         break;   // çayırda beyaz kar tepeciği yok (kullanıcı: beyaz lekeler kötü duruyor)
                 }
@@ -671,7 +681,7 @@ namespace SledSurfers
         /// dome: ortanın kenara göre ne kadar kabarık olduğu (kar tepeciği).
         void Blob(SurfaceZone zone, float scale, float lift, Material mat, string name, float dome = 0f, bool localUV = false)
         {
-            const int rings = 6, sectors = 40;
+            const int rings = 6, sectors = 64;   // girintili kenar için sık örnekleme
             var verts = new List<Vector3>();
             var tris = new List<int>();
             var luv = localUV ? new List<Vector2>() : null;   // lekeye göre UV: doku leke boyunca bir kez uzanır
@@ -703,7 +713,7 @@ namespace SledSurfers
         /// Lekenin kenarı boyunca ince şerit (inner..outer, yarıçap biriminde): kenar parlaması ya da don kenarı.
         void Ring(SurfaceZone zone, float inner, float outer, float lift, Material mat, string name)
         {
-            const int sectors = 40;
+            const int sectors = 64;
             var verts = new List<Vector3>();
             var tris = new List<int>();
             for (int j = 0; j < sectors; j++)
