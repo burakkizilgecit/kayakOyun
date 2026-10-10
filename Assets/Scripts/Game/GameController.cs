@@ -245,10 +245,13 @@ namespace SledSurfers
             Upgrades.PartTier = save.unlocked;   // kalıcı parçalar: bitirilen parkur sayısı
             track = TrackLibrary.Get(index);
             var theme = TrackTheme.Get(index);
+            dustColor = theme.snowy && index == 3 ? new Color(0.97f, 0.98f, 1f) : Color.Lerp(theme.trackA, Color.white, 0.3f);
             world = new WorldView(track, theme);
             trail = new SledTrail(world.Root, track, theme);
             world.SetBest(save.best);
             loot = new Collectibles(track, world.Root);
+            save.RollTaken();
+            loot.LoadTaken(save.taken[index]);
             PushGemMarks();
             theme.Apply(cam, sun);
         }
@@ -331,6 +334,7 @@ namespace SledSurfers
             world.ShowGuide(0f, 0f);
             world.ClearFlag();
             resultDelay = 0f;
+            if (save.RollTaken()) loot.LoadTaken("");   // yeni gün: pist yeniden dolar
             loot.ResetRun();
             rocketPickupShown = false;
             rider.ResetCrash();
@@ -519,6 +523,7 @@ namespace SledSurfers
             ShowHint(Hint.Steer, IconKind.Swap, input.TiltMode ? "Sağa-sola sürükle: yön" : "A / D: yön", 3);
         }
 
+        Color dustColor = Color.white;
         Vector2 camDir = Vector2.up;   // koşu kamerasının yumuşatılmış yatay yönü (x, z)
         const float LaunchTimeScale = 3f;
         const float HubForward = 2.2f;
@@ -566,6 +571,8 @@ namespace SledSurfers
             }
             save.money += earned;
             lastEarned = earned;
+            save.taken[save.track] = loot.CommitTaken();   // toplananlar sonraki denemede pistte olmaz
+            PushGemMarks();
             RecordQuests(finished, fill);
             save.Save();
 
@@ -665,12 +672,17 @@ namespace SledSurfers
                             ? track.SurfaceAt(sled.position.z, sled.position.x) : Surface.Ground;
             bool inPuddle = underSled == Surface.Puddle || underSled == Surface.Mud;
             float wet = inPuddle ? Mathf.Clamp01(sled.Speed / 14f) : 0f;
-            rider.Splash(wet, inPuddle && !wasInPuddle, underSled == Surface.Mud);
+            // Kuru zeminde kızağın arkasından hafif toz/kar püskürür (görsel analiz 2026-10-10: hareket hissi); hızla artar.
+            if (!inPuddle && state == State.Run && sled.grounded && sled.Speed > 5f)
+                rider.Splash(0.035f + 0.11f * Mathf.Clamp01((sled.Speed - 5f) / 20f), false, false,
+                             underSled == Surface.Ice ? new Color(0.92f, 0.97f, 1f) : dustColor);
+            else rider.Splash(wet, inPuddle && !wasInPuddle, underSled == Surface.Mud);
             if (inPuddle && !wasInPuddle) sfx.Splash(0.4f + wet);
             wasInPuddle = inPuddle;
             bool attached = state == State.Aim || (state == State.Run && sled.launching);
             Vector3 pouch = sled.position + sled.Orientation * new Vector3(0f, 0.45f, -0.8f);
             world.UpdateSlingshot(pouch, sled.velocity, attached, dt);
+            world.SetPouchScale(state == State.Hub ? 0.5f : 1f);   // ana ekranda kese karakterin arkasında küçük dursun
             UpdateSound(dt);
             UpdateCamera(dt);
             // Düşme sahnesinde kameranın yanında yumuşak dolgu ışığı: güneş arkada kalsa da yüz aydınlık.
@@ -998,17 +1010,21 @@ namespace SledSurfers
             if (hv.magnitude > 2f && !sled.launching)
             {
                 Vector2 want = hv.normalized;
-                if (want.y < 0.3f) want = new Vector2(want.x, 0.3f).normalized;   // kamera asla yana/geriye dönmez
+                // Kamera vadinin yönünden en çok ~7° sapar: şerit değiştirirken kızağın yanal hızı kamerayı çevirip
+                // (yokuş aşağı zeminde) ufku yatırıyordu (görsel analiz 2026-10-10). Vadi kıvrımını yine izler.
+                float valley = Mathf.Atan2(track.CenterX(p.z + 6f) - track.CenterX(p.z - 6f), 12f);
+                float ang = Mathf.Clamp(Mathf.Atan2(want.x, want.y), valley - 0.12f, valley + 0.12f);
+                want = new Vector2(Mathf.Sin(ang), Mathf.Cos(ang));
                 camDir = Vector2.Lerp(camDir, want, 1f - Mathf.Exp(-3f * Time.deltaTime)).normalized;
             }
             var fwd = new Vector3(camDir.x, 0f, camDir.y);
-            Vector3 ahead = p + fwd * 8f;
+            Vector3 ahead = p + fwd * 7.5f;
             // İnişte bakış biraz aşağı: yamaç yukarıdan okunsun (ileri zeminle kızak arası).
             // Vadinin üstünde (zemin çok aşağıda) kamera suya dönmesin: bakış kızağın en çok 1.5 m altına iner.
             float lookY = Mathf.Max(Mathf.Lerp(p.y + 1f, track.Height(ahead.x, ahead.z) + 1.2f, 0.5f), p.y - 1.5f);
-            // Kamera 6.5 m geride, 2.6 m yukarıda; bakış 8 m ileri.
+            // Kamera 5.3 m geride, 2.3 m yukarıda (görsel analiz 2026-10-10: karakter ekranda küçüktü); kanat genişse geri çekilir.
             look = new Vector3(ahead.x, lookY, ahead.z);
-            var camPos = p - fwd * 6.5f + new Vector3(0f, 2.6f, 0f);
+            var camPos = p - fwd * (4.8f + 0.5f * cfg.wingSpan) + new Vector3(0f, 2.15f + 0.15f * cfg.wingSpan, 0f);
             camPos.y = AboveGround(camPos, p + new Vector3(0f, 0.8f, 0f));
             return camPos;
         }
@@ -1154,6 +1170,8 @@ namespace SledSurfers
             ui.TestResetUpgrades += () =>
             {
                 System.Array.Clear(save.levels, 0, save.levels.Length);
+                save.taken[save.track] = "";
+                loot.LoadTaken("");
                 save.Save();
                 EnterHub();
             };

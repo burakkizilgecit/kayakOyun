@@ -298,9 +298,10 @@ namespace SledSurfers
         }
 
         /// Su birikintisinde: intensity 0..1 (hız), enter: suya ilk giriş anı (büyük sıçrama).
-        public void Splash(float intensity, bool enter, bool mud = false)
+        /// dust: su/çamur değil, kızağın arkasından kalkan toz/kar (zeminin açık tonu); yoğunluk düşük tutulur.
+        public void Splash(float intensity, bool enter, bool mud = false, Color? dust = null)
         {
-            if (intensity > 0f) dropMat.color = mud ? new Color(0.42f, 0.29f, 0.17f) : new Color(0.84f, 0.92f, 1f);
+            if (intensity > 0f) dropMat.color = dust ?? (mud ? new Color(0.42f, 0.29f, 0.17f) : new Color(0.84f, 0.92f, 1f));
             foreach (var ps in spray)
             {
                 var em = ps.emission;

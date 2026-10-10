@@ -369,12 +369,16 @@ namespace SledSurfers
         }
 
         /// Yamaç yüksekliği; dx: vadi eksenine uzaklık.
+        /// Yan yamaçların yüksekliği (1 = vadi; 0 = dümdüz açık arazi, Orman).
+        public float bankScale = 1f;
+
         public float Bank(float dx)
         {
+            if (bankScale <= 0f) return 0f;
             float d = Mathf.Min(Mathf.Abs(dx) - halfWidth, BankRim);   // tepeden sonra düz (görseldeki arazi gibi)
             if (d <= 0f) return 0f;
-            if (d <= BankFlex) return BankCurve * d * d;
-            return BankCurve * BankFlex * BankFlex + 2f * BankCurve * BankFlex * (d - BankFlex);
+            if (d <= BankFlex) return bankScale * BankCurve * d * d;
+            return bankScale * (BankCurve * BankFlex * BankFlex + 2f * BankCurve * BankFlex * (d - BankFlex));
         }
 
         /// Zemin yüksekliği (vadi tabanı + yamaç + tümsekler; köprü tablasının üstünde tabla).
@@ -546,6 +550,13 @@ namespace SledSurfers
         }
 
         /// Kaya türü engel (iri kaya, taş, kütük yığını, kütük).
+        /// Ağaç engeli (Orman): ince gövde, çarpılınca düşülür. variant 4.
+        public void AddTree(float z, float x)
+        {
+            float s = 0.85f + 0.4f * Mathf.Repeat(z * 0.291f + x * 0.37f, 1f);
+            obstacles.Add(new Obstacle { x = PathX(z) + x, z = z, isRock = true, variant = 4, halfWidth = 0.4f, halfDepth = 0.4f, height = 6f * s });
+        }
+
         public void AddRock(float z, float x)
         {
             int v = Mathf.Abs(Mathf.RoundToInt(z * 5.7f + x * 2.3f)) % 4;

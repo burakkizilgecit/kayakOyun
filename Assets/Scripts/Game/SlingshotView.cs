@@ -70,6 +70,9 @@ namespace SledSurfers
         public Vector3 Rest => (leftTop + rightTop) * 0.5f;
 
         /// stretch 0..1: gerginlik; color: lastiğin o anki rengi; thickness: yükseltme kalınlık çarpanı.
+        static readonly Vector3 PouchSize = new Vector3(0.2f, 0.3f, 0.12f);
+        public void SetPouchScale(float s) => pouch.localScale = PouchSize * s;
+
         public void Update(Vector3 pouchPos, float stretch, Color color, float thickness)
         {
             float radius = Mathf.Lerp(0.055f, 0.028f, stretch) * thickness;

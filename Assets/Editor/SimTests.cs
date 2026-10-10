@@ -167,7 +167,10 @@ namespace SledSurfers.EditorTools
             {
                 var track = TrackLibrary.Get(t);   // yükseltme bağlamı bu pist
                 levels = new int[Upgrades.Count];   // yükseltmeler pist başına: yeni pistte sıfırdan
+                money = 0;                          // para da parkur başına (elmas ortak)
+                float coinFront = 0f;               // altınları toplanmış kısım: toplanan altın ve elmas pistte yeniden çıkmaz
                 var gemZs = Collectibles.GemZs(track);
+                var gemTaken = new bool[gemZs.Count];
                 log?.AppendLine("Parkur " + (t + 1) + " — " + track.name + " (" + Upgrades.Max + " kademe)");
                 int runs = 0, streak = 0;
                 float best = 0f, milk = 0f;
@@ -183,12 +186,16 @@ namespace SledSurfers.EditorTools
                     milk += 1f - r.fill;
                     for (int i = 0; i < res.surfaceLoss.Length; i++) res.surfaceLoss[i] += r.stats.lostMeters[i];
                     for (int i = 0; i < res.milkByCause.Length; i++) res.milkByCause[i] += r.stats.milkLost[i];
-                    float coins = 0.07f * r.distance;   // pistteki coinlerin yaklaşık yarısı toplanır
+                    // Pistteki coinlerin yaklaşık yarısı toplanır; yalnızca ilk kez geçilen kısımdakiler (gerisi alınmış).
+                    // Geride kalan yarının bir kısmı sonraki geçişlerde toplanır: geçilen eski kısımdan %15.
+                    float coins = 0.07f * Mathf.Max(0f, r.distance - coinFront) + 0.07f * 0.15f * Mathf.Min(r.distance, coinFront);
+                    coinFront = Mathf.Max(coinFront, r.distance);
                     int earned = Mathf.RoundToInt((r.distance * (0.4f + 0.6f * r.fill) + coins * 2f + (finished ? 1000 * (t + 1) : 0))
                                                   * Upgrades.IncomeMultiplier(levels[(int)UpgradeType.Income]) * TrackLibrary.PayFactors[t]);
                     money += earned;
                     int gotGems = 0;
-                    foreach (float gz in gemZs) if (gz <= r.distance && rnd.NextDouble() < pickChance) gotGems++;
+                    for (int gi = 0; gi < gemZs.Count; gi++)
+                        if (!gemTaken[gi] && gemZs[gi] <= r.distance && rnd.NextDouble() < pickChance) { gemTaken[gi] = true; gotGems++; }
                     gems += gotGems;
                     res.gemsEarned += gotGems;
                     // En ucuz alınabilir yükseltmeyi tekrar tekrar al; coin yetmezse (istenirse) elmasla.

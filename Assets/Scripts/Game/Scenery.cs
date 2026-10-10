@@ -71,9 +71,10 @@ namespace SledSurfers
                         horizon = new Color(1f, 0.8f, 0.62f), skyTint = new Color(0.8f, 0.52f, 0.42f), skyGround = new Color(0.6f, 0.38f, 0.28f),
                         exposure = 1.2f, atmosphere = 1.6f, sunColor = new Color(1f, 0.72f, 0.46f), sunEuler = new Vector3(16f, 160f, 0f), sunIntensity = 1.2f,
                         ambientSky = new Color(0.78f, 0.66f, 0.62f), ambientEquator = new Color(0.7f, 0.52f, 0.42f), ambientGround = new Color(0.42f, 0.3f, 0.22f),
-                        skyTop = new Color(0.4f, 0.46f, 0.76f), fogStart = 90f, fogEnd = 420f, contrast = 1.06f, saturation = 1.12f, vignette = 0.28f, gradeTint = new Color(1.03f, 0.98f, 0.93f),
-                        grass = new Color(0.9f, 0.66f, 0.42f), grassB = new Color(0.85f, 0.6f, 0.38f), rock = new Color(0.74f, 0.4f, 0.26f),
-                        trackA = new Color(0.9f, 0.72f, 0.5f), trackB = new Color(0.83f, 0.64f, 0.43f), kerb = new Color(0.16f, 0.62f, 0.64f),
+                        skyTop = new Color(0.36f, 0.44f, 0.8f), fogStart = 110f, fogEnd = 460f, contrast = 1.08f, saturation = 1.06f, vignette = 0.26f, gradeTint = new Color(1.01f, 0.99f, 0.96f),
+                        // Görsel analiz (2026-10-10): zemin ve yol aynı turuncuydu: zemin kızıl, yol açık krem.
+                        grass = new Color(0.8f, 0.5f, 0.33f), grassB = new Color(0.74f, 0.44f, 0.29f), rock = new Color(0.7f, 0.36f, 0.24f),
+                        trackA = new Color(0.97f, 0.84f, 0.64f), trackB = new Color(0.9f, 0.76f, 0.56f), kerb = new Color(0.16f, 0.62f, 0.64f),
                         water = new Color(0.25f, 0.62f, 0.7f, 0.82f), hillHeight = 10f, mountainHeight = 75f, terrace = 7f,
                         near = new[] { "Nature/rock_smallA", "Nature/rock_smallB", "Nature/rock_smallC", "Nature/cactus_short", "Nature/grass_leafs",
                                        "Nature/plant_bushSmall" },
@@ -106,13 +107,15 @@ namespace SledSurfers
                 case 4:   // Çöl Kumulları: sıcak öğle, kum tepeleri, kaktüs ve palmiyeler
                     return new TrackTheme
                     {
-                        horizon = new Color(0.98f, 0.88f, 0.7f), skyTint = new Color(0.75f, 0.65f, 0.5f), skyGround = new Color(0.8f, 0.65f, 0.45f),
-                        skyTop = new Color(0.36f, 0.6f, 0.92f), exposure = 1.4f, sunColor = new Color(1f, 0.9f, 0.7f), sunEuler = new Vector3(55f, -30f, 0f),
-                        sunIntensity = 1.15f, ambientSky = new Color(0.8f, 0.75f, 0.65f), ambientEquator = new Color(0.75f, 0.62f, 0.48f),
-                        ambientGround = new Color(0.5f, 0.4f, 0.28f), fogStart = 90f, fogEnd = 420f, contrast = 1.06f, saturation = 1.12f,
-                        gradeTint = new Color(1.04f, 1f, 0.94f),
-                        grass = new Color(0.93f, 0.78f, 0.5f), grassB = new Color(0.9f, 0.74f, 0.46f), rock = new Color(0.8f, 0.6f, 0.4f),
-                        trackA = new Color(0.97f, 0.86f, 0.62f), trackB = new Color(0.92f, 0.8f, 0.56f), kerb = new Color(0.2f, 0.6f, 0.7f),
+                        // Görsel analiz (2026-10-10): her şey aynı soluk sarıydı. Gök mavi, ufuk açık mavi-krem, parlaklık düşük;
+                        // zemin sıcak kum, yol ondan belirgin koyu sıkışmış toprak.
+                        horizon = new Color(0.86f, 0.9f, 0.93f), skyTint = new Color(0.6f, 0.72f, 0.95f), skyGround = new Color(0.8f, 0.68f, 0.5f),
+                        skyTop = new Color(0.22f, 0.5f, 0.92f), exposure = 1.15f, sunColor = new Color(1f, 0.94f, 0.82f), sunEuler = new Vector3(55f, -30f, 0f),
+                        sunIntensity = 1f, ambientSky = new Color(0.66f, 0.72f, 0.82f), ambientEquator = new Color(0.66f, 0.58f, 0.46f),
+                        ambientGround = new Color(0.44f, 0.36f, 0.26f), fogStart = 110f, fogEnd = 460f, contrast = 1.08f, saturation = 1.05f,
+                        gradeTint = new Color(1.01f, 1f, 0.98f),
+                        grass = new Color(0.9f, 0.72f, 0.44f), grassB = new Color(0.84f, 0.65f, 0.38f), rock = new Color(0.72f, 0.5f, 0.34f),
+                        trackA = new Color(0.72f, 0.52f, 0.33f), trackB = new Color(0.66f, 0.47f, 0.3f), kerb = new Color(0.2f, 0.6f, 0.7f),
                         water = new Color(0.2f, 0.7f, 0.75f, 0.85f), hillHeight = 18f, mountainHeight = 50f,
                         mudA = new Color(0.78f, 0.6f, 0.38f), mudB = new Color(0.66f, 0.5f, 0.3f), mudSpot = new Color(0.55f, 0.4f, 0.24f),
                         iceA = new Color(0.98f, 0.96f, 0.91f), iceB = new Color(0.95f, 0.93f, 0.87f), iceC = new Color(0.91f, 0.89f, 0.83f),
@@ -172,7 +175,7 @@ namespace SledSurfers
                 default:  // Çayır: parlak öğle, meşeler, çiçekler
                     return new TrackTheme
                     {
-                        horizon = new Color(0.8f, 0.9f, 0.98f), skyTint = new Color(0.62f, 0.76f, 1f), skyGround = new Color(0.45f, 0.6f, 0.4f),
+                        horizon = new Color(0.72f, 0.87f, 1f), skyTint = new Color(0.62f, 0.76f, 1f), skyGround = new Color(0.45f, 0.6f, 0.4f),
                         exposure = 1.5f, atmosphere = 1.05f, sunColor = new Color(1f, 0.96f, 0.88f), sunEuler = new Vector3(50f, -35f, 0f), sunIntensity = 1.05f,
                         ambientSky = new Color(0.6f, 0.7f, 0.85f), ambientEquator = new Color(0.55f, 0.6f, 0.5f), ambientGround = new Color(0.3f, 0.34f, 0.26f),
                         grass = new Color(0.45f, 0.72f, 0.32f), grassB = new Color(0.39f, 0.64f, 0.29f), rock = new Color(0.58f, 0.54f, 0.5f),
@@ -1019,9 +1022,17 @@ namespace SledSurfers
             string[] rocks = { "Nature/rock_largeA", "Nature/rock_largeB", "Nature/rock_largeC", "Nature/rock_largeD", "Nature/stone_largeA",
                                "Nature/stone_largeB", "Nature/stone_largeC" };
             string[] crates = { "Platformer/crate", "Platformer/crate-strong", "Platformer/barrel" };
+            string[] trees = { "Nature/tree_pineTallA", "Nature/tree_pineTallB", "Nature/tree_pineRoundA", "Nature/tree_pineRoundC",
+                               "Nature/tree_pineDefaultA", "Nature/tree_pineDefaultB" };
             foreach (var o in track.obstacles)
             {
                 float y = track.Height(o.x, o.z);
+                if (o.variant == 4)
+                {
+                    // Ağaç engeli: gövdesi çarpışma kutusunda, boyu oranını koruyarak
+                    PlaceHeight(Pick(trees), new Vector3(o.x, y - 0.1f, o.z), o.height, R(0f, 360f));
+                    continue;
+                }
                 string path = !o.isRock ? crates[o.variant % crates.Length]
                             : o.variant == 2 ? "Nature/log_stack" : o.variant == 3 ? "Nature/stump_old" : Pick(rocks);
                 var m = PropModel.Get(path);

@@ -16,6 +16,7 @@ namespace SledSurfers
         {
             public Vector3 pos;
             public bool gem, taken, small;   // small: köprü tablasında (görüşü kapatmasın)
+            public bool gone;                // önceki denemelerde toplandı: pistte yok (kayıttan)
             public Transform tf;
             public float phase, popClock = -1f;
         }
@@ -166,7 +167,7 @@ namespace SledSurfers
         public List<float> GemPositions()
         {
             var list = new List<float>();
-            foreach (var it in items) if (it.gem) list.Add(it.pos.z);
+            foreach (var it in items) if (it.gem && !it.gone) list.Add(it.pos.z);
             return list;
         }
 
@@ -271,6 +272,25 @@ namespace SledSurfers
                 if (!it.taken && (it.pos - p).sqrMagnitude < radius * radius) it.tf.gameObject.SetActive(false);
         }
 
+        /// Kayıttaki toplanmışları uygular ('1' = toplanmış; uzunluk uymuyorsa — pist değişmiş — yok sayılır).
+        public void LoadTaken(string mask)
+        {
+            bool ok = !string.IsNullOrEmpty(mask) && mask.Length == items.Count;
+            for (int i = 0; i < items.Count; i++) items[i].gone = ok && mask[i] == '1';
+        }
+
+        /// Bu denemede toplananları kalıcı sayar ve kayıt dizisini döner.
+        public string CommitTaken()
+        {
+            var sb = new System.Text.StringBuilder(items.Count);
+            foreach (var it in items)
+            {
+                if (it.taken) it.gone = true;
+                sb.Append(it.gone ? '1' : '0');
+            }
+            return sb.ToString();
+        }
+
         public void ResetRun()
         {
             coins = gems = 0;
@@ -283,9 +303,9 @@ namespace SledSurfers
             }
             foreach (var it in items)
             {
-                it.taken = false;
+                it.taken = it.gone;
                 it.popClock = -1f;
-                it.tf.gameObject.SetActive(true);
+                it.tf.gameObject.SetActive(!it.gone);
                 it.tf.position = it.pos;
                 it.tf.localScale = Vector3.one;
             }
@@ -342,6 +362,10 @@ namespace SledSurfers
                 }
                 float bob = it.gem ? 0.2f * Mathf.Sin(time * 2.5f + it.phase) : 0f;
                 it.tf.position = it.pos + Vector3.up * bob;
+                // Kızağın gerisinde kalan (toplanmamış) altın kameranın dibinde dev görünüyordu: geride kaldıkça küçülür.
+                float behind = sledZ - it.pos.z;
+                if (behind > 0.5f) it.tf.localScale = Vector3.one * Mathf.Clamp01(1f - (behind - 0.5f) / 3f);
+                else if (it.tf.localScale.x < 1f) it.tf.localScale = Vector3.one;
                 it.tf.rotation = Quaternion.Euler(0f, time * (it.gem ? 90f : 180f) + it.phase * 40f, 0f);
             }
         }

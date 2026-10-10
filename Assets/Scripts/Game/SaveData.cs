@@ -7,7 +7,27 @@ namespace SledSurfers
 
     public class SaveData
     {
-        public int money;
+        /// Para parkur başına (kullanıcı kararı 2026-10-10: yeni haritaya geçince para sıfırlanır; elmas ortak kalır).
+        public readonly int[] trackMoney = new int[TrackLibrary.Count];
+        public int money
+        {
+            get => trackMoney[Mathf.Clamp(track, 0, TrackLibrary.Count - 1)];
+            set => trackMoney[Mathf.Clamp(track, 0, TrackLibrary.Count - 1)] = value;
+        }
+        /// Pistte toplanmış altın ve elmaslar (parkur başına '1'/'0' dizisi; Collectibles sırasıyla): bir sonraki denemede
+        /// pistte olmazlar (kullanıcı kararı 2026-10-10). Gün değişince pist yeniden dolar (takenDay).
+        public readonly string[] taken = new string[TrackLibrary.Count];
+        public int takenDay;
+
+        /// Gün değiştiyse toplananlar sıfırlanır (pistler yeniden dolar). true: yenilendi.
+        public bool RollTaken()
+        {
+            int today = DailyQuests.Today;
+            if (takenDay == today) return false;
+            takenDay = today;
+            for (int t = 0; t < taken.Length; t++) taken[t] = "";
+            return true;
+        }
         public int gems;              // pembe elmas
         public long chestReadyTicks;  // ücretsiz sandığın açılacağı an (UTC)
 
@@ -126,7 +146,8 @@ namespace SledSurfers
 
         static System.Collections.Generic.IEnumerable<string> Keys()
         {
-            foreach (var k in new[] { "lday", "lstreak", "qday", "qtrack", "qp0", "qp1", "qp2", "qclaim", "money", "gems", "chest", "launches", "launchTicks", "hand", "sound", "track", "avatar", "avatars", "avatar2", "avatars2", "unlocked",
+            for (int t = 0; t < TrackLibrary.Count; t++) { PlayerPrefs.DeleteKey(K("money_t" + t)); PlayerPrefs.DeleteKey(K("taken_t" + t)); }
+            foreach (var k in new[] { "takenDay", "lday", "lstreak", "qday", "qtrack", "qp0", "qp1", "qp2", "qclaim", "money", "gems", "chest", "launches", "launchTicks", "hand", "sound", "track", "avatar", "avatars", "avatar2", "avatars2", "unlocked",
                                       "sens", "tut" })
                 yield return k;
             for (int t = 0; t < TrackLibrary.Count; t++)
@@ -145,7 +166,6 @@ namespace SledSurfers
         {
             var s = new SaveData
             {
-                money = PlayerPrefs.GetInt(K("money"), 0),
                 gems = PlayerPrefs.GetInt(K("gems"), 0),
                 chestReadyTicks = long.TryParse(PlayerPrefs.GetString(K("chest"), "0"), out var ticks) ? ticks : 0,
                 hand = PlayerPrefs.GetInt(K("hand"), 1),
@@ -170,6 +190,18 @@ namespace SledSurfers
             // Bir parkur bitmeden sonraki açılmaz (eski kayıtlar ve değişen pistler için de geçerli).
             while (s.unlocked > 0 && !s.Finished(s.unlocked - 1)) s.unlocked--;
             s.track = Mathf.Min(s.track, s.unlocked);
+            for (int t = 0; t < TrackLibrary.Count; t++)
+            {
+                s.trackMoney[t] = PlayerPrefs.GetInt(K("money_t" + t), 0);
+                s.taken[t] = PlayerPrefs.GetString(K("taken_t" + t), "");
+            }
+            // Eski tek cüzdan: bulunulan parkura aktarılır (bir kez).
+            if (PlayerPrefs.HasKey(K("money")))
+            {
+                s.trackMoney[s.track] += PlayerPrefs.GetInt(K("money"), 0);
+                PlayerPrefs.DeleteKey(K("money"));
+            }
+            s.takenDay = PlayerPrefs.GetInt(K("takenDay"), 0);
             s.questDay = PlayerPrefs.GetInt(K("qday"), 0);
             s.questTrack = Mathf.Clamp(PlayerPrefs.GetInt(K("qtrack"), 0), 0, TrackLibrary.Count - 1);
             for (int i = 0; i < DailyQuests.PerDay; i++) s.questProgress[i] = PlayerPrefs.GetInt(K("qp" + i), 0);
@@ -181,7 +213,12 @@ namespace SledSurfers
 
         public void Save()
         {
-            PlayerPrefs.SetInt(K("money"), money);
+            for (int t = 0; t < TrackLibrary.Count; t++)
+            {
+                PlayerPrefs.SetInt(K("money_t" + t), trackMoney[t]);
+                PlayerPrefs.SetString(K("taken_t" + t), taken[t] ?? "");
+            }
+            PlayerPrefs.SetInt(K("takenDay"), takenDay);
             PlayerPrefs.SetInt(K("gems"), gems);
             PlayerPrefs.SetString(K("chest"), chestReadyTicks.ToString());
             PlayerPrefs.SetInt(K("launches"), launches);

@@ -20,7 +20,7 @@ namespace SledSurfers
         public static readonly float[] MilkHeadroomScale = { 1f, 1f, 1f, 1f, 1f, 1f, 1.8f };
         public static float[] PowerStart = { 0f, 5f, 7f, 8f, 9f, 10f, 10f };
         public static float[] PowerEnd = { 15f, 18f, 21f, 23f, 24f, 25f, 25f };
-        public static float[] CostScale = { 1f, 1.15f, 4f, 2.6f, 3.6f, 3f, 4f };   // 2026-10-10: referans fiyat eğrisi (5×aşama, 1.4→1.24) ile
+        public static float[] CostScale = { 0.8f, 0.78f, 2.6f, 1.55f, 2.2f, 1.55f, 2.5f };   // 2026-10-10: referans fiyat eğrisi (5×aşama, 1.4→1.24) ile
         /// Pistin aracı: son üç haritada aracın şekli tamamen değişir.
         public static readonly VehicleKind[] Vehicles =
             { VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sandboard, VehicleKind.Bobsled, VehicleKind.Hover };
@@ -835,6 +835,34 @@ namespace SledSurfers
             }
         }
 
+        /// Orman zemini: patikanın iki yanına (ve seyrek olarak kenarına) ağaç ve kayalar. Patikanın kendisi, köprü
+        /// yaklaşımları, çatallar ve rampa inişleri boş kalır.
+        static void ScatterForest(TrackProfile t, int seed)
+        {
+            var rnd = new System.Random(seed * 17 + 3);
+            float R(float a, float b) => a + (b - a) * (float)rnd.NextDouble();
+            var lips = new List<float>();   // rampa dudakları: eğim birden düşer
+            for (float z = 0f; z < t.finishZ; z += 1f)
+                if (t.Slope(z - 1f) > 0.08f && t.Slope(z + 2f) < -0.02f) lips.Add(z);
+            float reach = t.halfWidth + TrackProfile.BankRim - 1.5f;
+            for (float z = 70f; z < t.finishZ - 30f; z += R(3.5f, 7f))
+            {
+                bool skip = false;
+                foreach (var w in t.water) if (z > w.x - 80f && z < w.y + 20f) skip = true;
+                foreach (var f in t.forks) if (z > f.z0 - 10f && z < f.z1 + 10f) skip = true;
+                foreach (float lip in lips) if (z > lip - 12f && z < lip + 110f) skip = true;
+                if (skip || Mathf.Abs(t.Slope(z)) > 0.3f) continue;
+                float side = rnd.Next(2) == 0 ? -1f : 1f;
+                // Patika ortasına göre yanal konum: çoğu patikanın dışında, bazıları tam kenarında (dar geçit hissi)
+                float off = side * (rnd.NextDouble() < 0.25 ? R(TrackProfile.PathHalfWidth + 0.9f, TrackProfile.PathHalfWidth + 2f)
+                                                            : R(TrackProfile.PathHalfWidth + 2f, reach));
+                float x = t.PathX(z) + off;
+                if (Mathf.Abs(x - t.CenterX(z)) > reach) continue;
+                if (rnd.NextDouble() < 0.68) t.AddTree(z, off);
+                else t.AddRock(z, off);
+            }
+        }
+
         static void AddObstacles(TrackProfile t, List<Vector2> list)
         {
             for (int i = 0; i < list.Count; i++)
@@ -854,7 +882,10 @@ namespace SledSurfers
                 var gp = GlideStart(1, false);
                 var gobs = Glide(gp, 1, 33, 0.3f, false, true);
                 var gt = gp.Build(Names[1], Lengths[1], 8f, 220f, 2.3f, 85f, 5);
-                ScatterRocks(gt, 33, 24f);
+                // Kullanıcı kararı (2026-10-10): Orman Çayır'dan farklı hissettirsin: yan yamaç yok (dümdüz açık orman),
+                // zeminde rastgele ağaçlar ve kayalar; aralarından geçilir, çarpan düşer.
+                gt.bankScale = 0f;
+                ScatterForest(gt, 33);
                 AddObstacles(gt, gobs);
                 return gt;
             }

@@ -582,7 +582,7 @@ namespace SledSurfers
                 if (Mathf.Abs(position.x - o.x) > o.halfWidth + HalfWidth) continue;
                 if (position.y - track.Height(o.x, o.z) > o.height) continue;
                 velocity = Vector3.zero;
-                ForceEnd(RunEnd.Crashed, o.isRock ? "Kayaya çarptın!" : "Kasaya çarptın!");
+                ForceEnd(RunEnd.Crashed, o.variant == 4 ? "Ağaca çarptın!" : o.isRock ? "Kayaya çarptın!" : "Kasaya çarptın!");
                 return;
             }
         }

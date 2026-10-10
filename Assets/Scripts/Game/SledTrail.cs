@@ -10,7 +10,7 @@ namespace SledSurfers
     {
         const float Spacing = 0.3f, Lift = 0.035f;
         const int MaxPoints = 200;   // ~60 m
-        const float GrooveHalf = 0.42f, RunnerOffset = 0.3f, RunnerHalf = 0.035f;
+        const float GrooveHalf = 0.36f, RunnerOffset = 0.27f, RunnerHalf = 0.022f;   // ince: iz zemini bastırmasın
 
         /// Noktanın zemine oturmuş 6 köşesi (oluk sol/sağ, sol ray sol/sağ, sağ ray sol/sağ): eklenirken bir kez
         /// hesaplanır. Her karede zemin sorgusu yapmak (binlerce Height çağrısı) telefonda kare hızını düşürüyordu.
@@ -32,8 +32,8 @@ namespace SledSurfers
             this.track = track;
             // Karda mavi-gri oluk (videodaki gibi), çimen ve kumda zeminin koyu tonu.
             groove = theme.snowy ? new Color(0.42f, 0.56f, 0.8f, 0.42f)
-                                 : new Color(theme.grass.r * 0.55f, theme.grass.g * 0.55f, theme.grass.b * 0.55f, 0.32f);
-            runner = theme.snowy ? new Color(0.95f, 0.98f, 1f, 0.55f) : new Color(1f, 1f, 1f, 0.22f);
+                                 : new Color(theme.trackA.r * 0.62f, theme.trackA.g * 0.62f, theme.trackA.b * 0.62f, 0.24f);
+            runner = theme.snowy ? new Color(0.95f, 0.98f, 1f, 0.5f) : new Color(1f, 1f, 1f, 0.16f);
             mesh = new Mesh { name = "Sled Trail" };
             mesh.MarkDynamic();
             var go = new GameObject("Sled Trail");
