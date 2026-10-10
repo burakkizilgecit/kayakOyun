@@ -49,6 +49,8 @@ namespace SledSurfers
 
         /// Sonuç ekranında reklam izlenip kazanç 3 katına çıkarıldı (GameController 2 kat daha ekler).
         public event Action TripleEarnings;
+        /// Ana ekrandaki OYNA düğmesi.
+        public event Action Play;
         /// Günlük görevler penceresini aç, günlük giriş ödülünü al; görev ödülü al (dizin).
         public event Action OpenQuests, ClaimLogin;
         public event Action<int> ClaimQuest;
@@ -192,6 +194,37 @@ namespace SledSurfers
         Label playHint, hubTrackName, hubTrackSub, hubTrackPct;
         VisualElement hubRibbon, playPill;
         Icon playHand;
+        Button playButton;
+        readonly StarShape[] playStars = new StarShape[9];
+
+        /// Beş köşeli yıldız (görsel dosyasız): OYNA düğmesinin çevresindeki parıltılar.
+        class StarShape : VisualElement
+        {
+            public StarShape()
+            {
+                pickingMode = PickingMode.Ignore;
+                style.position = Position.Absolute;
+                style.width = style.height = 48;
+                generateVisualContent += ctx =>
+                {
+                    var p = ctx.painter2D;
+                    var c = new Vector2(24f, 24f);
+                    p.fillColor = new Color(1f, 0.93f, 0.45f, 1f);
+                    p.strokeColor = new Color(1f, 1f, 1f, 0.95f);
+                    p.lineWidth = 3f;
+                    p.BeginPath();
+                    for (int i = 0; i < 10; i++)
+                    {
+                        float a = (-90f + i * 36f) * Mathf.Deg2Rad, r = i % 2 == 0 ? 22f : 9.5f;
+                        var v = c + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * r;
+                        if (i == 0) p.MoveTo(v); else p.LineTo(v);
+                    }
+                    p.ClosePath();
+                    p.Fill();
+                    p.Stroke();
+                };
+            }
+        }
         VisualElement hubTrackFill, settings, settingsCard;
         Button handLeft, handRight, soundOn, soundOff;
         readonly Button[] sensButtons = new Button[3];
@@ -205,7 +238,9 @@ namespace SledSurfers
         readonly UpgradeCard[] cards = new UpgradeCard[Upgrades.Count];
 
         // Roket butonu (koşu)
+        int hubAvatar;
         Button rocketBtn;
+        VisualElement rocketGlow;
         VisualElement gaugeBox;
         SpeedGauge gauge;
         VisualElement rocketFill;
@@ -281,6 +316,12 @@ namespace SledSurfers
         {
             const float Top = 70f;   // bayrağın altından itibaren çubuk
             public readonly VisualElement root, track, fill, knob, bestMark, gems;
+
+            public void SetAvatar(StyleBackground portrait)
+            {
+                knob.style.backgroundImage = portrait;
+                knob.style.backgroundColor = Color.white;
+            }
             readonly Label percent, bestLabel;
 
             public ProgressColumn()
@@ -469,6 +510,7 @@ namespace SledSurfers
 
         public void ShowRun()
         {
+            runColumn.SetAvatar(Portrait(hubAvatar));   // ilerleme çubuğunda seçili karakterin yüzü
             shownRunCoins = shownRunGems = -1;
             wasAirborne = false;
             toastClock = -1f;
@@ -706,21 +748,21 @@ namespace SledSurfers
             var avatarBtn = SideCard(() => OpenAvatars?.Invoke(), new Color32(0x6C, 0x8C, 0xFF, 0xFF), new Color32(0x3B, 0x55, 0xD0, 0xFF));
             avatarBtn.style.alignSelf = Align.FlexStart;
             hubAvatarPortrait = E("avatar-portrait");
-            hubAvatarPortrait.style.width = 104;
-            hubAvatarPortrait.style.height = 104;
+            hubAvatarPortrait.style.width = 128;
+            hubAvatarPortrait.style.height = 128;
             avatarBtn.Add(hubAvatarPortrait);
             avatarBtn.Add(L("KARAKTER", "side-label"));
             leftSide.Add(avatarBtn);
             chestBtn = SideCard(() => OpenChest?.Invoke(), new Color32(0xFF, 0xB0, 0x3A, 0xFF), new Color32(0xD8, 0x6C, 0x0A, 0xFF));
             chestBtn.style.alignSelf = Align.FlexStart;
-            chestIcon = new Icon(IconKind.Chest, 92);
+            chestIcon = new Icon(IconKind.Chest, 118);
             chestBtn.Add(chestIcon);
             chestLabel = L("AÇ!", "side-label");
             chestBtn.Add(chestLabel);
             leftSide.Add(chestBtn);
             var questBtn = SideCard(() => OpenQuests?.Invoke(), new Color32(0x9B, 0x6B, 0xFF, 0xFF), new Color32(0x6A, 0x3D, 0xD0, 0xFF));
             questBtn.style.alignSelf = Align.FlexStart;
-            questBtn.Add(new Icon(IconKind.Check, 80, Color.white));
+            questBtn.Add(new Icon(IconKind.Check, 104, Color.white));
             questBtn.Add(L("GÖREV", "side-label"));
             questDot = E();
             questDot.style.position = Position.Absolute;
@@ -737,7 +779,7 @@ namespace SledSurfers
             mid.Add(leftSide);
             var side = E("col");
             var map = SideCard(() => OpenMap?.Invoke(), new Color32(0x3B, 0xD0, 0xB8, 0xFF), new Color32(0x1A, 0x93, 0x80, 0xFF));
-            map.Add(new Icon(IconKind.Map, 84, Color.white));
+            map.Add(new Icon(IconKind.Map, 108, Color.white));
             map.Add(L("HARİTA", "side-label"));
             side.Add(map);
             var rocket = BuildUpgradeCard((int)UpgradeType.Rocket);
@@ -761,12 +803,23 @@ namespace SledSurfers
             p.Add(stageLabel);
 
             // Oynamak için dokun: koyu hap içinde, yanında zıplayan dokunma eli
-            playPill = E("play-pill");
+            // OYNA düğmesi (kullanıcı kararı 2026-10-11): büyük sarı düğme, çevresinde parlayıp sönen yıldızlar.
+            playPill = E("play-wrap");
             playPill.pickingMode = PickingMode.Ignore;
-            playHand = new Icon(IconKind.Hand, 76, new Color32(0xFF, 0xD3, 0x4D, 0xFF));
-            playPill.Add(playHand);
-            playHint = L("OYNAMAK İÇİN DOKUN", "play-text");
-            playPill.Add(playHint);
+            for (int k = 0; k < playStars.Length; k++)
+            {
+                playStars[k] = new StarShape();
+                playPill.Add(playStars[k]);
+            }
+            var play = B(() => Play?.Invoke(), "btn", "play-btn");
+            play.style.backgroundImage = new StyleBackground(VGrad(new Color32(0xFF, 0xE0, 0x5A, 0xFF), new Color32(0xFF, 0xA8, 0x1A, 0xFF)));
+            var playGloss = E("play-gloss");
+            playGloss.pickingMode = PickingMode.Ignore;
+            play.Add(playGloss);
+            playHint = L("OYNA", "play-text");
+            play.Add(playHint);
+            playButton = play;
+            playPill.Add(play);
             p.Add(playPill);
 
             var row = E("row");
@@ -836,6 +889,9 @@ namespace SledSurfers
             Color main = UpgradeColors[i], dark = UpgradeDark[i];
             var c = new UpgradeCard { root = E("pcard", "pick") };
             c.root.style.borderBottomColor = dark;
+            // Çerçeve kartın kendi renginde (beyaz çerçeve dört kartı birbirine benzetiyordu), üstte cam parlaması.
+            var frame = Color.Lerp(main, Color.white, 0.25f);
+            c.root.style.borderTopColor = c.root.style.borderLeftColor = c.root.style.borderRightColor = frame;
 
             var top = c.top = E("pcard-top");
             top.style.backgroundImage = new StyleBackground(VGrad(Color.Lerp(main, Color.white, 0.55f), main));
@@ -844,6 +900,9 @@ namespace SledSurfers
             top.Add(glow);
             c.preview = E("pcard-preview");
             top.Add(c.preview);
+            var gloss = E("pcard-gloss");
+            gloss.pickingMode = PickingMode.Ignore;
+            top.Add(gloss);
 
             var lvl = E("pcard-lvl");
             lvl.style.backgroundColor = dark;
@@ -1030,6 +1089,7 @@ namespace SledSurfers
             }
 
             hubAvatarPortrait.style.backgroundImage = Portrait(save.avatar);
+            hubAvatar = save.avatar;
 
             int t = save.track;
             float progress = Mathf.Clamp01(save.bests[t] / TrackLibrary.Lengths[t]);
@@ -1066,12 +1126,22 @@ namespace SledSurfers
                     stageLabel.style.display = DisplayStyle.None;
                 }
             }
-            float s = 1f + 0.04f * Mathf.Sin(time * 4f);
-            playPill.style.scale = new Scale(new Vector2(s, s));
-            // El dokunur gibi aşağı yukarı zıplar
-            float tap = Mathf.Abs(Mathf.Sin(time * 3.2f));
-            playHand.style.translate = new Translate(0, -14f * tap);
-            playHand.style.rotate = new Rotate(-12f + 10f * tap);
+            float s = 1f + 0.035f * Mathf.Sin(time * 4f);
+            playButton.style.scale = new Scale(new Vector2(s, s));
+            // Yıldızlar: düğmenin çevresinde sabit noktalarda sırayla büyüyüp söner, hafifçe döner.
+            for (int k = 0; k < playStars.Length; k++)
+            {
+                float ph = time * 1.6f + k * 0.83f;
+                float tw = Mathf.Pow(Mathf.Max(0f, Mathf.Sin(ph)), 2f);
+                float ang = k * (360f / playStars.Length) + 20f * Mathf.Sin(time * 0.7f + k);
+                float rx = 300f + 26f * Mathf.Sin(k * 2.1f), ry = 118f + 18f * Mathf.Cos(k * 1.7f);
+                var st = playStars[k];
+                st.style.left = 330f + Mathf.Cos(ang * Mathf.Deg2Rad) * rx - 24f;
+                st.style.top = 100f + Mathf.Sin(ang * Mathf.Deg2Rad) * ry - 24f;
+                st.style.scale = new Scale(new Vector2(0.35f + 0.85f * tw, 0.35f + 0.85f * tw));
+                st.style.opacity = 0.25f + 0.75f * tw;
+                st.style.rotate = new Rotate(time * 40f + k * 50f);
+            }
 
             bool chestReady = h.chestSeconds <= 0;
             string chestText = chestReady ? "AÇ!" : (h.chestSeconds / 60) + ":" + (h.chestSeconds % 60).ToString("00");
@@ -2223,10 +2293,21 @@ namespace SledSurfers
             gaugeBox.Add(speedLabel);
             var unit = L("km/sa", "gauge-unit");
             gaugeBox.Add(unit);
+            // Roket düğmesi (kullanıcı kararı 2026-10-11: yeri aynı, görünüşü yenilendi): mavi cam balon, içinde roket;
+            // hazırken çevresinde ışık halkası, yanarken alev rengi yakıt aşağı iner.
+            rocketGlow = E("rocket-glow");
+            rocketGlow.style.backgroundImage = new StyleBackground(Radial());
+            rocketGlow.pickingMode = PickingMode.Ignore;
+            gaugeBox.Add(rocketGlow);
             rocketBtn = B(() => FireRocket?.Invoke(), "btn", "rocket-btn");
+            rocketBtn.style.backgroundImage = new StyleBackground(VGrad(new Color32(0x8F, 0xD8, 0xFF, 0xFF), new Color32(0x2F, 0x86, 0xE8, 0xFF)));
             rocketFill = E("rocket-fill");
+            rocketFill.style.backgroundImage = new StyleBackground(VGrad(new Color32(0xFF, 0xD0, 0x3A, 0xFF), new Color32(0xFF, 0x5A, 0x1A, 0xFF)));
             rocketBtn.Add(rocketFill);
-            rocketBtn.Add(new Icon(IconKind.Flame, 92));
+            var rocketGloss = E("rocket-gloss");
+            rocketGloss.pickingMode = PickingMode.Ignore;
+            rocketBtn.Add(rocketGloss);
+            rocketBtn.Add(new Icon(IconKind.Rocket, 104));
             rocketCount = L("", "rocket-count");
             rocketBtn.Add(rocketCount);
             gaugeBox.Add(rocketBtn);
@@ -2300,7 +2381,9 @@ namespace SledSurfers
             {
                 bool firing = h.rocketFuel > 0f;
                 rocketFill.style.height = Length.Percent(firing ? h.rocketFuel * 100f : h.rocketReady ? 100f : 0f);
-                rocketBtn.style.opacity = h.rocketReady || firing ? 1f : 0.45f;
+                rocketBtn.style.opacity = h.rocketReady || firing ? 1f : 0.5f;
+                rocketGlow.style.opacity = h.rocketReady ? 0.55f + 0.35f * Mathf.Sin(time * 6f) : 0f;
+                rocketGlow.style.rotate = new Rotate(time * 30f);
                 rocketCount.text = h.rocketCharges > 1 ? "x" + h.rocketCharges : "";
                 float pulse = h.rocketReady ? 1f + 0.05f * Mathf.Sin(time * 6f) : 1f;
                 rocketBtn.style.scale = new Scale(new Vector2(pulse, pulse));

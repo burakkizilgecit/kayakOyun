@@ -343,7 +343,7 @@ namespace SledSurfers
             pickupStreak = 0;
             world.SetSlingLevel(save.levels[(int)UpgradeType.Slingshot]);
             // Ana ekrandayken (yükseltme alımı, karakter değişimi) kızak sapanın önündeki yerinde kalır.
-            if (state == State.Hub) sled.position = new Vector3(0f, track.Height(0f, HubForward), HubForward);
+            if (state == State.Hub) PlaceHubSled();
         }
 
         /// Elmasların yerlerini koşu ekranındaki ilerleme çubuğuna işler (arayüz henüz yoksa bekler).
@@ -368,8 +368,9 @@ namespace SledSurfers
             PrepareSled();
             // Ana ekranda kızak sapanın önünde durur (kullanıcı 2026-10-10): kamera önden baktığı için kese ve lastik
             // karakterin yüzünü kapatıyordu. Nişana geçince kızak yeniden keseye oturur (PrepareSled).
-            sled.position = new Vector3(0f, track.Height(0f, HubForward), HubForward);
             state = State.Hub;
+            PlaceHubSled();
+            SnapCamera();   // kızak pistin içine taşındı: kamera oraya süzülmek yerine doğrudan geçer
             ui.ShowHub(save);
             RefreshQuests(false);
             // Günlük giriş ödülü: oturumda bir kez kendiliğinden açılır (otomatik testte açılmaz).
@@ -525,8 +526,17 @@ namespace SledSurfers
 
         Color dustColor = Color.white;
         Vector2 camDir = Vector2.up;   // koşu kamerasının yumuşatılmış yatay yönü (x, z)
+        void PlaceHubSled()
+        {
+            float x = track.PathX(HubForward);
+            sled.position = new Vector3(x, track.Height(x, HubForward), HubForward);
+            sled.pitch = Mathf.Atan(track.SlopeZ(x, HubForward));
+        }
+
         const float LaunchTimeScale = 3f;
-        const float HubForward = 2.2f;
+        /// Ana ekranda kızağın durduğu yer (kullanıcı kararı 2026-10-11): sapanın ve başlangıç tribünlerinin çok ilerisinde,
+        /// pistin içinde; arkada yalnız manzara görünür. Nişana geçince kızak sapana döner.
+        const float HubForward = 135f;
         float fpsSmooth = 60f;
         GUIStyle fpsStyle;
 
@@ -984,8 +994,9 @@ namespace SledSurfers
                 float a = 0.35f * Mathf.Sin(orbit * 0.3f);
                 float radius = closeUp ? 3.6f : 5.4f + 1.2f * cfg.wingSpan;
                 Vector3 center = p + new Vector3(0f, 0.7f, 0f);
-                look = center + new Vector3(0f, closeUp ? -0.5f : -0.35f, 0f);
-                return center + new Vector3(Mathf.Sin(a) * radius, 1.2f, Mathf.Cos(a) * radius);
+                // Kızak yamaçta durur, kamera aşağısından yukarı bakar: alçak kamera + yüksek bakış ufku ve gökyüzünü gösterir.
+                look = center + new Vector3(0f, closeUp ? -0.5f : -0.05f, 0f);
+                return center + new Vector3(Mathf.Sin(a) * radius, closeUp ? 1.2f : 0.1f, Mathf.Cos(a) * radius);
             }
             if (state == State.Aim)
             {
@@ -1088,6 +1099,7 @@ namespace SledSurfers
         void WireUi()
         {
             ui.Retry += EnterAim;
+            ui.Play += () => { if (state == State.Hub) EnterAim(); };
             ui.OpenQuests += () => RefreshQuests(true);
             ui.ClaimQuest += ClaimQuestReward;
             ui.ClaimLogin += ClaimLoginReward;
