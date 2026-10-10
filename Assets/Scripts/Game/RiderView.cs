@@ -737,7 +737,7 @@ namespace SledSurfers
             if (shownVehicle == VehicleKind.Hover && vehicles.TryGetValue(VehicleKind.Hover, out var hv))
                 hv.root.localPosition = new Vector3(0f, 0.05f + 0.02f * Mathf.Sin(Time.time * 4f), 0f);
             // Süzülme süresi dolunca kanatlar kısmen yukarı katlanır (taşıma azalır), yere inince açılır.
-            wingFold = Mathf.MoveTowards(wingFold, (1f - sled.WingLift) / 0.65f, Time.deltaTime * 3f);
+            wingFold = Mathf.MoveTowards(wingFold, 1f - sled.WingLift, Time.deltaTime * 3f);   // taşıma %50'ye inince kanatlar yarı katlı
             leftWing.localRotation = Quaternion.Euler(0f, 0f, -80f * wingFold);
             rightWing.localRotation = Quaternion.Euler(0f, 0f, 80f * wingFold);
             addons.Tick(sled.Speed, Time.deltaTime);

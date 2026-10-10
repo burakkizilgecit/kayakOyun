@@ -47,6 +47,46 @@ namespace SledSurfers
                 yield break;
             }
 
+            if (mode == "parts")
+            {
+                // Kalıcı parçalar: duyuru önizlemeleri + Çayır'da köprü öncesi yükselti (yaklaşırken ve inerken)
+                game.DebugHideTutorial();
+                game.debugAutopilot = true;
+                game.DebugReset(new[] { 22, 22, 12, 22, 14 }, 0);
+                game.DebugTrack(0, 0);
+                yield return new WaitForSeconds(1.5f);
+                game.DebugAim();
+                yield return new WaitForSeconds(0.5f);
+                game.DebugLaunch(1f);
+                float gapZ = game.DebugGapZ(0), pt = 0f;
+                while (!game.DebugInResult && game.DebugDistance < gapZ - 48f && pt < 120f) { pt += Time.deltaTime; yield return null; }
+                yield return Shot("p_bridge0_rise");
+                while (!game.DebugInResult && game.DebugDistance < gapZ - 22f && pt < 120f) { pt += Time.deltaTime; yield return null; }
+                yield return Shot("p_bridge1_dive");
+                while (!game.DebugInResult && game.DebugDistance < gapZ + 4f && pt < 120f) { pt += Time.deltaTime; yield return null; }
+                yield return Shot("p_bridge2_on");
+                for (int part = 1; part < Upgrades.PartNames.Length; part++)
+                {
+                    game.DebugHub();
+                    game.DebugPartUnlock(part);
+                    yield return new WaitForSeconds(1.2f);
+                    yield return Shot("p_part" + part);
+                }
+                foreach (int tr in new[] { 3, 4, 5, 6 })
+                {
+                    game.DebugReset(new[] { 20, 20, 12, 20, 14 }, 0);
+                    game.DebugTrack(tr, tr);
+                    yield return new WaitForSeconds(1.5f);
+                    game.DebugAim();
+                    yield return new WaitForSeconds(0.5f);
+                    game.DebugLaunch(1f);
+                    yield return new WaitForSeconds(4f);
+                    yield return Shot("p_run" + tr);
+                }
+                SaveData.ClearAll();   // yalnız test önekli kayıt (gerçek kayıt korunur)
+                Application.Quit();
+                yield break;
+            }
             if (mode == "rocket")
             {
                 // Roket art arda atışlarda ateşlenebiliyor mu (oyuncu gibi: otomatik pilot yok, düğme yolu)?

@@ -385,10 +385,11 @@ namespace SledSurfers
         /// Kullanıcı kararı: süzülme sınırlı — yoksa pist süzülme açısından dik inince kızak hiç inmeden sona kadar uçuyordu.
         float GlideTime => cfg.glideTime;
 
-        /// Kanat taşıması 0..1: süre dolunca 1.5 s içinde %35'e iner (kanatlar kısmen katlanır): kızak burnunu
-        /// indirip dik (~30°) bir süzülmeyle yere döner; havada asılı kalamaz ama sert de çakılmaz.
+        /// Kanat taşıması 0..1: süre dolunca 3 s içinde yumuşakça %50'ye iner (kullanıcı 2026-10-10: süzülme daha
+        /// doğal olsun, biraz daha uzun sürsün; eskiden 1.5 s'de %35'e düşüyor, kanat birden katlanıyordu). Kızak burnunu
+        /// indirip alçalır; havada asılı kalamaz ama sert de çakılmaz.
         public float WingLift => cfg.wingArea <= 0f ? 0f : grounded ? 1f
-            : Mathf.Max(0.35f, 1f - Mathf.Max(0f, airTime - GlideTime) / 1.5f);
+            : Mathf.Max(0.5f, 1f - Mathf.Max(0f, airTime - GlideTime) / 6f);
 
         /// Kanatlar tam açık mı (yerde her zaman; havada süre dolana kadar).
         public bool WingsOpen => cfg.wingArea > 0f && (grounded || airTime < GlideTime);

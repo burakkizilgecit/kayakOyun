@@ -506,6 +506,7 @@ namespace SledSurfers
             sled.stats.perfectLaunch = perfect;
             sled.Launch();
             state = State.Run;
+            camDir = new Vector2(Mathf.Sin(aim), Mathf.Cos(aim)).normalized;
             runTime = 0f;
             accumulator = 0f;
             launchTime = Time.time;
@@ -518,6 +519,7 @@ namespace SledSurfers
             ShowHint(Hint.Steer, IconKind.Swap, input.TiltMode ? "Sağa-sola sürükle: yön" : "A / D: yön", 3);
         }
 
+        Vector2 camDir = Vector2.up;   // koşu kamerasının yumuşatılmış yatay yönü (x, z)
         const float LaunchTimeScale = 3f;
         const float HubForward = 2.2f;
         float fpsSmooth = 60f;
@@ -989,17 +991,24 @@ namespace SledSurfers
                 look = f + new Vector3(0f, 0.45f, 0f);
                 return f + new Vector3(side * 1.75f, 0.85f, 1.55f);
             }
-            // Koşu: kamera vadinin yönüne hizalı durur (vadi kıvrıldıkça döner), kızağı yana doğru kısmen izler.
-            float c = track.CenterX(p.z);
-            float bend = (track.CenterX(p.z + 6f) - track.CenterX(p.z - 6f)) / 12f;
-            float lateral = (p.x - c) * 0.85f;   // yamaca çıkan kızak ekranın ortasına yakın kalsın
-            float lookX = c + bend * 8f + lateral;
+            // Koşu: kamera her zaman kızağın gidiş yönünün arkasında (kullanıcı 2026-10-10: vadinin yönüne hizalı kamera
+            // kıvrımlarda yana kayıyor, kızak ekranda savruluyordu). Yön, yatay hızdan yumuşatılarak alınır (ani direksiyon
+            // kamerayı sarsmaz); kızak yavaşken son yön korunur. Kızak ekranın ortasında, hep arkadan görünür.
+            var hv = new Vector2(sled.velocity.x, sled.velocity.z);
+            if (hv.magnitude > 2f && !sled.launching)
+            {
+                Vector2 want = hv.normalized;
+                if (want.y < 0.3f) want = new Vector2(want.x, 0.3f).normalized;   // kamera asla yana/geriye dönmez
+                camDir = Vector2.Lerp(camDir, want, 1f - Mathf.Exp(-3f * Time.deltaTime)).normalized;
+            }
+            var fwd = new Vector3(camDir.x, 0f, camDir.y);
+            Vector3 ahead = p + fwd * 8f;
             // İnişte bakış biraz aşağı: yamaç yukarıdan okunsun (ileri zeminle kızak arası).
             // Vadinin üstünde (zemin çok aşağıda) kamera suya dönmesin: bakış kızağın en çok 1.5 m altına iner.
-            float lookY = Mathf.Max(Mathf.Lerp(p.y + 1f, track.Height(lookX, p.z + 8f) + 1.2f, 0.5f), p.y - 1.5f);
-            // Yol haritası aşama 6: kamera 8 m yerine 6.5 m geride, biraz alçak (karakter büyük görünür); bakış 8 m ileri.
-            look = new Vector3(lookX, lookY, p.z + 8f);
-            var camPos = new Vector3(c - bend * 6.5f + lateral, p.y + 2.6f, p.z - 6.5f);
+            float lookY = Mathf.Max(Mathf.Lerp(p.y + 1f, track.Height(ahead.x, ahead.z) + 1.2f, 0.5f), p.y - 1.5f);
+            // Kamera 6.5 m geride, 2.6 m yukarıda; bakış 8 m ileri.
+            look = new Vector3(ahead.x, lookY, ahead.z);
+            var camPos = p - fwd * 6.5f + new Vector3(0f, 2.6f, 0f);
             camPos.y = AboveGround(camPos, p + new Vector3(0f, 0.8f, 0f));
             return camPos;
         }

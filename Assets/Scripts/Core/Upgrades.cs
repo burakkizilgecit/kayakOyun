@@ -63,8 +63,8 @@ namespace SledSurfers
         public static int WingLevel => Parts >= 1 ? 0 : 2 * StageSize;
         /// Görünen kanadın bir tarafının boyu (m).
         public static float WingSpan(int runnerLevel) => WingSpans[WingStep(runnerLevel)];
-        /// Kanadın bir kalkışta taşıdığı süre: ilk geldiğinde 1 s, her kademede +0.35 s.
-        public static float GlideTime(int runnerLevel) => WingStep(runnerLevel) == 0 ? 0f : 1f + 0.35f * (runnerLevel - WingLevel);
+        /// Kanadın bir kalkışta tam taşıdığı süre: ilk geldiğinde 1.3 s, her kademede +0.4 s.
+        public static float GlideTime(int runnerLevel) => WingStep(runnerLevel) == 0 ? 0f : 1.3f + 0.4f * (runnerLevel - WingLevel);
 
         public static readonly string[] GlassNames = { "Plastik Bardak", "Kupa", "Termos", "Pipetli Şişe", "Uzay Bardağı", "Kristal Termos" };
         // Bardak modeli (mesh) 0..4; 5. aşama 4. modelin kristal sürümü, son kademe altın sürümü.

@@ -364,6 +364,9 @@ namespace SledSurfers
         /// İnce köprü olasılığı (yamaç başına) ve iki köprü arası en az mesafe; köprü uzunluğu pist boyunca uzar.
         public static float[] BridgeChance = { 0.5f, 0.45f, 0.35f, 0.5f, 0.25f, 0.22f, 0.22f };   // son üç pist uzun: köprü sayısı 3-4 (7 köprüde hızlı kızak hep birinde düşüyordu)
         public const float BridgeSpacing = 120f, BridgeDepth = 5f, BridgeLead = 40f;
+        /// Köprü öncesi yükselti (m) ve ardından köprüye inen yokuşun eğimi (0 = yok, düz yavaşlama yamacı).
+        public static float[] BridgeRise = { 0.5f, 0f, 0f, 0f, 0f, 0f, 0f };
+        public static float[] BridgeDive = { 0.42f, 0f, 0f, 0f, 0f, 0f, 0f };
         public static Vector2 BridgeSpan = new Vector2(14f, 22f);
         /// Çatal olasılığı (yüzeysiz yamaç başına).
         public static float[] ForkChance = { 0.9f, 0.8f, 0.45f, 0.5f, 0.45f, 0.5f, 0.3f };
@@ -431,7 +434,19 @@ namespace SledSurfers
                     // Uzun kanaldan çıkan kızak hızlı: köprüye 40 m'lik yamaçla yaklaşır (yavaşlasın, hizalansın).
                     // Kanaldan yamaca ani geçişte hızlı kızak havalanıp köprüye havadan iniyordu: önce ara eğimli 20 m.
                     p.Hills(20f, 1, 0f, (boostGrade + slowGrade) * 0.5f * 20f);
-                    p.Hills(BridgeLead, 1, 0f, slowGrade * BridgeLead);
+                    if (BridgeRise[track] > 0f)
+                    {
+                        // Çayır (kullanıcı 2026-10-10): kızak köprüye çok yavaş geliyordu. Köprüden önce küçük bir yükselti,
+                        // ardından köprüye inen dik iniş: kızak köprüye hız kazanarak girer. Toplam uzunluk BridgeLead.
+                        // Tepe yumuşak, iniş kademeli dikleşir (ani eğim değişiminde hızlı kızak havalanıp köprüye
+                        // havadan iniyordu): yükselti, sonra inişin %35, %70 ve %100'ü.
+                        float seg = (BridgeLead - 13f) / 3f, dive = BridgeDive[track];
+                        p.Hills(13f, 1, 0f, -BridgeRise[track]);
+                        p.Hills(seg, 1, 0f, dive * 0.35f * seg);
+                        p.Hills(seg, 1, 0f, dive * 0.7f * seg);
+                        p.Hills(seg, 1, 0f, dive * seg);
+                    }
+                    else p.Hills(BridgeLead, 1, 0f, slowGrade * BridgeLead);
                     p.Bridge(span, BridgeDepth, slowGrade);
                     lastBridge = p.z;
                     L = Mathf.Max(25f, L - 20f - BridgeLead - span);   // köprü yamacın parçası: döngünün enerji dengesi değişmesin
