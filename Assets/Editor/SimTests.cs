@@ -111,6 +111,12 @@ namespace SledSurfers.EditorTools
                 if (arg.StartsWith("pay=")) TrackLibrary.PayFactors = System.Array.ConvertAll(arg.Substring(4).Split(','), ParseF);
                 if (arg.StartsWith("player=")) kind = SimPlayer.Parse(arg.Substring(7));
                 if (arg.StartsWith("gems=")) gems = arg.Substring(5) == "1";
+                if (arg.StartsWith("tracks="))   // yalnız bu parkurlar: ilk:son (ör. tracks=1:1 yalnız Orman; para sıfırdan başlar)
+                {
+                    var v = arg.Substring(7).Split(':');
+                    ecoFirst = int.Parse(v[0]);
+                    ecoLast = v.Length > 1 ? int.Parse(v[1]) : ecoFirst;
+                }
             }
             var sb = new StringBuilder("[SIM] İlerleme (" + SimPlayer.Name(kind) + (gems ? ", elmasla alım" : "") +
                                        ") (atış: mesafe · süt · seviyeler sapan/kızak/bardak/gelir/roket · para · elmas)\n");
@@ -148,6 +154,8 @@ namespace SledSurfers.EditorTools
         /// Oyuncu benzetimi: her atıştan sonra kazancı oyundaki formülle hesaplar (coin toplama tahmini mesafeyle
         /// orantılı), parası yettikçe en ucuz yükseltmeyi alır. useGems: coin yetmeyince elmasla da alır (oyundaki
         /// gibi); elmas geliri pistteki elmaslardan (Collectibles.GemZs), oyuncu tipine göre toplama olasılığıyla.
+        static int ecoFirst = 0, ecoLast = TrackLibrary.Count - 1;
+
         static EconomyResult RunEconomy(PlayerKind kind, bool useGems, StringBuilder log)
         {
             var res = new EconomyResult { label = SimPlayer.Name(kind) + (useGems ? " + elmas" : "") };
@@ -155,7 +163,7 @@ namespace SledSurfers.EditorTools
             int money = 0, gems = 0, seed = 0;
             var rnd = new System.Random(17 + (int)kind);
             float pickChance = kind == PlayerKind.Usta ? 1f : 0.75f;
-            for (int t = 0; t < TrackLibrary.Count; t++)
+            for (int t = ecoFirst; t <= Mathf.Min(ecoLast, TrackLibrary.Count - 1); t++)
             {
                 var track = TrackLibrary.Get(t);   // yükseltme bağlamı bu pist
                 levels = new int[Upgrades.Count];   // yükseltmeler pist başına: yeni pistte sıfırdan

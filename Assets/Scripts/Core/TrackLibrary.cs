@@ -20,7 +20,7 @@ namespace SledSurfers
         public static readonly float[] MilkHeadroomScale = { 1f, 1f, 1f, 1f, 1f, 1f, 1.8f };
         public static float[] PowerStart = { 0f, 5f, 7f, 8f, 9f, 10f, 10f };
         public static float[] PowerEnd = { 15f, 18f, 21f, 23f, 24f, 25f, 25f };
-        public static float[] CostScale = { 1f, 1.8f, 4f, 2.6f, 3.6f, 3f, 4f };   // 2026-10-10: referans fiyat eğrisi (5×aşama, 1.4→1.24) ile
+        public static float[] CostScale = { 1f, 1.15f, 4f, 2.6f, 3.6f, 3f, 4f };   // 2026-10-10: referans fiyat eğrisi (5×aşama, 1.4→1.24) ile
         /// Pistin aracı: son üç haritada aracın şekli tamamen değişir.
         public static readonly VehicleKind[] Vehicles =
             { VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sandboard, VehicleKind.Bobsled, VehicleKind.Hover };
