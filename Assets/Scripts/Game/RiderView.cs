@@ -342,13 +342,13 @@ namespace SledSurfers
             glassPivot.gameObject.SetActive(true);
         }
 
-        /// Ayağa kalkmış, kameraya dönük: "Tekrar deneyelim!" baloncuğu bu sırada gösterilir.
+        /// Ayağa kalkmış, kameraya dönük: "Let's try again!" baloncuğu bu sırada gösterilir.
         public bool CrashStanding => crashing && crashPhase == 2;
         const float AriseSpeed = 1.3f;   // Meshy kalkış klibi biraz hızlı oynatılır (sahne kısa kalsın)
         public Vector3 CrashHeadTop => avatar != null ? avatar.HeadTop : root.position;
 
         /// groundHeight(x, z): zemin yüksekliği. 0) savrularak uçar, seker, yuvarlanır; 1) kameraya dönerek ayağa
-        /// kalkar; 2) ayakta durur, gülümser, bir kez sevinçle kollarını kaldırır ("Tekrar deneyelim!").
+        /// kalkar; 2) ayakta durur, gülümser, bir kez sevinçle kollarını kaldırır ("Let's try again!").
         public void TickCrash(float dt, System.Func<float, float, float> groundHeight, Vector3 cameraPos)
         {
             TickHaTexts(dt, cameraPos);

@@ -1105,7 +1105,7 @@ namespace SledSurfers
         void BuildFinish()
         {
             float z = track.finishZ, y = track.Height(z);
-            Gate(z, "BİTİŞ", new Color(0.22f, 0.7f, 0.32f), true);
+            Gate(z, "FINISH", new Color(0.22f, 0.7f, 0.32f), true);
             for (int side = -1; side <= 1; side += 2)
             {
                 float c = track.CenterX(z);

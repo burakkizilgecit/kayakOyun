@@ -10,14 +10,14 @@ namespace SledSurfers
         {
             if (end == RunEnd.Finished) return "";
             if (s.fellInRavine)
-                return "Köprüye yaklaşırken aracı tablanın ortasına hizala ve düz git.";
+                return "Line up with the middle of the bridge early and go straight.";
             if (reason == SledPhysics.WentOffTrack)
-                return "Yamacın tepesini aşınca pistten çıkarsın: yana bu kadar sert tırmanma.";
+                return "Go over the rim and you leave the track: don't climb the side so hard.";
             if (end == RunEnd.Crashed)
             {
                 if (reason.Contains("sert") || reason.Contains("Takla"))
-                    return "Havadayken burnu yere paralel tut: parmağını yukarı-aşağı sürükle.";
-                return "Engeli erken gör ve yanından dolaş.";
+                    return "Keep the nose level in the air: drag your finger up and down.";
+                return "Spot obstacles early and steer around them.";
             }
             if (end == RunEnd.Spilled) return MilkTip(TopCause(s));
 
@@ -31,17 +31,17 @@ namespace SledSurfers
                 string m = TrackLibrary.Show(s.lostMeters[worst]) + " m";
                 switch ((LossSurface)worst)
                 {
-                    case LossSurface.Mud: return "Çamurda ~" + m + " kaybettin: yanından dolaş.";
-                    case LossSurface.Puddle: return "Suda ~" + m + " kaybettin: birikintinin yanından geç.";
-                    default: return "Çimende ~" + m + " kaybettin: toprak patikada kal.";
+                    case LossSurface.Mud: return "Lost ~" + m + " in mud: steer around it.";
+                    case LossSurface.Puddle: return "Lost ~" + m + " in water: pass beside the puddle.";
+                    default: return "Lost ~" + m + " on grass: stay on the dirt path.";
                 }
             }
             if (s.MilkLostTotal > 0.25f)
-                return "Sütün %" + Mathf.RoundToInt(s.MilkLostTotal * 100f) + "'i döküldü, kazancın azaldı. " + MilkTip(TopCause(s));
+                return Mathf.RoundToInt(s.MilkLostTotal * 100f) + "% of the milk spilled, cutting your earnings. " + MilkTip(TopCause(s));
             if (cfg.rocketCharges > 0 && s.rocketsFired == 0)
-                return "Roketini kullanmadın: kızak yavaşlamadan ateşle.";
+                return "You didn't use your rocket: fire it before the sled slows down.";
             if (s.rocketsFired > 0 && s.rocketSpeed >= 0f && s.rocketSpeed < 5f)
-                return "Roketi kızak hızlıyken ateşlemek çoğu zaman daha uzağa taşır.";
+                return "Firing the rocket while you're fast usually carries you further.";
             return "";
         }
 
@@ -56,11 +56,11 @@ namespace SledSurfers
         {
             switch (c)
             {
-                case SpillCause.Landing: return "İnişte süt sıçrıyor: rampadan inmeden telefonu hafifçe geriye eğ.";
-                case SpillCause.Surface: return "Su ve çamur kızağı birden frenler: girmeden telefonu geriye eğ ya da yanından dolaş.";
-                case SpillCause.Turn: return "Sert dönüşte sütü dönüşün içine doğru eğ.";
-                case SpillCause.Accel: return "Roket ve iniş kanalı sütü sarsar: telefonu geriye eğerek karşıla.";
-                default: return "Telefonu eğerek bardağı düz tut; daha iyi bardak sütü daha iyi korur.";
+                case SpillCause.Landing: return "Milk splashes on landing: tilt the phone back slightly before you land.";
+                case SpillCause.Surface: return "Water and mud brake hard: tilt back before entering, or go around.";
+                case SpillCause.Turn: return "In a sharp turn, tilt the milk into the turn.";
+                case SpillCause.Accel: return "The rocket and steep drops shake the milk: tilt back to meet them.";
+                default: return "Tilt the phone to keep the cup level; a better cup protects the milk.";
             }
         }
     }

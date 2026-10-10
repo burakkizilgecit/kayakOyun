@@ -83,7 +83,7 @@ namespace SledSurfers
             // Rekor işareti de küçük ve rakamsız (mesafe bayrağıyla aynı karar): altın bayrak; rekor ilerleme çubuğunda yazar.
             Mats.Prim(PrimitiveType.Cylinder, "Pole", bestFlag, new Vector3(0f, 0.85f, 0f), new Vector3(0.06f, 0.85f, 0.06f), Mats.Solid(Color.white));
             Mats.Prim(PrimitiveType.Cube, "Flag", bestFlag, new Vector3(0.28f, 1.5f, 0f), new Vector3(0.5f, 0.32f, 0.04f), gold);
-            bestText = MakeText(bestFlag, new Vector3(0f, 1.9f, 0f), "REKOR", 0.06f, new Color(1f, 0.85f, 0.2f));
+            bestText = MakeText(bestFlag, new Vector3(0f, 1.9f, 0f), "BEST", 0.06f, new Color(1f, 0.85f, 0.2f));
             bestText.gameObject.SetActive(false);
             bestFlag.gameObject.SetActive(false);
 
@@ -157,7 +157,7 @@ namespace SledSurfers
             float z = meters;
             float x = track.CenterX(z) - track.halfWidth - 0.6f;
             bestFlag.position = new Vector3(x, track.Height(x, z), z);
-            bestText.text = "REKOR " + TrackLibrary.Show(meters) + " m";
+            bestText.text = "BEST " + TrackLibrary.Show(meters) + " m";
         }
 
         public void SetPouchScale(float s) => sling.SetPouchScale(s);

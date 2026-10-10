@@ -115,52 +115,52 @@ namespace SledSurfers
             {
                 case QuestKind.Distance:
                     q.target = Round(TrackLibrary.Show(L * Mathf.Min(0.9f, R(0.35f, 0.55f) * hard)), 50);
-                    q.text = "Tek atışta " + q.target + " m git"; break;
+                    q.text = "Go " + q.target + " m in one run"; break;
                 case QuestKind.TotalDistance:
                     q.target = Round(TrackLibrary.Show(L * R(2f, 3f) * hard), 500);
-                    q.text = "Bugün toplam " + q.target + " m kay"; break;
+                    q.text = "Slide " + q.target + " m in total today"; break;
                 case QuestKind.Coins:
                     q.target = Round(R(40f, 70f) * hard, 10);
-                    q.text = "Pistte " + q.target + " coin topla"; break;
+                    q.text = "Collect " + q.target + " coins on the track"; break;
                 case QuestKind.Gems:
                     q.target = Mathf.RoundToInt(R(2f, 4f) * hard);
-                    q.text = q.target + " pembe elmas topla"; break;
+                    q.text = "Collect " + q.target + " pink gems"; break;
                 case QuestKind.AirTime:
                     q.target = Round(R(20f, 35f) * hard, 5);
-                    q.text = "Toplam " + q.target + " sn havada kal"; break;
+                    q.text = "Stay airborne for " + q.target + " s in total"; break;
                 case QuestKind.LongAir:
                     q.target = Mathf.RoundToInt(R(3f, 5f) * hard);
-                    q.text = "Tek uçuşta " + q.target + " sn havada kal"; break;
+                    q.text = "Stay airborne for " + q.target + " s in one flight"; break;
                 case QuestKind.Perfect:
                     q.target = Mathf.RoundToInt(R(2f, 4f) * hard);
-                    q.text = q.target + " mükemmel atış yap"; break;
+                    q.text = "Make " + q.target + " perfect launches"; break;
                 case QuestKind.Bridges:
                     q.target = Mathf.RoundToInt(R(3f, 5f) * hard);
-                    q.text = q.target + " ince köprüyü düşmeden geç"; break;
+                    q.text = "Cross " + q.target + " narrow bridges"; break;
                 case QuestKind.ForkGood:
                     q.target = Mathf.RoundToInt(R(2f, 4f) * hard);
-                    q.text = "Yol ayrımında " + q.target + " kez altınlı şeridi seç"; break;
+                    q.text = "Take the coin lane at a fork " + q.target + " times"; break;
                 case QuestKind.Milk:
                     q.target = Mathf.Min(95, Round(R(70f, 80f) + 8f * (hard - 1f), 5));
-                    q.text = "Bir atışı sütün en az %" + q.target + "'iyle bitir"; break;
+                    q.text = "Finish a run with at least " + q.target + "% milk"; break;
                 case QuestKind.Rocket:
                     q.target = Mathf.RoundToInt(R(3f, 5f) * hard);
-                    q.text = "Roketi " + q.target + " kez ateşle"; break;
+                    q.text = "Fire the rocket " + q.target + " times"; break;
                 case QuestKind.Ice:
                     q.target = Round(TrackLibrary.Show(R(120f, 200f) * hard), 50);
-                    q.text = IceName(track) + " üstünde toplam " + q.target + " m kay"; break;
+                    q.text = "Slide " + q.target + " m on " + IceName(track); break;
                 case QuestKind.DryRun:
                     q.target = Round(TrackLibrary.Show(L * R(0.25f, 0.4f) * hard), 50);
-                    q.text = WetName(track) + " girmeden tek atışta " + q.target + " m git"; break;
+                    q.text = "Go " + q.target + " m in one run without touching " + WetName(track); break;
                 default:
                     q.target = hard > 1f ? 2 : 1;
-                    q.text = "Bir parkuru " + q.target + " kez bitir"; break;
+                    q.text = "Finish a track " + (q.target > 1 ? q.target + " times" : "once"); break;
             }
             return q;
         }
 
-        static string IceName(int track) => track == 4 ? "Tuz düzlüğü" : track == 5 ? "Obsidyen" : "Buz";
-        static string WetName(int track) => track == 4 ? "Bataklık kumuna" : track == 5 ? "Küle" : track == 6 ? "Kızıl toza" : "Suya ve çamura";
+        static string IceName(int track) => track == 4 ? "salt flats" : track == 5 ? "obsidian" : "ice";
+        static string WetName(int track) => track == 4 ? "quicksand" : track == 5 ? "ash" : track == 6 ? "red dust" : "water or mud";
 
         /// Koşunun görev ilerlemesine katkısı. Toplam görevlerde eklenir, tek atış görevlerinde en iyisi tutulur.
         public static int Apply(Quest q, int progress, in RunReport r)

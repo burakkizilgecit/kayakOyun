@@ -78,12 +78,12 @@ namespace SledSurfers
             switch (c)
             {
                 case SpillCause.Air: return "havada";
-                case SpillCause.Landing: return "iniş darbesi";
-                case SpillCause.Surface: return "su/çamur";
+                case SpillCause.Landing: return "landing impact";
+                case SpillCause.Surface: return "water/mud";
                 case SpillCause.Ice: return "buz";
-                case SpillCause.Turn: return "viraj/yamaç";
-                case SpillCause.Accel: return "hızlanma/fren";
-                default: return "zemin sarsıntısı";
+                case SpillCause.Turn: return "turn/slope";
+                case SpillCause.Accel: return "speeding/braking";
+                default: return "bumpy ground";
             }
         }
     }

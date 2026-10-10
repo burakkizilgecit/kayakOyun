@@ -36,8 +36,8 @@ namespace SledSurfers
         const float WallSlope = 1.4f;    // ~55°, bundan dik yüzey duvardır
         const float HalfWidth = 0.38f;
         /// Köprüden dereye düşme sonu (oyun su sıçratır).
-        public const string FellInCreek = "Dereye düştün!";
-        public const string WentOffTrack = "Pistten çıktın!";
+        public const string FellInCreek = "Fell in the creek!";
+        public const string WentOffTrack = "Off the track!";
         const float HalfLength = 0.8f;
 
         public Vector3 position;
@@ -184,7 +184,7 @@ namespace SledSurfers
                         if ((position.x - track.CenterX(mid)) * f.good > 0f) stats.forksGood++;
                     }
                 }
-                if (position.z >= track.finishZ) ForceEnd(RunEnd.Finished, "Parkur tamamlandı!");
+                if (position.z >= track.finishZ) ForceEnd(RunEnd.Finished, "Track complete!");
             }
         }
 
@@ -302,7 +302,7 @@ namespace SledSurfers
             if (track.OverRavine(next.x, next.z) && speed < 1.5f)
             {
                 velocity = Vector3.zero;
-                ForceEnd(RunEnd.Stopped, "Kızak durdu");
+                ForceEnd(RunEnd.Stopped, "Sled stopped");
                 return;
             }
             if (track.OverRavine(next.x, next.z))
@@ -317,7 +317,7 @@ namespace SledSurfers
             if (v.z > 0f && slopeAhead > WallSlope)
             {
                 velocity = Vector3.zero;
-                ForceEnd(RunEnd.Crashed, InGap(position.z) ? "Vadiye düştün!" : "Duvara çarptın!");
+                ForceEnd(RunEnd.Crashed, InGap(position.z) ? "Fell into the valley!" : "Hit the wall!");
                 return;
             }
 
@@ -353,7 +353,7 @@ namespace SledSurfers
             if (!launching && maxDistance > 0.5f && (v.z < -0.3f || (v.z <= 0.05f && sp < 1.5f)))
             {
                 velocity = Vector3.zero;
-                ForceEnd(RunEnd.Stopped, "Kızak durdu");
+                ForceEnd(RunEnd.Stopped, "Sled stopped");
                 return;
             }
 
@@ -361,7 +361,7 @@ namespace SledSurfers
             if (!launching && sp < 0.2f && canRest)
             {
                 stillTime += dt;
-                if (stillTime > 0.6f) ForceEnd(RunEnd.Stopped, "Kızak durdu");
+                if (stillTime > 0.6f) ForceEnd(RunEnd.Stopped, "Sled stopped");
             }
             else stillTime = 0f;
         }
@@ -522,7 +522,7 @@ namespace SledSurfers
             if (impact > cfg.crashImpact)
             {
                 velocity = Vector3.zero;
-                ForceEnd(RunEnd.Crashed, InGap(position.z) ? "Vadiye düştün!" : slope > WallSlope ? "Duvara çarptın!" : "Çok sert indin!");
+                ForceEnd(RunEnd.Crashed, InGap(position.z) ? "Fell into the valley!" : slope > WallSlope ? "Hit the wall!" : "Landed too hard!");
                 return;
             }
 
@@ -532,7 +532,7 @@ namespace SledSurfers
             if (mismatch > 1.0f && impact > 4f)
             {
                 velocity = Vector3.zero;
-                ForceEnd(RunEnd.Crashed, "Takla attın!");
+                ForceEnd(RunEnd.Crashed, "You flipped!");
                 return;
             }
 
@@ -573,7 +573,7 @@ namespace SledSurfers
                     if (Mathf.Abs(position.z - f.z) > f.radius + HalfLength) continue;
                     if ((track.FlockCenter(f, clock) - position).sqrMagnitude > f.radius * f.radius) continue;
                     velocity = Vector3.zero;
-                    ForceEnd(RunEnd.Crashed, "Kuş sürüsüne çarptın!");
+                    ForceEnd(RunEnd.Crashed, "Hit a flock of birds!");
                     return;
                 }
             foreach (var o in track.obstacles)
@@ -584,7 +584,7 @@ namespace SledSurfers
                 // (hızlı kızak havada yön değiştiremediği için her uçuş ağaçta bitiyordu).
                 if (position.y - track.Height(o.x, o.z) > (o.variant == 4 ? 1.5f : o.height)) continue;
                 velocity = Vector3.zero;
-                ForceEnd(RunEnd.Crashed, o.variant == 4 ? "Ağaca çarptın!" : o.isRock ? "Kayaya çarptın!" : "Kasaya çarptın!");
+                ForceEnd(RunEnd.Crashed, o.variant == 4 ? "Hit a tree!" : o.isRock ? "Hit a rock!" : "Hit a crate!");
                 return;
             }
         }

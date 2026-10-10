@@ -85,7 +85,7 @@ namespace SledSurfers
         /// Pistin yerçekimi (m/s²): Mars 0.38 g. SledPhysics bunu kullanır.
         public float gravity = 9.81f;
         /// Köprü açıklığına düşünce çıkan yazı (dere / kanal / lav / krater) ve düşülen şey su mu (sıçrama).
-        public string fallText = "Dereye düştün!";
+        public string fallText = "Fell in the creek!";
         public bool ravineIsWater = true;
         public readonly float startZ;
         public readonly float finishZ;

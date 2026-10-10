@@ -7,10 +7,10 @@ namespace SledSurfers
     /// Hem oyundaki kızak/sapan hem de kartlardaki 3D önizlemeler bu kurucuları kullanır.
     public static class PartVisuals
     {
-        public static readonly string[] SlingNames = { "Tahta Sapan", "Kırmızı Sapan", "Destekli Sapan", "Çelik Sapan", "Hidrolik Sapan", "Altın Sapan" };
-        public static readonly string[] SledNames = { "Sörf Kızağı", "Kanatlı Kızak", "Gümüş Kanatlı", "Spoilerlı", "Mavi Kanatlı", "Jet Kanatlı" };   // kanat 5. seviyede gelir
-        public static readonly string[] IncomeNames = { "Kumbara", "Cüzdan", "Para Kesesi", "Hazine Sandığı", "Kasa", "Altın Hazine" };
-        public static readonly string[] RocketNames = { "Havai Fişek", "Mavi Roket", "İkiz Roket", "Jet Motoru", "Turbo Roket", "Altın Roket" };
+        public static readonly string[] SlingNames = { "Wooden Slingshot", "Red Slingshot", "Braced Slingshot", "Steel Slingshot", "Hydraulic Slingshot", "Golden Slingshot" };
+        public static readonly string[] SledNames = { "Surf Sled", "Winged Sled", "Silver Wings", "Spoiler", "Blue Wings", "Jet Wings" };   // kanat 5. seviyede gelir
+        public static readonly string[] IncomeNames = { "Piggy Bank", "Wallet", "Coin Pouch", "Treasure Chest", "Vault", "Golden Treasure" };
+        public static readonly string[] RocketNames = { "Firework", "Blue Rocket", "Twin Rocket", "Jet Engine", "Turbo Rocket", "Golden Rocket" };
 
         /// Kartın gösterdiği seviye adı: tür ve tamamlanmış seviye (0..5).
         public static string StageName(int type, int stage)

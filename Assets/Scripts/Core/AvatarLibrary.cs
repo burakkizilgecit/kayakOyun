@@ -16,19 +16,19 @@ namespace SledSurfers
         /// sıralanır (ucuzdan pahalıya). Sıra kayıtla eşleşir (avatar2/avatars2 anahtarları): yeni karakter sona eklenir.
         public static readonly Info[] All =
         {
-            new Info { name = "Panda Pofuduk", model = "Meshy/Panda", perkTitle = "Başlangıç", perkText = "Sapanın tombul kahramanı", perk = Perk.None, price = 0 },
-            new Info { name = "Penguen Buzlu", model = "Meshy/Penguin", perkTitle = "Buz dengesi", perkText = "Süt %10 daha az çalkalanır", perk = Perk.Slosh, price = 8 },
-            new Info { name = "Kovboy Rüzgar", model = "Meshy/Cowboy", perkTitle = "Kement", perkText = "Coin toplama alanı %40 daha geniş", perk = Perk.Magnet, price = 12 },
-            new Info { name = "Robot Tıkır", model = "Meshy/Robot", perkTitle = "Yağlı dişliler", perkText = "Kızak sürtünmesi %5 daha az", perk = Perk.Friction, price = 16 },
-            new Info { name = "Kaptan Kanca", model = "Meshy/Pirate", perkTitle = "Hazine avcısı", perkText = "Sandık ödülleri %25 daha büyük", perk = Perk.Chest, price = 20 },
-            new Info { name = "Şef Ali", model = "Meshy/Chef", perkTitle = "Usta eller", perkText = "Bardağı ölçülü doldurur: süt daha zor taşar", perk = Perk.Lid, price = 25 },
-            new Info { name = "Ninja Gölge", model = "Meshy/Ninja", perkTitle = "Hafif ayak", perkText = "Kızak sürtünmesi %5 daha az", perk = Perk.Friction, price = 30 },
-            new Info { name = "İtfaiyeci Alev", model = "Meshy/Firefighter", perkTitle = "Sağlam kask", perkText = "Sert inişlere %15 daha dayanıklı", perk = Perk.Armor, price = 36 },
-            new Info { name = "Şövalye Arda", model = "Meshy/Knight", perkTitle = "Zırh", perkText = "Sert inişlere %15 daha dayanıklı", perk = Perk.Armor, price = 42 },
-            new Info { name = "Viking Ragnar", model = "Meshy/Viking", perkTitle = "Güçlü kollar", perkText = "Sapan çıkışı %4 daha hızlı", perk = Perk.Sling, price = 50 },
-            new Info { name = "Kaplan Çizgi", model = "Meshy/Tiger", perkTitle = "Pençe gücü", perkText = "Roket itişi %10 daha güçlü", perk = Perk.Rocket, price = 60 },
-            new Info { name = "Büyücü Lila", model = "Meshy/Wizard", perkTitle = "Büyülü kanat", perkText = "Süzülürken kaldırma %8 daha fazla", perk = Perk.Glide, price = 72 },
-            new Info { name = "Astronot Yıldız", model = "Meshy/Astronaut", perkTitle = "Uzay yürüyüşü", perkText = "Süzülürken kaldırma %8 daha fazla", perk = Perk.Glide, price = 85 },
+            new Info { name = "Puffy the Panda", model = "Meshy/Panda", perkTitle = "Starter", perkText = "The chubby hero of the slingshot", perk = Perk.None, price = 0 },
+            new Info { name = "Frosty the Penguin", model = "Meshy/Penguin", perkTitle = "Ice balance", perkText = "Milk sloshes 10% less", perk = Perk.Slosh, price = 8 },
+            new Info { name = "Cowboy Dusty", model = "Meshy/Cowboy", perkTitle = "Lasso", perkText = "40% wider coin pickup", perk = Perk.Magnet, price = 12 },
+            new Info { name = "Clank the Robot", model = "Meshy/Robot", perkTitle = "Oiled gears", perkText = "5% less sled friction", perk = Perk.Friction, price = 16 },
+            new Info { name = "Captain Hook", model = "Meshy/Pirate", perkTitle = "Treasure hunter", perkText = "25% bigger chest rewards", perk = Perk.Chest, price = 20 },
+            new Info { name = "Chef Al", model = "Meshy/Chef", perkTitle = "Steady hands", perkText = "Fills the cup carefully: milk spills less", perk = Perk.Lid, price = 25 },
+            new Info { name = "Shadow Ninja", model = "Meshy/Ninja", perkTitle = "Light feet", perkText = "5% less sled friction", perk = Perk.Friction, price = 30 },
+            new Info { name = "Firefighter Blaze", model = "Meshy/Firefighter", perkTitle = "Sturdy helmet", perkText = "15% tougher on hard landings", perk = Perk.Armor, price = 36 },
+            new Info { name = "Sir Arden", model = "Meshy/Knight", perkTitle = "Armor", perkText = "15% tougher on hard landings", perk = Perk.Armor, price = 42 },
+            new Info { name = "Viking Ragnar", model = "Meshy/Viking", perkTitle = "Strong arms", perkText = "4% faster launch", perk = Perk.Sling, price = 50 },
+            new Info { name = "Stripes the Tiger", model = "Meshy/Tiger", perkTitle = "Claw power", perkText = "10% stronger rocket", perk = Perk.Rocket, price = 60 },
+            new Info { name = "Lila the Wizard", model = "Meshy/Wizard", perkTitle = "Magic wings", perkText = "8% more lift while gliding", perk = Perk.Glide, price = 72 },
+            new Info { name = "Astronaut Star", model = "Meshy/Astronaut", perkTitle = "Spacewalk", perkText = "8% more lift while gliding", perk = Perk.Glide, price = 85 },
         };
 
         public static int Count => All.Length;

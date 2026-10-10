@@ -8,7 +8,7 @@ namespace SledSurfers
     {
         public const int Count = 7;
 
-        public static readonly string[] Names = { "Çayır", "Orman", "Kanyon", "Karlı Dağ", "Çöl Kumulları", "Volkan", "Mars" };
+        public static readonly string[] Names = { "Clover Valley", "Whispering Woods", "Sunset Canyon", "Frostpeak Summit", "Golden Dunes", "Ember Peak", "Red Planet Rush" };
         /// Atış kazancı çarpanı: zor pistler metre başına daha çok öder (son seviyeler pahalı, koşular kısa kalır).
         public static float[] PayFactors = { 4f, 3.2f, 2.5f, 2.2f, 2.2f, 2.2f, 2f };
 
@@ -265,7 +265,7 @@ namespace SledSurfers
             var gp = GlideStart(4, false);
             var gobs = Glide(gp, 4, 71, 0.35f, false, true);
             var gt = gp.Build(Names[4], Lengths[4], 9f, 220f, 2.4f, 85f, 11);
-            gt.fallText = "Kanala düştün!";
+            gt.fallText = "Fell in the canal!";
             ScatterRocks(gt, 71, 24f);
             AddObstacles(gt, gobs);
             return gt;
@@ -277,7 +277,7 @@ namespace SledSurfers
             var gp = GlideStart(5, false);
             var gobs = Glide(gp, 5, 83, 0.3f, true, true);
             var gt = gp.Build(Names[5], Lengths[5], 5f, 320f, 2f, 110f, 13);
-            gt.fallText = "Lava düştün!";
+            gt.fallText = "Fell in the lava!";
             gt.ravineIsWater = false;
             ScatterRocks(gt, 83, 20f);
             AddObstacles(gt, gobs);
@@ -292,7 +292,7 @@ namespace SledSurfers
             var gobs = Glide(gp, 6, 97, 0.35f, true, true);
             var gt = gp.Build(Names[6], Lengths[6], 3f, 420f, 1.4f, 150f, 17);
             gt.gravity = 0.38f * SledPhysics.EarthGravity;
-            gt.fallText = "Kratere düştün!";
+            gt.fallText = "Fell in the crater!";
             gt.ravineIsWater = false;
             ScatterRocks(gt, 97, 22f);
             AddObstacles(gt, gobs);

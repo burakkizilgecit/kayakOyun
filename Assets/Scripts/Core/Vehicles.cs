@@ -12,10 +12,10 @@ namespace SledSurfers
         {
             switch (v)
             {
-                case VehicleKind.Sandboard: return "Kum Sörfü";
+                case VehicleKind.Sandboard: return "Sandboard";
                 case VehicleKind.Bobsled: return "Bobsled";
                 case VehicleKind.Hover: return "Hover";
-                default: return "Kızak";
+                default: return "Sled";
             }
         }
 
@@ -26,16 +26,16 @@ namespace SledSurfers
             switch (v)
             {
                 case VehicleKind.Sandboard:
-                    names = new[] { "Ahşap Tahta", "Ayak Kayışı", "Gün Batımı Boyası", "Büyük Yüzgeçler", "Küçük Kanatlar", "Rüzgâr Kanatları", "Altın Kumul" };
+                    names = new[] { "Wooden Board", "Foot Straps", "Sunset Paint", "Big Fins", "Small Wings", "Wind Wings", "Golden Dune" };
                     break;
                 case VehicleKind.Bobsled:
-                    names = new[] { "Obsidyen Kapsül", "Lav Şeritleri", "Ön Siperlik", "Kuyruk Yüzgeci", "Küçük Kanatlar", "Magma Kanatları", "Altın Kapsül" };
+                    names = new[] { "Obsidian Pod", "Lava Stripes", "Windshield", "Tail Fin", "Small Wings", "Magma Wings", "Golden Pod" };
                     break;
                 case VehicleKind.Hover:
-                    names = new[] { "Hover Platform", "Anten", "Yan İticiler", "Mavi Gövde", "Küçük Kanatlar", "Işık Halkası", "Altın Hover" };
+                    names = new[] { "Hover Platform", "Antenna", "Side Thrusters", "Blue Hull", "Small Wings", "Light Ring", "Golden Hover" };
                     break;
                 default:
-                    names = new[] { "Sörf Kızağı", "Tutma İpi", "Minik Kanatlar", "Küçük Kanatlar", "Geniş Kanatlar", "Büyük Kanatlar", "Altın Kanatlar" };
+                    names = new[] { "Surf Sled", "Grip Rope", "Tiny Wings", "Small Wings", "Wide Wings", "Big Wings", "Golden Wings" };
                     break;
             }
             return names[UnityEngine.Mathf.Clamp(stage, 0, names.Length - 1)];

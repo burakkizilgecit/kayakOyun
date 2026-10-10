@@ -22,15 +22,15 @@ namespace SledSurfers
         public static int StagesFor(int track) => TrackLibrary.UpgradeStages[Mathf.Clamp(track, 0, TrackLibrary.Count - 1)];
         public static int MaxFor(int track) => StagesFor(track) * StageSize;
 
-        public static readonly string[] Names = { "Sapan", "Kızak", "Bardak", "Gelir", "Roket" };
+        public static readonly string[] Names = { "Slingshot", "Sled", "Cup", "Income", "Rocket" };
 
         public static readonly string[] Descriptions =
         {
-            "Daha sert lastik, daha hızlı çıkış",
-            "Daha az sürtünme · 5. seviyede kanat",
-            "Her seviye yeni bardak: süt daha zor dökülür",
-            "Her atışta daha çok coin",
-            "Koşuda bir kez dokun: güçlü itiş · her seviye daha güçlü",
+            "Stiffer band, faster launch",
+            "Less friction · wings later on",
+            "A new cup each stage: milk spills less",
+            "More coins every run",
+            "Tap once per run: strong boost · stronger each level",
         };
 
         /// Kart adı: Kızak kartı pistin aracının adını taşır (Kum Sörfü, Bobsled, Hover).
@@ -66,7 +66,7 @@ namespace SledSurfers
         /// Kanadın bir kalkışta tam taşıdığı süre: ilk geldiğinde 1.3 s, her kademede +0.4 s.
         public static float GlideTime(int runnerLevel) => WingStep(runnerLevel) == 0 ? 0f : 1.3f + 0.4f * (runnerLevel - WingLevel);
 
-        public static readonly string[] GlassNames = { "Plastik Bardak", "Kupa", "Termos", "Pipetli Şişe", "Uzay Bardağı", "Kristal Termos" };
+        public static readonly string[] GlassNames = { "Plastic Cup", "Mug", "Thermos", "Straw Bottle", "Space Cup", "Crystal Thermos" };
         // Bardak modeli (mesh) 0..4; 5. aşama 4. modelin kristal sürümü, son kademe altın sürümü.
         static readonly float[] glassRadius = { 0.035f, 0.036f, 0.034f, 0.031f, 0.03f };
         static readonly float[] glassHeight = { 0.12f, 0.155f, 0.18f, 0.21f, 0.24f };
@@ -113,7 +113,7 @@ namespace SledSurfers
         public static int GlassModel(int level) => Mathf.Min(level / StageSize, 4);
 
         /// Bardak kartının aşama adı: son aşama altın sürüm.
-        public static string GlassStageName(int stage) => stage >= Stages ? "Altın " + GlassNames[Mathf.Min(Stages - 1, GlassNames.Length - 1)]
+        public static string GlassStageName(int stage) => stage >= Stages ? "Golden " + GlassNames[Mathf.Min(Stages - 1, GlassNames.Length - 1)]
                                                          : GlassNames[Mathf.Clamp(stage, 0, GlassNames.Length - 1)];
 
         // ---------------------------------------------------------------- kalıcı parçalar (kullanıcı isteği 2026-10-09)
@@ -126,15 +126,15 @@ namespace SledSurfers
         public static int PartTier = -1;
         public static int Parts => PartTier >= 0 ? PartTier : Track;
 
-        public static readonly string[] PartNames = { "Kanat", "Aero Kuyruk", "Pervane", "Turbo Pervane", "Çift Turbo Pervane", "Jet Motoru" };
+        public static readonly string[] PartNames = { "Wings", "Aero Tail", "Propeller", "Turbo Propeller", "Twin Turbo Propeller", "Jet Engine" };
         public static readonly string[] PartTexts =
         {
-            "Her pist minik kanatla başlar, kanat daha erken büyür",
-            "Hava direnci %12 daha az: uzun süzülmelerde hız korunur",
-            "Kayarken hafif itiş: yavaşlayan kızağı biraz daha taşır",
-            "Daha güçlü itiş: yokuşları daha uzun götürür",
-            "İki turbo pervane: uzun düzlüklerde fark yaratır",
-            "Jet motoru: Mars'ın uzun düzlükleri için en güçlü itiş",
+            "Every track starts with tiny wings, and they grow sooner",
+            "12% less air drag: keeps speed on long glides",
+            "A gentle push while sliding: carries a slowing sled further",
+            "A stronger push: takes slopes further",
+            "Two turbo propellers: a big help on long flats",
+            "Jet engine: the strongest push for the long flats of Mars",
         };
 
         /// Pervane itişi (m/s²) parça kademesine göre.
