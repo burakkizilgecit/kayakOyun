@@ -14,6 +14,7 @@ namespace SledSurfers
         /// Yerçekimi (m/s²): pist başına (Mars 0.38 g). Kızak kurulurken pistten alınır; sıvı, refleks ve otomatik
         /// pilot da bunu okur (aynı anda tek pist koşar).
         public static float Gravity = 9.81f;
+        public const float LowSpeedBrake = 0.45f;   // m/s²
         public const float EarthGravity = 9.81f;
         const float AirDensity = 1.2f;
         public const float MaxAim = 0.44f;   // rad (~25°), sapanın en fazla yan açısı
@@ -224,6 +225,10 @@ namespace SledSurfers
 
             float mu = track.Friction(position.z, position.x, cfg.groundFriction);
             float friction = mu * normalAcc;
+            // Düşük hızda kızak kara/toprağa gömülür (kullanıcı 2026-10-10: 20 km/sa ile düzlükte sürünerek gitmek turu
+            // uzatıyordu): 6 m/s'nin altında ek fren, 2 m/s'de tam. Hızlı kızağı etkilemez.
+            if (!launching && rocketTime <= 0f)
+                friction += LowSpeedBrake * (Gravity / EarthGravity) * Mathf.Clamp01((6f - speed) / 4f);
             // Elle itme: tepeyi zar zor aşan kızak, sürtünme açısından yatık (~3-12°) inişte durup kalmasın; sürücü
             // elleriyle iterek dik kısma kadar ağır ağır ilerler (net ileri ivme en az 0.3 m/s²).
             // Yalnızca tepe aşıldıktan hemen sonra: 15 m içinde sürtünmeyi yenen dik bir yer varsa (oraya kadar itilir).

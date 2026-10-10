@@ -9,10 +9,12 @@ namespace SledSurfers
     public class SledTrail
     {
         const float Spacing = 0.3f, Lift = 0.035f;
-        const int MaxPoints = 360;   // ~108 m
+        const int MaxPoints = 200;   // ~60 m
         const float GrooveHalf = 0.42f, RunnerOffset = 0.3f, RunnerHalf = 0.035f;
 
-        struct Point { public Vector3 pos; public Vector3 right; public bool cut; }
+        /// Noktanın zemine oturmuş 6 köşesi (oluk sol/sağ, sol ray sol/sağ, sağ ray sol/sağ): eklenirken bir kez
+        /// hesaplanır. Her karede zemin sorgusu yapmak (binlerce Height çağrısı) telefonda kare hızını düşürüyordu.
+        struct Point { public Vector3 g0, g1, a0, a1, b0, b1; public bool cut; }
 
         readonly TrackProfile track;
         readonly Mesh mesh;
@@ -22,6 +24,7 @@ namespace SledSurfers
         readonly List<int> tris = new List<int>();
         readonly Color groove, runner;
         bool wasGrounded;
+        Vector3 lastPos;
         bool dirty;
 
         public SledTrail(Transform parent, TrackProfile track, TrackTheme theme)
@@ -56,11 +59,18 @@ namespace SledSurfers
             {
                 Vector3 p = sled.position;
                 bool cut = !wasGrounded;
-                if (cut || points.Count == 0 || (p - points[points.Count - 1].pos).sqrMagnitude >= Spacing * Spacing)
+                if (cut || points.Count == 0 || (p - lastPos).sqrMagnitude >= Spacing * Spacing)
                 {
                     float h = sled.heading;
                     var right = new Vector3(Mathf.Cos(h), 0f, -Mathf.Sin(h));
-                    points.Add(new Point { pos = p, right = right, cut = cut });
+                    points.Add(new Point
+                    {
+                        g0 = Ground(p - right * GrooveHalf), g1 = Ground(p + right * GrooveHalf),
+                        a0 = Ground(p + right * (-RunnerOffset - RunnerHalf)), a1 = Ground(p + right * (-RunnerOffset + RunnerHalf)),
+                        b0 = Ground(p + right * (RunnerOffset - RunnerHalf)), b1 = Ground(p + right * (RunnerOffset + RunnerHalf)),
+                        cut = cut,
+                    });
+                    lastPos = p;
                     if (points.Count > MaxPoints) points.RemoveAt(0);
                     dirty = true;
                 }
@@ -81,9 +91,11 @@ namespace SledSurfers
                 if (points[i].cut) continue;   // havadan sonraki ilk nokta yeni parça başlatır
                 float fade = Mathf.Clamp01((float)i / n * 1.6f);   // en eski kısım solar
                 fade *= Mathf.Clamp01((n - i) / 4f + 0.25f);      // kızağın hemen altı yumuşak başlar
-                Strip(points[i - 1], points[i], 0f, GrooveHalf, groove, fade);
-                Strip(points[i - 1], points[i], -RunnerOffset, RunnerHalf, runner, fade);
-                Strip(points[i - 1], points[i], RunnerOffset, RunnerHalf, runner, fade);
+                var a = points[i - 1];
+                var b = points[i];
+                Quad(a.g0, a.g1, b.g0, b.g1, groove, fade);
+                Quad(a.a0, a.a1, b.a0, b.a1, runner, fade);
+                Quad(a.b0, a.b1, b.b0, b.b1, runner, fade);
             }
             mesh.Clear();
             mesh.SetVertices(verts);
@@ -92,14 +104,13 @@ namespace SledSurfers
             mesh.RecalculateBounds();
         }
 
-        /// İki nokta arasında, merkezden offset kayık, half yarı genişlikli dörtgen (köşeler zemine oturur).
-        void Strip(Point a, Point b, float offset, float half, Color c, float fade)
+        void Quad(Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3, Color c, float fade)
         {
             int k = verts.Count;
-            verts.Add(Ground(a.pos + a.right * (offset - half)));
-            verts.Add(Ground(a.pos + a.right * (offset + half)));
-            verts.Add(Ground(b.pos + b.right * (offset - half)));
-            verts.Add(Ground(b.pos + b.right * (offset + half)));
+            verts.Add(p0);
+            verts.Add(p1);
+            verts.Add(p2);
+            verts.Add(p3);
             var col = new Color(c.r, c.g, c.b, c.a * fade);
             for (int j = 0; j < 4; j++) colors.Add(col);
             tris.Add(k); tris.Add(k + 2); tris.Add(k + 1);

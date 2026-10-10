@@ -437,6 +437,19 @@ namespace SledSurfers
         public Page Current => page;
 
         /// Ekran noktası bir düğmenin ya da modal pencerenin üstünde mi? (Sapan sürüklemesi başlamasın diye.)
+        /// Ekran noktası (alt-sol orijinli) roket düğmesinin üstünde mi? Düğme arayüz tıklamasını beklemeden, her yeni
+        /// dokunuşla kontrol edilir: arayüz yalnızca ilk parmağı tıklama sayar, direksiyonu tutarken ikinci parmakla
+        /// basılan roket ateşlenmiyordu (kullanıcı testi 2026-10-10).
+        public bool OnRocketButton(Vector2 screenPos)
+        {
+            var panel = root.panel;
+            if (panel == null || rocketBtn == null || rocketBtn.resolvedStyle.display == DisplayStyle.None) return false;
+            var pos = RuntimePanelUtils.ScreenToPanel(panel, new Vector2(screenPos.x, Screen.height - screenPos.y));
+            var r = rocketBtn.worldBound;
+            float pad = r.width * 0.2f;   // parmak için biraz pay
+            return pos.x >= r.xMin - pad && pos.x <= r.xMax + pad && pos.y >= r.yMin - pad && pos.y <= r.yMax + pad;
+        }
+
         public bool BlocksPointer(Vector2 screenPos)
         {
             var panel = root.panel;

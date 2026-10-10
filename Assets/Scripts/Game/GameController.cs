@@ -146,6 +146,12 @@ namespace SledSurfers
         public void DebugSettings(bool show) => ui.DebugSettings(show);
         public void DebugBuy(int i) => Buy(i);
         public void DebugMap() => ui.ShowMap(save);
+        /// Roket düğmesine basılmış gibi (arayüz olayının yolu) ve roket durumu.
+        public void DebugPressRocket() => rocketRequested = true;
+        public string DebugRocketState => "durum " + state + " hak " + sled.rocketCharges + " ateşlenen " + sled.stats.rocketsFired
+            + " yanıyor " + sled.RocketFiring + " hazır " + sled.CanFireRocket + " cfg " + cfg.rocketCharges + " itiş " + cfg.rocketThrust
+            + " fırlatılıyor " + sled.launching + " bitiş " + sled.end + " hız " + sled.Speed.ToString("0.0");
+        public void DebugRetry() => EnterAim();
         public void DebugClosePart() => ui.DebugClosePart();
         /// Parça duyurusu: part = PartNames dizini (0 kanat ... 5 jet), araç bir sonraki parkurun aracı.
         public void DebugPartUnlock(int part)
@@ -257,13 +263,26 @@ namespace SledSurfers
             cam.fieldOfView = 70f;
             cam.nearClipPlane = 0.1f;
             cam.farClipPlane = 600f;
-            // Görüntü kalitesi: her platformda aynı (Android varsayılanı 'Medium' kenar yumuşatmasız ve sert gölgeliydi).
+            // Görüntü kalitesi: Android varsayılanı 'Medium' kenar yumuşatmasız ve sert gölgeliydi, bu yüzden elle ayarlanır.
+            // Telefonda (2026-10-10, kullanıcı testi: ağır çekim ve kayan kamera = düşük kare hızı) PC'den hafif: 2× kenar
+            // yumuşatma, tek kademeli orta gölge 45 m'ye kadar, ekranın kısa kenarı en çok 900 piksel çizilir.
+            bool mobile = Application.isMobilePlatform;
             QualitySettings.SetQualityLevel(3, true);   // High
-            QualitySettings.antiAliasing = 4;
+            QualitySettings.antiAliasing = mobile ? 2 : 4;
             QualitySettings.shadows = ShadowQuality.All;
-            QualitySettings.shadowResolution = ShadowResolution.High;
-            QualitySettings.shadowCascades = 2;
-            QualitySettings.shadowDistance = 120f;
+            QualitySettings.shadowResolution = mobile ? ShadowResolution.Medium : ShadowResolution.High;
+            QualitySettings.shadowCascades = mobile ? 1 : 2;
+            QualitySettings.shadowDistance = mobile ? 45f : 120f;
+            QualitySettings.vSyncCount = 0;
+            if (mobile)
+            {
+                int shortSide = Mathf.Min(Screen.width, Screen.height);
+                if (shortSide > 900)
+                {
+                    float k = 900f / shortSide;
+                    Screen.SetResolution(Mathf.RoundToInt(Screen.width * k), Mathf.RoundToInt(Screen.height * k), true);
+                }
+            }
             QualitySettings.anisotropicFiltering = AnisotropicFiltering.Enable;
             QualitySettings.pixelLightCount = 1;
             Application.targetFrameRate = 60;
@@ -319,6 +338,8 @@ namespace SledSurfers
             rider.Apply(cfg, save.hand);
             pickupStreak = 0;
             world.SetSlingLevel(save.levels[(int)UpgradeType.Slingshot]);
+            // Ana ekrandayken (yükseltme alımı, karakter değişimi) kızak sapanın önündeki yerinde kalır.
+            if (state == State.Hub) sled.position = new Vector3(0f, track.Height(0f, HubForward), HubForward);
         }
 
         /// Elmasların yerlerini koşu ekranındaki ilerleme çubuğuna işler (arayüz henüz yoksa bekler).
@@ -341,6 +362,9 @@ namespace SledSurfers
         {
             ShowAvatarModel(save.avatar);
             PrepareSled();
+            // Ana ekranda kızak sapanın önünde durur (kullanıcı 2026-10-10): kamera önden baktığı için kese ve lastik
+            // karakterin yüzünü kapatıyordu. Nişana geçince kızak yeniden keseye oturur (PrepareSled).
+            sled.position = new Vector3(0f, track.Height(0f, HubForward), HubForward);
             state = State.Hub;
             ui.ShowHub(save);
             RefreshQuests(false);
@@ -463,8 +487,8 @@ namespace SledSurfers
                 ui.ShowNoLaunches();
                 return;
             }
+            state = State.Aim;   // önce durum: PrepareSled ana ekran duruşunu (sapanın önü) uygulamasın
             PrepareSled();
-            state = State.Aim;
             ui.ShowAim();
         }
 
@@ -492,6 +516,20 @@ namespace SledSurfers
             if (perfect) ui.Toast("MÜKEMMEL ATIŞ!");
             hintedRocket = hintedNose = hintedBridge = hintedFork = false;
             ShowHint(Hint.Steer, IconKind.Swap, input.TiltMode ? "Sağa-sola sürükle: yön" : "A / D: yön", 3);
+        }
+
+        const float LaunchTimeScale = 3f;
+        const float HubForward = 2.2f;
+        float fpsSmooth = 60f;
+        GUIStyle fpsStyle;
+
+        /// Deneme sürümünde sol altta kare hızı (telefonda performansı görmek için; yayın sürümünde yok).
+        void OnGUI()
+        {
+            if (!Debug.isDebugBuild || AutoShot.Requested) return;
+            if (fpsStyle == null) fpsStyle = new GUIStyle(GUI.skin.label) { fontSize = Mathf.Max(18, Screen.height / 50), fontStyle = FontStyle.Bold };
+            fpsStyle.normal.textColor = fpsSmooth >= 45f ? Color.green : fpsSmooth >= 25f ? Color.yellow : Color.red;
+            GUI.Label(new Rect(12f, Screen.height * 0.5f, 400f, 60f), Mathf.RoundToInt(fpsSmooth) + " fps  " + Screen.width + "x" + Screen.height, fpsStyle);
         }
 
         SledTrail trail;
@@ -567,7 +605,10 @@ namespace SledSurfers
 
         void Update()
         {
-            float dt = Mathf.Min(Time.deltaTime, 0.05f);
+            // Kare süresi 0.1 s'ye kadar gerçek zamanla işlenir (10 kare/sn'ye kadar ağır çekim olmaz; fizik 240 Hz sabit
+            // adımla arayı kapatır). Eski sınır 0.05 s'ydi: 20 kare/sn'nin altına düşen telefonda oyun ağır çekime giriyordu.
+            float dt = Mathf.Min(Time.deltaTime, 0.1f);
+            fpsSmooth = Mathf.Lerp(fpsSmooth, 1f / Mathf.Max(Time.unscaledDeltaTime, 0.0001f), 0.05f);
             input.Update(dt, state == State.Run);
             TickLaunches(Time.unscaledDeltaTime);
 
@@ -746,7 +787,15 @@ namespace SledSurfers
         {
             runTime += dt;
             RunHints();
-            accumulator += dt;
+            // Sapan lastiği kızağı iterken fizik LaunchTimeScale kat hızlı oynar (kullanıcı 2026-10-10: fırlatma ağır
+            // çekim gibiydi; düşük seviyede lastik teması ~0.6 s sürüyordu). Çıkış hızı ve mesafe değişmez.
+            accumulator += dt * (sled.launching ? LaunchTimeScale : 1f);
+            // Roket: her yeni dokunuş (hangi parmak olursa olsun) düğmenin üstündeyse ateşler.
+            for (int i = 0; i < Input.touchCount; i++)
+            {
+                var touch = Input.GetTouch(i);
+                if (touch.phase == TouchPhase.Began && ui.OnRocketButton(touch.position)) rocketRequested = true;
+            }
             if (rocketRequested || Input.GetKeyDown(KeyCode.R)) TryFireRocket();
             rocketRequested = false;
             while (accumulator >= PhysicsStep)
@@ -850,6 +899,12 @@ namespace SledSurfers
                 if (state == State.Run && sled.pickupAwaitingLanding && sled.rocketCharges > 0)
                 {
                     ui.Toast("İNİNCE HAZIR!");
+                    sfx.Deny();
+                }
+                // Roket her atışta bir kez ateşlenir: ikinci basışta neden olmadığı söylenir.
+                else if (state == State.Run && sled.rocketCharges <= 0 && !sled.RocketFiring && sled.stats.rocketsFired > 0)
+                {
+                    ui.Toast("ROKET BİTTİ · HER ATIŞTA 1");
                     sfx.Deny();
                 }
                 return;

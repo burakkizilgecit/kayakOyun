@@ -80,19 +80,23 @@ namespace SledSurfers
             bestFlag = new GameObject("Best Flag").transform;
             bestFlag.SetParent(root, false);
             var gold = Mats.Solid(new Color(1f, 0.78f, 0.1f), 0.5f);
-            Mats.Prim(PrimitiveType.Cylinder, "Pole", bestFlag, new Vector3(0f, 1.5f, 0f), new Vector3(0.08f, 1.5f, 0.08f), Mats.Solid(Color.white));
-            Mats.Prim(PrimitiveType.Cube, "Flag", bestFlag, new Vector3(0.45f, 2.6f, 0f), new Vector3(0.8f, 0.5f, 0.04f), gold);
-            bestText = MakeText(bestFlag, new Vector3(0f, 3.1f, 0f), "REKOR", 0.06f, new Color(1f, 0.85f, 0.2f));
+            // Rekor işareti de küçük ve rakamsız (mesafe bayrağıyla aynı karar): altın bayrak; rekor ilerleme çubuğunda yazar.
+            Mats.Prim(PrimitiveType.Cylinder, "Pole", bestFlag, new Vector3(0f, 0.85f, 0f), new Vector3(0.06f, 0.85f, 0.06f), Mats.Solid(Color.white));
+            Mats.Prim(PrimitiveType.Cube, "Flag", bestFlag, new Vector3(0.28f, 1.5f, 0f), new Vector3(0.5f, 0.32f, 0.04f), gold);
+            bestText = MakeText(bestFlag, new Vector3(0f, 1.9f, 0f), "REKOR", 0.06f, new Color(1f, 0.85f, 0.2f));
+            bestText.gameObject.SetActive(false);
             bestFlag.gameObject.SetActive(false);
 
             // Atışın bittiği noktaya dikilen mesafe bayrağı
             stopFlag = new GameObject("Stop Flag").transform;
             stopFlag.SetParent(root, false);
             var red = Mats.Solid(new Color(0.95f, 0.3f, 0.2f), 0.4f);
-            Mats.Prim(PrimitiveType.Cylinder, "Pole", stopFlag, new Vector3(0f, 1.25f, 0f), new Vector3(0.09f, 1.25f, 0.09f), Mats.Solid(Color.white));
-            Mats.Prim(PrimitiveType.Cube, "Flag", stopFlag, new Vector3(0.55f, 2.15f, 0f), new Vector3(1.05f, 0.6f, 0.05f), red);
-            Mats.Prim(PrimitiveType.Sphere, "Knob", stopFlag, new Vector3(0f, 2.55f, 0f), Vector3.one * 0.18f, Mats.Solid(new Color(1f, 0.8f, 0.2f), 0.6f));
-            stopText = MakeText(stopFlag, new Vector3(0.5f, 2.15f, -0.04f), "", 0.05f, Color.white);
+            // Küçük işaret bayrağı (kullanıcı 2026-10-10): üstünde rakam yok (bazen tam okunmuyordu); mesafe ekranda yazar.
+            Mats.Prim(PrimitiveType.Cylinder, "Pole", stopFlag, new Vector3(0f, 0.75f, 0f), new Vector3(0.06f, 0.75f, 0.06f), Mats.Solid(Color.white));
+            Mats.Prim(PrimitiveType.Cube, "Flag", stopFlag, new Vector3(0.28f, 1.3f, 0f), new Vector3(0.5f, 0.32f, 0.04f), red);
+            Mats.Prim(PrimitiveType.Sphere, "Knob", stopFlag, new Vector3(0f, 1.54f, 0f), Vector3.one * 0.12f, Mats.Solid(new Color(1f, 0.8f, 0.2f), 0.6f));
+            stopText = MakeText(stopFlag, new Vector3(0.28f, 1.3f, -0.04f), "", 0.05f, Color.white);
+            stopText.gameObject.SetActive(false);
             stopFlag.gameObject.SetActive(false);
         }
 

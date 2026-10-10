@@ -47,6 +47,33 @@ namespace SledSurfers
                 yield break;
             }
 
+            if (mode == "rocket")
+            {
+                // Roket art arda atışlarda ateşlenebiliyor mu (oyuncu gibi: otomatik pilot yok, düğme yolu)?
+                game.DebugHideTutorial();
+                game.DebugReset(new[] { 8, 8, 4, 0, 6 }, 0);
+                for (int run = 1; run <= 3; run++)
+                {
+                    if (run == 1) game.DebugAim(); else game.DebugRetry();
+                    yield return new WaitForSeconds(0.6f);
+                    game.DebugLaunch(1f);
+                    yield return new WaitForSeconds(2.5f);
+                    Debug.Log("[ROKET] atış " + run + " basmadan önce: " + game.DebugRocketState);
+                    game.DebugPressRocket();
+                    yield return new WaitForSeconds(0.3f);
+                    Debug.Log("[ROKET] atış " + run + " bastıktan sonra: " + game.DebugRocketState);
+                    yield return Shot("r" + run + "_fired");
+                    float rt = 0f;
+                    while (!game.DebugInResult && rt < 60f) { rt += Time.deltaTime; yield return null; }
+                    yield return new WaitForSeconds(0.7f);
+                    if (run == 1) yield return Shot("r1_flag");
+                    yield return new WaitForSeconds(run == 2 ? 6f : 1.5f);
+                    Debug.Log("[ROKET] atış " + run + " bitti: " + game.DebugRocketState);
+                }
+                SaveData.ClearAll();   // yalnız test önekli kayıt (gerçek kayıt korunur)
+                Application.Quit();
+                yield break;
+            }
             if (mode == "wings")
             {
                 // Çayır'da kızak aşamaları: ip → minik kanat → büyüyen kanat (ana ekran)

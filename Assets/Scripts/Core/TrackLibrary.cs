@@ -338,8 +338,8 @@ namespace SledSurfers
 
         /// Pist başına süzülme ayarları: yavaşlama yamacı eğimi (pist başında → sonunda; sona doğru düzleşir, her kızak
         /// seviyesi bir iki yamaç daha aşar), yamaç uzunluğu, kanal eğimi ve uzunluğu.
-        public static float[] SlowGrade = { 0.19f, 0.095f, 0.14f, 0.1f, 0.1f, 0.08f, 0.08f };   // 2026-10-10: uzun yokuşlarla yeniden tarandı (Mars: sona doğru belirgin azalır; pervane telafisiyle sonda hafif yokuş yukarı)
-        public static float[] SlowGradeEnd = { 0.185f, 0.095f, 0.14f, 0.1f, 0.1f, 0.08f, 0.045f };
+        public static float[] SlowGrade = { 0.178f, 0.095f, 0.14f, 0.1f, 0.1f, 0.08f, 0.08f };   // 2026-10-10: uzun yokuşlarla yeniden tarandı (Mars: sona doğru belirgin azalır; pervane telafisiyle sonda hafif yokuş yukarı)
+        public static float[] SlowGradeEnd = { 0.173f, 0.095f, 0.14f, 0.1f, 0.1f, 0.08f, 0.045f };
         public static Vector2[] SlowLength = { new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f) };
         public static float[] BoostGrade = { 0.42f, 0.36f, 0.36f, 0.34f, 0.34f, 0.34f, 0.32f };
         public static float[] BoostLength = { 25f, 25f, 25f, 25f, 25f, 25f, 25f };
@@ -350,8 +350,10 @@ namespace SledSurfers
         /// Parkur başına uzatma: Çayır'da az (kullanıcı 2026-10-10: ilk parkurda uzun düzlükler boş duruyordu), sonraki
         /// parkurlarda giderek uzun yokuşlar. WaveLength: yamaçtaki dalgaların aralığı (m), WaveAmp: yüksekliği.
         public static float[] CycleScale = { 1.1f, 1.4f, 1.8f, 1.8f, 1.8f, 1.8f, 1.8f };
-        public static float[] WaveLength = { 48f, 50f, 70f, 70f, 70f, 70f, 70f };
-        public static float[] WaveAmp = { 0.5f, 0.6f, 0.6f, 0.6f, 0.6f, 0.6f, 0.6f };
+        // Çayır: belirgin inişli çıkışlı uzun dalgalar (kullanıcı 2026-10-10: çok düzlük vardı). 70 m'de bir, 2.4 m:
+        // eğim neredeyse düz (%8) ile dik (%30) arasında gidip gelir; tepeler yumuşak (81 km/sa'nın altında havalanmaz).
+        public static float[] WaveLength = { 70f, 60f, 70f, 70f, 70f, 70f, 70f };
+        public static float[] WaveAmp = { 2.4f, 1.2f, 0.6f, 0.6f, 0.6f, 0.6f, 0.6f };
         /// Krater duvarının yüksekliği (m; 0 = yok) ve pistteki yeri (uzunluk oranı).
         public static float[] WallRise = { 0f, 0f, 0f, 0f, 0f, 0f, 16f };
         public static float WallAt = 0.72f;
