@@ -19,7 +19,7 @@ namespace SledSurfers
         SledConfig cfg;
         SledPhysics sled;
         readonly LiquidSim liquid = new LiquidSim();
-        readonly InputReader input = new InputReader();
+        InputReader input;   // Awake'te kurulur: alan başlatıcısında SystemInfo (ivmeölçer) sorgulanamaz (telefonda açılış hatası)
         RiderView rider;
         WorldView world;
         Camera cam;
@@ -79,6 +79,7 @@ namespace SledSurfers
         void Awake()
         {
             Application.targetFrameRate = 60;
+            input = new InputReader();
             if (Application.isMobilePlatform) Screen.orientation = ScreenOrientation.Portrait;
 
             if (AutoShot.Requested) SaveData.Prefix = "autotest.";   // test oyunu gerçek kayda dokunmaz
