@@ -47,6 +47,24 @@ namespace SledSurfers
                 yield break;
             }
 
+            if (mode == "wings")
+            {
+                // Çayır'da kızak aşamaları: ip → minik kanat → büyüyen kanat (ana ekran)
+                game.DebugHideTutorial();
+                foreach (int lv in new[] { 0, 5, 10, 15, 20, 25 })
+                {
+                    game.DebugReset(new[] { lv, lv, 0, 0, 0 }, 0);
+                    game.DebugHub();
+                    yield return new WaitForSeconds(1.5f);
+                    yield return Shot("k" + lv.ToString("00") + "_hub");
+                }
+                game.DebugSettings(true);
+                yield return new WaitForSeconds(0.8f);
+                yield return Shot("k_settings");
+                SaveData.ClearAll();   // yalnız test önekli kayıt (gerçek kayıt korunur)
+                Application.Quit();
+                yield break;
+            }
             if (mode == "wall")
             {
                 // Mars krater duvarı: yaklaşırken ve tırmanırken

@@ -192,8 +192,8 @@ namespace SledSurfers
             var cfg = Upgrades.BuildConfig(new[] { 0, level, 0, 0, 0 });
             if (cfg.wingArea > 0f)
             {
-                const float chord = 0.55f;
                 float span = cfg.wingSpan;
+                float chord = 0.3f + 0.21f * span;
                 int ws = stage >= 5 ? 2 : stage >= 4 ? 1 : 0;   // RiderView ile aynı: beyaz, 16 mavi, 20 altın
                 var body = Mats.Solid(RiderView.WingColors[ws], 0.3f);
                 for (int s = -1; s <= 1; s += 2)

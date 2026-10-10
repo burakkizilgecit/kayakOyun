@@ -51,13 +51,20 @@ namespace SledSurfers
         static readonly float[] runnerFriction =
             { 0.25f, 0.246f, 0.242f, 0.238f, 0.234f, 0.23f, 0.226f, 0.222f, 0.218f, 0.214f, 0.21f, 0.206f, 0.202f, 0.198f, 0.194f, 0.19f, 0.186f, 0.182f, 0.178f, 0.174f, 0.17f };
 
-        /// Kanadın geldiği kızak kademesi (her pistte). Büyük kanat son aşamadan bir önceki aşamada gelir.
-        public const int WingLevel = 5;
-        public static int BigWingLevel => (Stages - 1) * StageSize;
-        /// Görünen kanadın bir tarafının boyu (m): küçük 0.85, büyük 1.18.
-        public static float WingSpan(int runnerLevel) => runnerLevel < WingLevel ? 0f : runnerLevel < BigWingLevel ? 0.85f : 1.18f;
-        /// Kanadın bir kalkışta taşıdığı süre: 5. kademede 1.5 s, her kademede +0.35 s.
-        public static float GlideTime(int runnerLevel) => runnerLevel < WingLevel ? 0f : 1.5f + 0.35f * (runnerLevel - WingLevel);
+        // Kanat (kullanıcı kararı 2026-10-10): önce tutma ipi (1. aşama), sonra minik kanat (2. aşama) ve her aşamada bir
+        // boy büyür: minik → küçük → orta → büyük. Kalıcı kanat parçası (Çayır bitince) sırayı iki aşama öne alır: sonraki
+        // pistler minik kanatla başlar.
+        public static readonly float[] WingSpans = { 0f, 0.32f, 0.58f, 0.85f, 1.18f };
+        public static readonly float[] WingAreas = { 0f, 0.7f, 1.4f, 2.2f, 2.6f };
+        /// Kanat boyu adımı (0 yok, 1 minik ... 4 büyük).
+        public static int WingStep(int runnerLevel) =>
+            Mathf.Clamp(Stage(runnerLevel) - 1 + (Parts >= 1 ? 2 : 0), 0, WingSpans.Length - 1);
+        /// Kanadın ilk geldiği kademe (bu pistte).
+        public static int WingLevel => Parts >= 1 ? 0 : 2 * StageSize;
+        /// Görünen kanadın bir tarafının boyu (m).
+        public static float WingSpan(int runnerLevel) => WingSpans[WingStep(runnerLevel)];
+        /// Kanadın bir kalkışta taşıdığı süre: ilk geldiğinde 1 s, her kademede +0.35 s.
+        public static float GlideTime(int runnerLevel) => WingStep(runnerLevel) == 0 ? 0f : 1f + 0.35f * (runnerLevel - WingLevel);
 
         public static readonly string[] GlassNames = { "Plastik Bardak", "Kupa", "Termos", "Pipetli Şişe", "Uzay Bardağı", "Kristal Termos" };
         // Bardak modeli (mesh) 0..4; 5. aşama 4. modelin kristal sürümü, son kademe altın sürümü.
@@ -122,7 +129,7 @@ namespace SledSurfers
         public static readonly string[] PartNames = { "Kanat", "Aero Kuyruk", "Pervane", "Turbo Pervane", "Çift Turbo Pervane", "Jet Motoru" };
         public static readonly string[] PartTexts =
         {
-            "Kanatlar artık her pistte en baştan takılı",
+            "Her pist minik kanatla başlar, kanat daha erken büyür",
             "Hava direnci %12 daha az: uzun süzülmelerde hız korunur",
             "Kayarken hafif itiş: yavaşlayan kızağı biraz daha taşır",
             "Daha güçlü itiş: yokuşları daha uzun götürür",
@@ -139,18 +146,11 @@ namespace SledSurfers
             int sl = levels[(int)UpgradeType.Slingshot], ru = levels[(int)UpgradeType.Runners];
             c.bandStiffness *= Sample(slingFactor, Power(sl));
             c.groundFriction = Mathf.Max(0.08f, Sample(runnerFriction, Power(ru)));
-            c.wingArea = ru < WingLevel ? 0f : ru < BigWingLevel ? 2.2f : 2.6f;
-            c.wingMass = ru < WingLevel ? 0f : Mathf.Lerp(3f, 1.5f, (float)ru / Max);
-            c.wingSpan = WingSpan(ru);
+            int wing = WingStep(ru);
+            c.wingArea = WingAreas[wing];
+            c.wingMass = wing == 0 ? 0f : Mathf.Lerp(1.2f, 3f, wing / 4f) * Mathf.Lerp(1f, 0.6f, (float)ru / Max);
+            c.wingSpan = WingSpans[wing];
             c.glideTime = GlideTime(ru);
-            if (Parts >= 1 && ru < WingLevel)
-            {
-                // Kalıcı kanat: Çayır'dan sonra her pist kanatla başlar (küçük kanadın ilk hali).
-                c.wingArea = 2.2f;
-                c.wingMass = 3f;
-                c.wingSpan = WingSpan(WingLevel);
-                c.glideTime = GlideTime(WingLevel);
-            }
             if (Parts >= 2) c.dragArea *= 0.88f;
             c.dragArea *= Mathf.Lerp(TrackLibrary.DragStart[Track], TrackLibrary.DragEnd[Track], (float)ru / Max);
             c.propThrust = PropThrust(Parts);

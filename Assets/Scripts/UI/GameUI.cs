@@ -58,6 +58,8 @@ namespace SledSurfers
         public event Action<int> Buy, SetHand, SelectTrack;
         public event Action<bool> SetSound;
         public event Action<int> SetSensitivity;
+        /// Test düğmeleri (yalnız geliştirme sürümü): geçerli haritanın geliştirmelerini sıfırla, bütün haritaları aç, para ver.
+        public event Action TestResetUpgrades, TestUnlockAll, TestMoney;
         public event Action WatchLaunchAd;   // hak bitti penceresinde reklam izlendi: +1 hak
 
         static readonly Color Ink = new Color32(0x2B, 0x23, 0x40, 0xFF);
@@ -1130,6 +1132,26 @@ namespace SledSurfers
             sound.Add(soundOn);
             sound.Add(soundOff);
             settingsCard.Add(sound);
+
+            // Test düğmeleri (kullanıcı isteği 2026-10-10): yalnızca geliştirme sürümünde görünür; yayın sürümünde yok.
+            if (Debug.isDebugBuild)
+            {
+                settingsCard.Add(SettingLabel("Test (yalnız deneme sürümü)"));
+                var reset = B(() => { TestResetUpgrades?.Invoke(); ShowSettings(false); }, "btn", "btn-orange", "btn-mid");
+                reset.text = "Geliştirmeleri sıfırla";
+                reset.style.alignSelf = Align.Stretch;
+                settingsCard.Add(reset);
+                var unlock = B(() => { TestUnlockAll?.Invoke(); ShowSettings(false); }, "btn", "btn-white", "btn-mid");
+                unlock.text = "Bütün haritaları aç";
+                unlock.style.alignSelf = Align.Stretch;
+                unlock.style.marginTop = 14;
+                settingsCard.Add(unlock);
+                var money = B(() => { TestMoney?.Invoke(); ShowSettings(false); }, "btn", "btn-white", "btn-mid");
+                money.text = "+100 bin coin, +100 elmas";
+                money.style.alignSelf = Align.Stretch;
+                money.style.marginTop = 14;
+                settingsCard.Add(money);
+            }
 
             var ok = B(() => ShowSettings(false), "btn", "btn-green", "btn-mid");
             ok.text = "TAMAM";

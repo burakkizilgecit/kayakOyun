@@ -35,7 +35,7 @@ namespace SledSurfers
                     names = new[] { "Hover Platform", "Anten", "Yan İticiler", "Mavi Gövde", "Küçük Kanatlar", "Işık Halkası", "Altın Hover" };
                     break;
                 default:
-                    names = new[] { "Sörf Kızağı", "Tutma İpi", "Gümüş Kayaklar", "Arka Tampon Kanadı", "Kanatlı", "Büyük Kanatlar", "Altın Kanatlar" };
+                    names = new[] { "Sörf Kızağı", "Tutma İpi", "Minik Kanatlar", "Küçük Kanatlar", "Geniş Kanatlar", "Büyük Kanatlar", "Altın Kanatlar" };
                     break;
             }
             return names[UnityEngine.Mathf.Clamp(stage, 0, names.Length - 1)];

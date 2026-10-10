@@ -1087,6 +1087,29 @@ namespace SledSurfers
             };
             ui.Buy += Buy;
             ui.SetHand += SetHand;
+            ui.TestResetUpgrades += () =>
+            {
+                System.Array.Clear(save.levels, 0, save.levels.Length);
+                save.Save();
+                EnterHub();
+            };
+            ui.TestUnlockAll += () =>
+            {
+                // Parkur "bitmiş" sayılmadan açılmaz: önceki parkurların rekoru bitişe çekilir.
+                for (int t = 0; t < TrackLibrary.Count - 1; t++)
+                    save.bests[t] = Mathf.Max(save.bests[t], Mathf.CeilToInt(TrackLibrary.Lengths[t]));
+                save.unlocked = TrackLibrary.Count - 1;
+                Upgrades.PartTier = save.unlocked;
+                save.Save();
+                EnterHub();
+            };
+            ui.TestMoney += () =>
+            {
+                save.money += 100000;
+                save.gems += 100;
+                save.Save();
+                EnterHub();
+            };
             ui.SetSensitivity += v =>
             {
                 save.steerSens = v;

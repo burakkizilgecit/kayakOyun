@@ -19,7 +19,8 @@ namespace SledSurfers
             switch ((UpgradeType)type)
             {
                 case UpgradeType.Slingshot: return SlingNames[stage];
-                case UpgradeType.Runners: return SledNames[stage];
+                // Araç ve aşama adı tek yerden (ip → minik kanat → büyüyen kanat sırası; son üç haritada araca göre)
+                case UpgradeType.Runners: return Vehicles.StageName(TrackLibrary.Vehicles[Upgrades.Track], stage);
                 case UpgradeType.Glass: return Upgrades.GlassStageName(stage);
                 case UpgradeType.Income: return IncomeNames[stage];
                 default: return RocketNames[stage];

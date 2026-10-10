@@ -627,8 +627,8 @@ namespace SledSurfers
             rightWing.gameObject.SetActive(wings);
             if (wings)
             {
-                const float chord = 0.55f;
-                float span = cfg.wingSpan;   // yalnız görünüş: iki boy (fizikteki alan ayrı)
+                float span = cfg.wingSpan;
+                float chord = 0.3f + 0.21f * span;   // minik kanat dar, büyük kanat 0.55 m (görünüş; fizikteki alan ayrı)
                 if (!Mathf.Approximately(span, wingSpan))
                 {
                     wingSpan = span;
