@@ -360,8 +360,21 @@ namespace SledSurfers
             return CenterX(z) + k * pathAmp * Mathf.Sin(Bend(z) * 6.2832f / pathLength + phaseC);
         }
 
+        /// Yolsuz harita (kullanıcı 2026-10-11): ortada toprak yol çizilmez, bütün zemin aynı hızda kayar (Orman'da çimen,
+        /// Karlı Dağ'da açık kar). Güzergâh (PathX) altınlar ve otomatik pilot için yine vardır.
+        public bool noPath;
+
+        /// Güzergâhın (yol çizilmese de) üstünde mi: otomatik pilot ve altın dizilişi bunu izler.
+        public bool NearRoute(float z, float x)
+        {
+            float w = ForkWeight(z), px = PathX(z);
+            if (w <= 0f) return Mathf.Abs(x - px) <= PathHalfWidth;
+            return Mathf.Abs(Mathf.Abs(x - px) - ForkOffset * w) <= PathHalfWidth;
+        }
+
         public bool OnPath(float z, float x)
         {
+            if (noPath) return true;
             float w = ForkWeight(z), px = PathX(z);
             if (w <= 0f) return Mathf.Abs(x - px) <= PathHalfWidth;
             float d = Mathf.Abs(Mathf.Abs(x - px) - ForkOffset * w);

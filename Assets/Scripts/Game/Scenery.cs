@@ -519,6 +519,7 @@ namespace SledSurfers
 
         void BuildPath()
         {
+            if (track.noPath) return;   // yolsuz harita: yalnız zemin
             var mat = Mats.Ground(theme.trackA, 0.1f, TextureKit.Dirt(), TextureKit.Macro(), 0.03f);
             // Kenar: çimenle toprak arası tonda biraz daha geniş alt şerit; geçiş tek sert çizgi olmasın (aşınmış çim).
             var edge = Mats.Ground(Color.Lerp(theme.grass, theme.trackA, 0.5f), 0.08f, theme.GroundTexture(), TextureKit.Macro(), 0.03f);

@@ -780,7 +780,9 @@ namespace SledSurfers.EditorTools
                 if (arg.StartsWith("levels=")) lv = System.Array.ConvertAll(arg.Substring(7).Split(','), int.Parse);
                 if (arg.StartsWith("player=")) kind = SimPlayer.Parse(arg.Substring(7));
             }
+            TrackLibrary.ApproachLog = "";
             var t = TrackLibrary.Get(track);
+            Debug.Log("[YAKLAŞIM] " + TrackLibrary.ApproachLog);
             var cfg = Upgrades.BuildConfig(lv);
             var sb = new StringBuilder("[SIM] Köprü düşmeleri " + t.name + " (" + SimPlayer.Name(kind) + ")\n");
             foreach (var b in t.bridges) sb.AppendLine("  köprü " + b.r0.ToString("F0") + "-" + b.r1.ToString("F0") + " x " + b.x.ToString("F1"));

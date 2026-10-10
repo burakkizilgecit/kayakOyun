@@ -338,8 +338,8 @@ namespace SledSurfers
 
         /// Pist başına süzülme ayarları: yavaşlama yamacı eğimi (pist başında → sonunda; sona doğru düzleşir, her kızak
         /// seviyesi bir iki yamaç daha aşar), yamaç uzunluğu, kanal eğimi ve uzunluğu.
-        public static float[] SlowGrade = { 0.178f, 0.095f, 0.14f, 0.1f, 0.1f, 0.08f, 0.08f };   // 2026-10-10: uzun yokuşlarla yeniden tarandı (Mars: sona doğru belirgin azalır; pervane telafisiyle sonda hafif yokuş yukarı)
-        public static float[] SlowGradeEnd = { 0.173f, 0.095f, 0.14f, 0.1f, 0.1f, 0.08f, 0.045f };
+        public static float[] SlowGrade = { 0.178f, 0.105f, 0.14f, 0.1f, 0.1f, 0.08f, 0.08f };   // 2026-10-10: uzun yokuşlarla yeniden tarandı (Mars: sona doğru belirgin azalır; pervane telafisiyle sonda hafif yokuş yukarı)
+        public static float[] SlowGradeEnd = { 0.173f, 0.105f, 0.14f, 0.1f, 0.1f, 0.08f, 0.045f };
         public static Vector2[] SlowLength = { new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f) };
         public static float[] BoostGrade = { 0.42f, 0.36f, 0.36f, 0.34f, 0.34f, 0.34f, 0.32f };
         public static float[] BoostLength = { 25f, 25f, 25f, 25f, 25f, 25f, 25f };
@@ -365,11 +365,14 @@ namespace SledSurfers
         public static float[] BridgeChance = { 0.5f, 0.45f, 0.35f, 0.5f, 0.25f, 0.22f, 0.22f };   // son üç pist uzun: köprü sayısı 3-4 (7 köprüde hızlı kızak hep birinde düşüyordu)
         public const float BridgeSpacing = 120f, BridgeDepth = 5f, BridgeLead = 40f;
         /// Köprü öncesi yükselti (m) ve ardından köprüye inen yokuşun eğimi (0 = yok, düz yavaşlama yamacı).
-        public static float[] BridgeRise = { 0.5f, 0f, 0f, 0f, 0f, 0f, 0f };
-        public static float[] BridgeDive = { 0.42f, 0f, 0f, 0f, 0f, 0f, 0f };
+        public static float[] BridgeRise = { 0.5f, 0.5f, 0.4f, 0.4f, 0.4f, 0.4f, 0.3f };
+        public static float[] BridgeDive = { 0.42f, 0.36f, 0.32f, 0.3f, 0.3f, 0.28f, 0.22f };
+        /// Dalgalı yaklaşımda dalga yüksekliği (m).
+        public static string ApproachLog = "";   // test: hangi köprüye hangi yaklaşım tipi (pist:tip@z)
+        public static float[] BridgeWave = { 1f, 0.9f, 0.5f, 0.5f, 0.5f, 0.45f, 0.4f };
         public static Vector2 BridgeSpan = new Vector2(14f, 22f);
         /// Çatal olasılığı (yüzeysiz yamaç başına).
-        public static float[] ForkChance = { 0.9f, 0.8f, 0.45f, 0.5f, 0.45f, 0.5f, 0.3f };
+        public static float[] ForkChance = { 0.9f, 0f, 0.45f, 0.5f, 0.45f, 0.5f, 0.3f };   // yolsuz haritada (Orman) çatal yok
         public const float ForkLength = 44f;
 
         /// Pervane itişinin eğim karşılığı (o piste gelen oyuncunun parçasıyla; fizikteki tavanla aynı: ≈ %70 μg).
@@ -433,23 +436,33 @@ namespace SledSurfers
                     // Kanal çıkışından 20 m sonra: kızak biraz yavaşlamış, köprüye hizalanacak zaman var.
                     // Uzun kanaldan çıkan kızak hızlı: köprüye 40 m'lik yamaçla yaklaşır (yavaşlasın, hizalansın).
                     // Kanaldan yamaca ani geçişte hızlı kızak havalanıp köprüye havadan iniyordu: önce ara eğimli 20 m.
-                    p.Hills(20f, 1, 0f, (boostGrade + slowGrade) * 0.5f * 20f);
-                    if (BridgeRise[track] > 0f)
+                    // Köprü yaklaşımı her köprüde farklı (kullanıcı 2026-10-11: uzun düz yaklaşımlar sıkıcıydı):
+                    // 0 yükselti + kademeli dikleşen iniş (hız kazandırır), 1 yumuşak dalgalar, 2 kısa düz yamaç.
+                    // Son 10 m her tipte düz eğimli: kızak tablaya yerden girer.
+                    // Hızlı parkurlarda (Kanyon ve sonrası) yükselti + iniş tipi yok: kızak köprüye fazla hızlı ve hizasız giriyordu.
+                    int approach = track <= 1 ? brnd.Next(3) : 1 + brnd.Next(2);
+                    ApproachLog += track + ":" + approach + "@" + Mathf.RoundToInt(p.z) + " ";
+                    // Kısa yaklaşım yavaş parkurlarda 22 m; hızlı parkurlarda 32 m (22 m'de kızak hizalanamayıp düşüyordu).
+                    float lead = approach == 2 ? (track <= 1 ? 22f : 32f) : BridgeLead;
+                    float settle = track <= 1 ? 10f : 20f;   // köprüden önceki düz eğimli son kısım
+                    p.Hills(14f, 1, 0f, (boostGrade + slowGrade) * 0.5f * 14f);
+                    if (approach == 0)
                     {
-                        // Çayır (kullanıcı 2026-10-10): kızak köprüye çok yavaş geliyordu. Köprüden önce küçük bir yükselti,
-                        // ardından köprüye inen dik iniş: kızak köprüye hız kazanarak girer. Toplam uzunluk BridgeLead.
-                        // Tepe yumuşak, iniş kademeli dikleşir (ani eğim değişiminde hızlı kızak havalanıp köprüye
-                        // havadan iniyordu): yükselti, sonra inişin %35, %70 ve %100'ü.
-                        float seg = (BridgeLead - 13f) / 3f, dive = BridgeDive[track];
+                        float seg = (lead - 13f) / 3f, dive = BridgeDive[track];
                         p.Hills(13f, 1, 0f, -BridgeRise[track]);
                         p.Hills(seg, 1, 0f, dive * 0.35f * seg);
                         p.Hills(seg, 1, 0f, dive * 0.7f * seg);
                         p.Hills(seg, 1, 0f, dive * seg);
                     }
-                    else p.Hills(BridgeLead, 1, 0f, slowGrade * BridgeLead);
+                    else if (approach == 1)
+                    {
+                        p.Hills(lead - settle, track <= 1 ? 2 : 1, BridgeWave[track], slowGrade * (lead - settle));
+                        p.Hills(settle, 1, 0f, slowGrade * settle);
+                    }
+                    else p.Hills(lead, 1, 0f, slowGrade * lead);
                     p.Bridge(span, BridgeDepth, slowGrade);
                     lastBridge = p.z;
-                    L = Mathf.Max(25f, L - 20f - BridgeLead - span);   // köprü yamacın parçası: döngünün enerji dengesi değişmesin
+                    L = Mathf.Max(25f, L - 14f - lead - span);   // köprü yamacın parçası: döngünün enerji dengesi değişmesin
                 }
                 else if (kick)
                 {
@@ -845,7 +858,7 @@ namespace SledSurfers
             for (float z = 0f; z < t.finishZ; z += 1f)
                 if (t.Slope(z - 1f) > 0.08f && t.Slope(z + 2f) < -0.02f) lips.Add(z);
             float reach = t.halfWidth + TrackProfile.BankRim - 1.5f;
-            for (float z = 70f; z < t.finishZ - 30f; z += R(3.5f, 7f))
+            for (float z = 165f; z < t.finishZ - 30f; z += R(3.5f, 7f))   // ilk 165 m boş: sapan hızıyla engele girilmesin
             {
                 bool skip = false;
                 foreach (var w in t.water) if (z > w.x - 80f && z < w.y + 20f) skip = true;
@@ -854,12 +867,28 @@ namespace SledSurfers
                 if (skip || Mathf.Abs(t.Slope(z)) > 0.3f) continue;
                 float side = rnd.Next(2) == 0 ? -1f : 1f;
                 // Patika ortasına göre yanal konum: çoğu patikanın dışında, bazıları tam kenarında (dar geçit hissi)
-                float off = side * (rnd.NextDouble() < 0.25 ? R(TrackProfile.PathHalfWidth + 0.9f, TrackProfile.PathHalfWidth + 2f)
-                                                            : R(TrackProfile.PathHalfWidth + 2f, reach));
+                // Güzergâhın iki yanında ±5 m'lik koridor açık kalır (oradaki engeller aşağıda, seyrek ve sırayla gelir).
+                float off = side * (rnd.NextDouble() < 0.25 ? R(TrackProfile.PathHalfWidth + 3.3f, TrackProfile.PathHalfWidth + 4.5f)
+                                                            : R(TrackProfile.PathHalfWidth + 4.5f, reach));
                 float x = t.PathX(z) + off;
                 if (Mathf.Abs(x - t.CenterX(z)) > reach) continue;
-                if (rnd.NextDouble() < 0.68) t.AddTree(z, off);
+                // Güzergâha 7 m'den yakın yerde yalnız ince gövdeli ağaç; geniş kayalar daha dışarıda.
+                if (Mathf.Abs(off) < 7f || rnd.NextDouble() < 0.6) t.AddTree(z, off);
                 else t.AddRock(z, off);
+            }
+            // Güzergâhın üstünde de engeller (kullanıcı 2026-10-11: ağaçlar hep kenardaydı, yol dümdüzdü): 24-38 m'de bir,
+            // sırayla sağa-sola kayık; arada kızağın geçeceği boşluk hep kalır (oyuncu aralarından kıvrılır).
+            float turn = 1f;
+            for (float z = 240f; z < t.finishZ - 40f; z += R(45f, 70f))
+            {
+                bool skip = false;
+                foreach (var w in t.water) if (z > w.x - 85f && z < w.y + 25f) skip = true;
+                foreach (var f in t.forks) if (z > f.z0 - 15f && z < f.z1 + 15f) skip = true;
+                foreach (float lip in lips) if (z > lip - 15f && z < lip + 110f) skip = true;
+                if (skip || Mathf.Abs(t.Slope(z)) > 0.3f) continue;
+                float off = turn * R(1.9f, 2.6f);   // güzergâhın yarısını kapatır: öbür yandan ~1 m kayarak geçilir
+                turn = -turn;
+                t.AddTree(z, off);   // güzergâhta yalnız ince gövdeli ağaç (geniş kaya yolu kapatıyordu)
             }
         }
 
@@ -885,6 +914,7 @@ namespace SledSurfers
                 // Kullanıcı kararı (2026-10-10): Orman Çayır'dan farklı hissettirsin: yan yamaç yok (dümdüz açık orman),
                 // zeminde rastgele ağaçlar ve kayalar; aralarından geçilir, çarpan düşer.
                 gt.bankScale = 0f;
+                gt.noPath = true;   // toprak yol yok: çimenli açık orman
                 ScatterForest(gt, 33);
                 AddObstacles(gt, gobs);
                 return gt;

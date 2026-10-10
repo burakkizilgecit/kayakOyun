@@ -137,6 +137,7 @@ namespace SledSurfers
             float best = track.PathX(atZ), bestScore = float.MinValue;
             for (float off = -track.halfWidth; off <= track.halfWidth; off += 0.5f)
             {
+                // Yolsuz haritada (her yer aynı hız) güzergâhın ortasına yakın kalır: yamaca ya da kenardaki engellere sürüklenmesin.
                 float score = -Mathf.Abs(off) * 0.02f;
                 for (float d = 0f; d < look; d += 2f)
                 {
@@ -150,7 +151,7 @@ namespace SledSurfers
                     }
                     if (Mathf.Abs(x - track.CenterX(zz)) > track.halfWidth) { score -= 1f; continue; }
                     var type = track.SurfaceAt(zz, x);
-                    score += type == Surface.Ice ? 1f : type == Surface.Puddle ? -8f : type == Surface.Mud ? -9f : track.OnPath(zz, x) ? 0.3f : 0f;   // su/çamur ~1 m enerji/m
+                    score += type == Surface.Ice ? 1f : type == Surface.Puddle ? -8f : type == Surface.Mud ? -9f : track.NearRoute(zz, x) ? 0.3f : 0f;   // su/çamur ~1 m enerji/m
                     // Kenarına sürtmesin: su/çamurun 0.6 m yakını da cezalı (yanal kayma ve dönüş gecikmesi payı)
                     if (type != Surface.Puddle && type != Surface.Mud)
                         foreach (float e in Margins)
@@ -165,7 +166,10 @@ namespace SledSurfers
                 foreach (var o in track.obstacles)
                 {
                     if (o.z < atZ - 2f || o.z > atZ + look * 1.5f) continue;
-                    if (Mathf.Abs(track.PathX(o.z) + off - o.x) < o.halfWidth + 1.6f) score -= 40f;
+                    // Yakındaki engel ağır, uzaktaki hafif cezalı: sık engelli pistte bütün şeritler "kapalı" görünüp rastgele
+                    // seçilmesin; önce en yakın engelden kaçılır, sonrakine yeniden bakılır.
+                    if (Mathf.Abs(track.PathX(o.z) + off - o.x) < o.halfWidth + 1.6f)
+                        score -= 40f * Mathf.Clamp01(1.15f - (o.z - atZ) / (look * 1.5f));
                 }
                 if (score > bestScore) { bestScore = score; best = track.PathX(atZ) + off; }
             }

@@ -580,7 +580,9 @@ namespace SledSurfers
             {
                 if (Mathf.Abs(position.z - o.z) > o.halfDepth + HalfLength) continue;
                 if (Mathf.Abs(position.x - o.x) > o.halfWidth + HalfWidth) continue;
-                if (position.y - track.Height(o.x, o.z) > o.height) continue;
+                // Ağaçta yalnız gövdenin alt 1.5 m'si çarpar: dalgadan havalanan kızak dalların arasından geçer
+                // (hızlı kızak havada yön değiştiremediği için her uçuş ağaçta bitiyordu).
+                if (position.y - track.Height(o.x, o.z) > (o.variant == 4 ? 1.5f : o.height)) continue;
                 velocity = Vector3.zero;
                 ForceEnd(RunEnd.Crashed, o.variant == 4 ? "Ağaca çarptın!" : o.isRock ? "Kayaya çarptın!" : "Kasaya çarptın!");
                 return;
