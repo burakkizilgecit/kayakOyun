@@ -228,6 +228,13 @@ namespace SledSurfers.EditorTools
                 if (arg.StartsWith("player=")) ladderKind = SimPlayer.Parse(arg.Substring(7));
                 if (arg.StartsWith("seeds=")) ladderSeeds = int.Parse(arg.Substring(6));
                 if (arg == "forks=0") System.Array.Clear(TrackLibrary.ForkChance, 0, TrackLibrary.ForkChance.Length);
+                if (arg.StartsWith("wall=")) TrackLibrary.WallRise[track] = ParseF(arg.Substring(5));
+                if (arg.StartsWith("drag="))   // kızak kartının hava direnci çarpanı: baş,son
+                {
+                    var v = System.Array.ConvertAll(arg.Substring(5).Split(','), ParseF);
+                    TrackLibrary.DragStart[track] = v[0];
+                    TrackLibrary.DragEnd[track] = v[1];
+                }
                 if (arg.StartsWith("meadow="))   // çayır: net,araTepe,yokuşEğimi,tepeA,tepeB,zorluA,zorluB
                 {
                     var v = System.Array.ConvertAll(arg.Substring(7).Split(','), ParseF);

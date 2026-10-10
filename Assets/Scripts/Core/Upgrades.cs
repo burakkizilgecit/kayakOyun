@@ -152,6 +152,7 @@ namespace SledSurfers
                 c.glideTime = GlideTime(WingLevel);
             }
             if (Parts >= 2) c.dragArea *= 0.88f;
+            c.dragArea *= Mathf.Lerp(TrackLibrary.DragStart[Track], TrackLibrary.DragEnd[Track], (float)ru / Max);
             c.propThrust = PropThrust(Parts);
             c.parts = Parts;
             c.vehicle = TrackLibrary.Vehicles[Track];

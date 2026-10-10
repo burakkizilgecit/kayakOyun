@@ -20,7 +20,7 @@ namespace SledSurfers
         public static readonly float[] MilkHeadroomScale = { 1f, 1f, 1f, 1f, 1f, 1f, 1.8f };
         public static float[] PowerStart = { 0f, 5f, 7f, 8f, 9f, 10f, 10f };
         public static float[] PowerEnd = { 15f, 18f, 21f, 23f, 24f, 25f, 25f };
-        public static float[] CostScale = { 1f, 1.8f, 4f, 2.6f, 3.6f, 3f, 16f };   // 2026-10-10: referans fiyat eğrisi (5×aşama, 1.4→1.24) ile
+        public static float[] CostScale = { 1f, 1.8f, 4f, 2.6f, 3.6f, 3f, 4f };   // 2026-10-10: referans fiyat eğrisi (5×aşama, 1.4→1.24) ile
         /// Pistin aracı: son üç haritada aracın şekli tamamen değişir.
         public static readonly VehicleKind[] Vehicles =
             { VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sandboard, VehicleKind.Bobsled, VehicleKind.Hover };
@@ -347,6 +347,13 @@ namespace SledSurfers
         /// uzar; kanal BoostSoft kadar yatıklaşır ve aynı düşüşü korumak için o oranda daha da uzar (pistin toplam
         /// düşüşü, yani ekonomi, aşağı yukarı aynı kalır; hız daha az dalgalanır).
         public static float CycleScale = 1.8f, BoostSoft = 0.7f;
+        /// Krater duvarının yüksekliği (m; 0 = yok) ve pistteki yeri (uzunluk oranı).
+        public static float[] WallRise = { 0f, 0f, 0f, 0f, 0f, 0f, 16f };
+        public static float WallAt = 0.72f;
+        /// Kızak kartının hava direncine etkisi (ilk kademe → son kademe çarpanı). Mars'ta sürtünme küçük, belirleyici olan
+        /// hava direnci: hover gövdesi yükseldikçe aerodinamikleşir, böylece yükseltme mesafeye yansır.
+        public static float[] DragStart = { 1f, 1f, 1f, 1f, 1f, 1f, 1.8f };
+        public static float[] DragEnd = { 1f, 1f, 1f, 1f, 1f, 1f, 0.7f };
         /// İnce köprü olasılığı (yamaç başına) ve iki köprü arası en az mesafe; köprü uzunluğu pist boyunca uzar.
         public static float[] BridgeChance = { 0.5f, 0.45f, 0.35f, 0.5f, 0.25f, 0.22f, 0.22f };   // son üç pist uzun: köprü sayısı 3-4 (7 köprüde hızlı kızak hep birinde düşüyordu)
         public const float BridgeSpacing = 120f, BridgeDepth = 5f, BridgeLead = 40f;
@@ -378,6 +385,7 @@ namespace SledSurfers
                 p.pickupAhead = ahead;
             }
             int i = 0;
+            bool wallBuilt = false;
             float lastBridge = -BridgeSpacing;
             while (true)
             {
@@ -389,6 +397,17 @@ namespace SledSurfers
                 // Yamaç-kanal döngüsü bitiş çizgisini geçene kadar sürer: sonda kanalsız uzun yamaç (duvar) kalmasın,
                 // zorluk yalnızca eğimin pist boyunca azalmasından gelsin (her seviye biraz daha ileri).
                 if (p.z > length + 20f) break;
+                // Krater duvarı (Mars, kullanıcı kararı 2026-10-10): pistin sonlarına doğru dik bir tırmanış; hız tek
+                // başına yetmez, roketle aşılır (roket kademesi belirleyici). İlerleme çubuğunda roket tepesi olarak işaretli.
+                if (WallRise[track] > 0f && !wallBuilt && p.z > length * WallAt)
+                {
+                    wallBuilt = true;
+                    float rise = WallRise[track], w0 = p.z;
+                    p.Flat(12f).To(rise / 0.3f, rise).Flat(8f);
+                    p.rocketHills.Add(p.z - 4f);
+                    p.To(rise / 0.22f, -rise);
+                    p.straight.Add(new Vector2(w0 - 30f, p.z + 40f));
+                }
                 // Yavaşlama yamacı: hafif dalgalı. Bazılarının başında (kanal çıkışı, hız en yüksekken) atlama rampası:
                 // havada kalış = coin. Yamaç ortasındaki rampa yavaşlamış kızağı hep aynı yerde durduruyordu.
                 bool kick = i > 0 && rnd.NextDouble() < kickChance;

@@ -47,6 +47,28 @@ namespace SledSurfers
                 yield break;
             }
 
+            if (mode == "wall")
+            {
+                // Mars krater duvarı: yaklaşırken ve tırmanırken
+                game.DebugHideTutorial();
+                game.debugAutopilot = true;
+                game.DebugReset(new[] { 26, 26, 16, 26, 26 }, 0);
+                game.DebugTrack(6, 6);
+                yield return new WaitForSeconds(1.5f);
+                game.DebugAim();
+                yield return new WaitForSeconds(0.5f);
+                game.DebugLaunch(1f);
+                float wallZ = game.DebugRocketHillZ, wt = 0f;
+                while (!game.DebugInResult && game.DebugDistance < wallZ - 75f && wt < 240f) { wt += Time.deltaTime; yield return null; }
+                yield return Shot("w_0ahead");
+                while (!game.DebugInResult && game.DebugDistance < wallZ - 25f && wt < 240f) { wt += Time.deltaTime; yield return null; }
+                yield return Shot("w_1climb");
+                while (!game.DebugInResult && game.DebugDistance < wallZ + 5f && wt < 240f) { wt += Time.deltaTime; yield return null; }
+                yield return Shot("w_2top");
+                SaveData.ClearAll();   // yalnız test önekli kayıt (gerçek kayıt korunur)
+                Application.Quit();
+                yield break;
+            }
             if (mode == "surfaces")
             {
                 yield return SurfaceShots();
