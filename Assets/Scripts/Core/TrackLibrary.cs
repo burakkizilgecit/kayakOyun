@@ -338,15 +338,20 @@ namespace SledSurfers
 
         /// Pist başına süzülme ayarları: yavaşlama yamacı eğimi (pist başında → sonunda; sona doğru düzleşir, her kızak
         /// seviyesi bir iki yamaç daha aşar), yamaç uzunluğu, kanal eğimi ve uzunluğu.
-        public static float[] SlowGrade = { 0.175f, 0.105f, 0.14f, 0.1f, 0.1f, 0.08f, 0.08f };   // 2026-10-10: uzun yokuşlarla yeniden tarandı (Mars: sona doğru belirgin azalır; pervane telafisiyle sonda hafif yokuş yukarı)
-        public static float[] SlowGradeEnd = { 0.17f, 0.105f, 0.14f, 0.1f, 0.1f, 0.08f, 0.045f };
+        public static float[] SlowGrade = { 0.19f, 0.095f, 0.14f, 0.1f, 0.1f, 0.08f, 0.08f };   // 2026-10-10: uzun yokuşlarla yeniden tarandı (Mars: sona doğru belirgin azalır; pervane telafisiyle sonda hafif yokuş yukarı)
+        public static float[] SlowGradeEnd = { 0.185f, 0.095f, 0.14f, 0.1f, 0.1f, 0.08f, 0.045f };
         public static Vector2[] SlowLength = { new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f) };
         public static float[] BoostGrade = { 0.42f, 0.36f, 0.36f, 0.34f, 0.34f, 0.34f, 0.32f };
         public static float[] BoostLength = { 25f, 25f, 25f, 25f, 25f, 25f, 25f };
         /// Kullanıcı isteği (2026-10-09, oyun videoları): uzun ama düşük eğimli yokuşlar. Yamaç ve kanal CycleScale kat
         /// uzar; kanal BoostSoft kadar yatıklaşır ve aynı düşüşü korumak için o oranda daha da uzar (pistin toplam
         /// düşüşü, yani ekonomi, aşağı yukarı aynı kalır; hız daha az dalgalanır).
-        public static float CycleScale = 1.8f, BoostSoft = 0.7f;
+        public static float BoostSoft = 0.7f;
+        /// Parkur başına uzatma: Çayır'da az (kullanıcı 2026-10-10: ilk parkurda uzun düzlükler boş duruyordu), sonraki
+        /// parkurlarda giderek uzun yokuşlar. WaveLength: yamaçtaki dalgaların aralığı (m), WaveAmp: yüksekliği.
+        public static float[] CycleScale = { 1.1f, 1.4f, 1.8f, 1.8f, 1.8f, 1.8f, 1.8f };
+        public static float[] WaveLength = { 48f, 50f, 70f, 70f, 70f, 70f, 70f };
+        public static float[] WaveAmp = { 0.5f, 0.6f, 0.6f, 0.6f, 0.6f, 0.6f, 0.6f };
         /// Krater duvarının yüksekliği (m; 0 = yok) ve pistteki yeri (uzunluk oranı).
         public static float[] WallRise = { 0f, 0f, 0f, 0f, 0f, 0f, 16f };
         public static float WallAt = 0.72f;
@@ -372,7 +377,7 @@ namespace SledSurfers
         static List<Vector2> Glide(Path p, int track, int seed, float kickChance, bool snow, bool allowIce)
         {
             float length = Lengths[track], slowGrade, boostGrade = BoostGrade[track] * BoostSoft,
-                  boostLen = BoostLength[track] * CycleScale;   // yatık kanalda hava direnci az: düşüş de %30 az
+                  boostLen = BoostLength[track] * CycleScale[track];   // yatık kanalda hava direnci az: düşüş de %30 az
             var rnd = new System.Random(seed);
             var brnd = new System.Random(seed ^ 0xb21d);   // köprüler ayrı: pistin geri kalanının dizilişi değişmesin
             var frnd = new System.Random(seed ^ 0xf04c);   // çatallar da ayrı
@@ -393,7 +398,7 @@ namespace SledSurfers
                 // Kalıcı pervane (bu piste gelen oyuncuda takılı) yamaçta eğim gibi iter: pist o kadar yatık kurulur ki
                 // ekonomi pervanesiz ayarla aynı kalsın; pervane eski pistlere dönünce gerçek avantaj olur.
                 slowGrade = Mathf.Lerp(SlowGrade[track], SlowGradeEnd[track], t) - PropGrade(track);
-                float L = Mathf.Lerp(SlowLength[track].x, SlowLength[track].y, t) * CycleScale * R(0.85f, 1.15f);
+                float L = Mathf.Lerp(SlowLength[track].x, SlowLength[track].y, t) * CycleScale[track] * R(0.85f, 1.15f);
                 // Yamaç-kanal döngüsü bitiş çizgisini geçene kadar sürer: sonda kanalsız uzun yamaç (duvar) kalmasın,
                 // zorluk yalnızca eğimin pist boyunca azalmasından gelsin (her seviye biraz daha ileri).
                 if (p.z > length + 20f) break;
@@ -471,7 +476,7 @@ namespace SledSurfers
                     }
                 p.mute = false;
                 // Yamaç (rampadan sonra başlar; su/çamur ve buz konumları buna göre)
-                p.Hills(L, Mathf.Max(1, Mathf.RoundToInt(L / 70f)), 0.6f, slowGrade * L + Mathf.Max(0f, kickH - 0.8f), kick ? 1.4f : 1f);
+                p.Hills(L, Mathf.Max(1, Mathf.RoundToInt(L / WaveLength[track])), WaveAmp[track], slowGrade * L + Mathf.Max(0f, kickH - 0.8f), kick ? 1.4f : 1f);
                 // Hız toplatan iniş kanalı (Çayır'da buzsuz)
                 if (allowIce) p.Lane(Surface.Ice, 4f, boostLen - 8f, -1.8f, 1.8f, true);
                 p.Hills(boostLen, 1, 0f, boostGrade * boostLen, 1.2f);

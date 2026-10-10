@@ -209,8 +209,7 @@ namespace SledSurfers
                 }
                 else
                 {
-                    go = GameObject.CreatePrimitive(it.gem ? PrimitiveType.Sphere : PrimitiveType.Cylinder);
-                    Object.Destroy(go.GetComponent<Collider>());
+                    go = Mats.Primitive(it.gem ? PrimitiveType.Sphere : PrimitiveType.Cylinder);
                     go.transform.SetParent(root, false);
                     go.transform.localScale = it.gem ? Vector3.one * GemSize : new Vector3(CoinSize, 0.06f, CoinSize);
                     go.GetComponent<Renderer>().sharedMaterial = it.gem ? gemMat : Mats.Solid(new Color(1f, 0.8f, 0.2f), 0.7f);
@@ -251,8 +250,7 @@ namespace SledSurfers
             for (int i = 0; i < seg; i++)
             {
                 float a = i * Mathf.PI * 2f / seg;
-                var bead = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                Object.Destroy(bead.GetComponent<Collider>());
+                var bead = Mats.Primitive(PrimitiveType.Cube);
                 bead.transform.SetParent(rocketPickup, false);
                 bead.transform.localPosition = new Vector3(Mathf.Cos(a), Mathf.Sin(a), 0f) * 1.25f;
                 bead.transform.localRotation = Quaternion.Euler(0f, 0f, a * Mathf.Rad2Deg);

@@ -113,13 +113,26 @@ namespace SledSurfers
             return glassTemplate != null ? new Material(glassTemplate) : Solid(new Color(0.85f, 0.95f, 1f), 0.9f);
         }
 
+        static readonly System.Collections.Generic.Dictionary<PrimitiveType, Mesh> primMeshes =
+            new System.Collections.Generic.Dictionary<PrimitiveType, Mesh>();
+
+        /// Hazır şekil (küp, küre, silindir...) çarpışma bileşeni olmadan: GameObject.CreatePrimitive her şekle Collider
+        /// ekler, Android (IL2CPP) derlemesinde fizik modülü atıldığı için her çağrıda "class doesn't exist" hatası
+        /// veriyordu (2026-10-10). Oyun fiziği kendi koduyla (SledPhysics) çalışır, Unity fiziği kullanılmaz.
+        public static GameObject Primitive(PrimitiveType type)
+        {
+            var go = new GameObject(type.ToString());
+            go.AddComponent<MeshFilter>().sharedMesh = PrimitiveMesh(type);
+            go.AddComponent<MeshRenderer>();
+            return go;
+        }
+
         public static Transform Prim(PrimitiveType type, string name, Transform parent,
                                      Vector3 localPos, Vector3 localScale, Material mat,
                                      Quaternion? localRot = null, int layer = 0)
         {
-            var go = GameObject.CreatePrimitive(type);
+            var go = Primitive(type);
             go.name = name;
-            Object.Destroy(go.GetComponent<Collider>());
             go.layer = layer;
             var t = go.transform;
             t.SetParent(parent, false);
@@ -141,9 +154,8 @@ namespace SledSurfers
 
         public static Mesh PrimitiveMesh(PrimitiveType type)
         {
-            var go = GameObject.CreatePrimitive(type);
-            var mesh = go.GetComponent<MeshFilter>().sharedMesh;
-            Object.Destroy(go);
+            if (!primMeshes.TryGetValue(type, out var mesh) || mesh == null)
+                primMeshes[type] = mesh = Resources.GetBuiltinResource<Mesh>(type + ".fbx");
             return mesh;
         }
     }
