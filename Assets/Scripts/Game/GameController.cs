@@ -545,12 +545,8 @@ namespace SledSurfers
 
         Color dustColor = Color.white;
         Vector2 camDir = Vector2.up;   // koşu kamerasının yumuşatılmış yatay yönü (x, z)
-        /// Elmasla coin paketleri: miktar bulunulan parkurun fiyat düzeyine göre (ucuz bir yükseltmenin ~4, 15 ve 45 katı).
-        int[] CoinPackAmounts()
-        {
-            float unit = 250f * TrackLibrary.CostScale[save.track];
-            return new[] { Round50(unit * 4f), Round50(unit * 15f), Round50(unit * 45f) };
-        }
+        /// Elmasla coin paketleri: altı sabit miktar (GameUI.CoinPackCoins).
+        int[] CoinPackAmounts() => GameUI.CoinPackCoins;
 
         static int Round50(float v) => Mathf.Max(50, Mathf.RoundToInt(v / 50f) * 50);
 

@@ -1422,7 +1422,7 @@ namespace SledSurfers
 
         VisualElement shopModal, shopBody, offerModal, offerCard;
         Label shopNote, shopGems;
-        readonly Label[] shopCoinAmounts = new Label[3];
+        readonly Label[] shopCoinAmounts = new Label[6];
         float shopNoteClock = -1f;
 
         static readonly int[] GemPacks = { 10, 30, 100, 150, 200, 500 };
@@ -1430,7 +1430,9 @@ namespace SledSurfers
         static readonly int[] LaunchPacks = { 20, 80, 200 };
         static readonly string[] LaunchPrices = { "$0.99", "$2.49", "$4.99" };
         /// Elmasla coin paketleri (ödeme gerektirmez, hemen çalışır): elmas fiyatı; coin miktarı parkura göre (GameController).
-        public static readonly int[] CoinPackGems = { 3, 10, 25 };
+        public static readonly int[] CoinPackGems = { 5, 12, 25, 45, 60, 75 };
+        /// Coin paketlerinin miktarları (kullanıcı kararı 2026-10-11: altı sabit paket).
+        public static readonly int[] CoinPackCoins = { 7500, 20000, 50000, 100000, 150000, 200000 };
 
         VisualElement Section(string text)
         {
@@ -1516,13 +1518,18 @@ namespace SledSurfers
 
             // Coin: elmasla (ödeme gerektirmez; elmasa kullanım alanı)
             shopBody.Add(Section("COINS"));
-            var coinRow = E("row", "shop-grid");
+            VisualElement coinRow = null;
             for (int k = 0; k < CoinPackGems.Length; k++)
             {
                 int index = k;
+                if (k % 3 == 0)
+                {
+                    coinRow = E("row", "shop-grid");
+                    shopBody.Add(coinRow);
+                }
                 var cell = E("card", "col", "shop-cell");
                 shopCoinAmounts[k] = L("", "outlined");
-                shopCoinAmounts[k].style.fontSize = 52;
+                shopCoinAmounts[k].style.fontSize = 46;
                 cell.Add(shopCoinAmounts[k]);
                 cell.Add(ShopArt("coins_" + (k + 1), IconKind.Coin, 96 + 14 * k));
                 var buy = B(() => ShopBuyCoins?.Invoke(index), "btn", "btn-blue", "shop-price");
@@ -1531,7 +1538,6 @@ namespace SledSurfers
                 cell.Add(buy);
                 coinRow.Add(cell);
             }
-            shopBody.Add(coinRow);
 
             shopModal.Add(scroll);
             shopModal.Add(shopNote);
