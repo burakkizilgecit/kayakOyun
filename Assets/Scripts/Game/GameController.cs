@@ -146,6 +146,7 @@ namespace SledSurfers
         public void DebugSettings(bool show) => ui.DebugSettings(show);
         public void DebugBuy(int i) => Buy(i);
         public void DebugMap() => ui.ShowMap(save);
+        public void DebugShopScroll() => ui.DebugShopScroll();
         public void DebugShop() => ui.ShowShop(save.gems, CoinPackAmounts(), save.FreeGemsLeft);
         public void DebugOffer(int index)
         {

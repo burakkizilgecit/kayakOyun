@@ -24,6 +24,7 @@ namespace SledSurfers
                 var shot = game.gameObject.AddComponent<AutoShot>();
                 shot.game = game;
                 game.debugUnlimitedLaunches = true;
+                Application.runInBackground = true;   // pencere odakta değilken de sürsün (kullanıcı bilgisayarı kullanırken test duruyordu)
                 // Kullanıcı isteği: otomatik test oyunları kısık sesle oynar.
                 SoundFx.MaxVolume = 0.1f;
                 AudioListener.volume = Mathf.Min(AudioListener.volume, SoundFx.MaxVolume);
@@ -132,6 +133,9 @@ namespace SledSurfers
                 game.DebugShop();
                 yield return new WaitForSeconds(0.8f);
                 yield return Shot("k_shop");
+                game.DebugShopScroll();
+                yield return new WaitForSeconds(0.5f);
+                yield return Shot("k_shop2");
                 for (int d = 0; d < Store.Deals.Length; d++)
                 {
                     game.DebugHub();

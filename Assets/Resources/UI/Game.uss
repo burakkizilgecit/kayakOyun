@@ -485,7 +485,9 @@
 .shop-page { padding: 24px 28px 0 28px; -unity-background-scale-mode: stretch-to-fill; }
 .shop-close { background-color: #F0453A; border-color: #B0261E; font-size: 60px; color: #FFFFFF; }
 .shop-section { font-size: 50px; color: #FFFFFF; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); -unity-text-align: middle-center;
-                margin: 34px 0 10px 0; -unity-text-outline-width: 4px; -unity-text-outline-color: rgba(30, 24, 80, 0.6); }
+                align-self: center; margin: 34px 0 10px 0; padding: 4px 44px 0 44px; border-radius: 30px;
+                background-color: rgba(40, 60, 150, 0.82); border-bottom-width: 6px; border-color: rgba(20, 30, 90, 0.6);
+                -unity-text-outline-width: 0; }
 .shop-bundle { flex-direction: row; align-items: center; border-radius: 44px; margin-top: 46px; padding: 20px 22px 22px 14px;
                border-width: 6px; border-bottom-width: 16px; border-color: rgba(255, 255, 255, 0.9); -unity-background-scale-mode: stretch-to-fill; }
 .shop-art { width: 250px; height: 220px; align-items: center; justify-content: center; }

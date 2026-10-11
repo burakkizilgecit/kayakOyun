@@ -1449,7 +1449,10 @@ namespace SledSurfers
         {
             shopModal = E("fill", "pick", "shop-page");
             shopModal.style.display = DisplayStyle.None;
-            shopModal.style.backgroundImage = new StyleBackground(VGrad(new Color32(0x5C, 0x7C, 0xF0, 0xFF), new Color32(0x8A, 0x70, 0xE8, 0xFF)));
+            // Arka plan: kullanıcının verdiği karlı manzara (Resources/UI/Shop/shop_bg); yoksa mor-mavi geçiş.
+            var shopBg = Resources.Load<Texture2D>("UI/Shop/shop_bg");
+            shopModal.style.backgroundImage = new StyleBackground(shopBg != null ? shopBg : VGrad(new Color32(0x5C, 0x7C, 0xF0, 0xFF), new Color32(0x8A, 0x70, 0xE8, 0xFF)));
+            if (shopBg != null) shopModal.style.unityBackgroundScaleMode = ScaleMode.ScaleAndCrop;
 
             var top = E("topbar");
             var wallet = E("row");
@@ -1586,6 +1589,8 @@ namespace SledSurfers
         Button shopFreeBtn;
         Label shopFreeLabel;
         int shopFreeLeft;
+
+        public void DebugShopScroll() { var sv = shopBody.parent?.parent as ScrollView ?? shopModal.Q<ScrollView>(); if (sv != null) sv.ScrollTo(shopBody[shopBody.childCount - 1]); }
 
         public void RefreshShop(int gems, int[] coinAmounts, int freeGemsLeft)
         {
