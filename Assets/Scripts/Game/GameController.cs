@@ -146,7 +146,7 @@ namespace SledSurfers
         public void DebugSettings(bool show) => ui.DebugSettings(show);
         public void DebugBuy(int i) => Buy(i);
         public void DebugMap() => ui.ShowMap(save);
-        public void DebugShop() => ui.ShowShop(save.gems, CoinPackAmounts());
+        public void DebugShop() => ui.ShowShop(save.gems, CoinPackAmounts(), save.FreeGemsLeft);
         public void DebugOffer() => ui.ShowOffer(WelcomeOffer());
         /// Roket düğmesine basılmış gibi (arayüz olayının yolu) ve roket durumu.
         public void DebugPressRocket() => rocketRequested = true;
@@ -1143,13 +1143,15 @@ namespace SledSurfers
         void WireUi()
         {
             ui.Retry += EnterAim;
-            ui.OpenShop += () => ui.ShowShop(save.gems, CoinPackAmounts());
+            ui.OpenShop += () => ui.ShowShop(save.gems, CoinPackAmounts(), save.FreeGemsLeft);
             ui.ShopFreeGem += () =>
             {
+                if (save.FreeGemsLeft <= 0) return;
+                save.UseFreeGem();
                 save.gems += 1;
                 save.Save();
                 sfx.Coin();
-                ui.RefreshShop(save.gems, CoinPackAmounts());
+                ui.RefreshShop(save.gems, CoinPackAmounts(), save.FreeGemsLeft);
                 ui.RefreshHub(save, -1);
             };
             ui.ShopBuyCoins += k =>
@@ -1160,7 +1162,7 @@ namespace SledSurfers
                 save.money += CoinPackAmounts()[k];
                 save.Save();
                 sfx.Coin();
-                ui.RefreshShop(save.gems, CoinPackAmounts());
+                ui.RefreshShop(save.gems, CoinPackAmounts(), save.FreeGemsLeft);
                 ui.RefreshHub(save, -1);
             };
             // Gerçek ödeme henüz bağlı değil: satın alma düğmeleri yalnızca bilgi verir.

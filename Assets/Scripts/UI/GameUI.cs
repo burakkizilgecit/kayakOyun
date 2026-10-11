@@ -1544,10 +1544,12 @@ namespace SledSurfers
             freeText.style.flexGrow = 1;
             freeText.style.marginLeft = 10;
             free.Add(freeText);
-            var freeBtn = B(() => ShowAd(() => ShopFreeGem?.Invoke()), "btn", "btn-blue", "shop-price");
+            // Günde en çok SaveData.FreeGemsPerDay kez; hak bitince düğme söner ve "Tomorrow" yazar.
+            var freeBtn = shopFreeBtn = B(() => { if (shopFreeLeft > 0) ShowAd(() => ShopFreeGem?.Invoke()); }, "btn", "btn-blue", "shop-price");
             freeBtn.Add(new Icon(IconKind.Video, 56));
-            freeBtn.Add(Sp(L("FREE"), 10));
-            freeBtn.style.width = 300;
+            shopFreeLabel = Sp(L("FREE"), 10);
+            freeBtn.Add(shopFreeLabel);
+            freeBtn.style.width = 340;
             free.Add(freeBtn);
             shopBody.Add(free);
             shopBody.Add(Grid(GemPacks, GemPrices, IconKind.Gem, "gems_", new[] { -1, -1, 2, -1, -1, 5 }, new[] { "POPULAR", "BEST VALUE" }));
@@ -1600,14 +1602,21 @@ namespace SledSurfers
         }
 
         /// coinAmounts: elmasla coin paketlerinin bu parkurdaki miktarları.
-        public void ShowShop(int gems, int[] coinAmounts)
+        public void ShowShop(int gems, int[] coinAmounts, int freeGemsLeft)
         {
-            RefreshShop(gems, coinAmounts);
+            RefreshShop(gems, coinAmounts, freeGemsLeft);
             shopModal.style.display = DisplayStyle.Flex;
         }
 
-        public void RefreshShop(int gems, int[] coinAmounts)
+        Button shopFreeBtn;
+        Label shopFreeLabel;
+        int shopFreeLeft;
+
+        public void RefreshShop(int gems, int[] coinAmounts, int freeGemsLeft)
         {
+            shopFreeLeft = freeGemsLeft;
+            shopFreeLabel.text = freeGemsLeft > 0 ? "FREE " + freeGemsLeft + "/" + SaveData.FreeGemsPerDay : "TOMORROW";
+            shopFreeBtn.style.opacity = freeGemsLeft > 0 ? 1f : 0.5f;
             shopGems.text = gems.ToString();
             for (int k = 0; k < shopCoinAmounts.Length; k++) shopCoinAmounts[k].text = coinAmounts[k].ToString("N0", Tr);
         }

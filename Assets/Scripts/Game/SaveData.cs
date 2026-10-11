@@ -83,6 +83,16 @@ namespace SledSurfers
             loginStreak = day;
         }
 
+        /// Mağazada reklamla ücretsiz elmas: günde en çok FreeGemsPerDay (kullanıcı kararı 2026-10-11).
+        public const int FreeGemsPerDay = 2;
+        public int adGemDay, adGemCount;
+        public int FreeGemsLeft => adGemDay == DailyQuests.Today ? Mathf.Max(0, FreeGemsPerDay - adGemCount) : FreeGemsPerDay;
+        public void UseFreeGem()
+        {
+            if (adGemDay != DailyQuests.Today) { adGemDay = DailyQuests.Today; adGemCount = 0; }
+            adGemCount++;
+        }
+
         public int track;      // seçili parkur
         public int avatar;     // seçili karakter (AvatarLibrary)
         public int avatarsOwned = 0b1;   // sahip olunan karakterler (bit maskesi; ilki — Panda — ücretsiz)
@@ -147,7 +157,7 @@ namespace SledSurfers
         static System.Collections.Generic.IEnumerable<string> Keys()
         {
             for (int t = 0; t < TrackLibrary.Count; t++) { PlayerPrefs.DeleteKey(K("money_t" + t)); PlayerPrefs.DeleteKey(K("taken_t" + t)); }
-            foreach (var k in new[] { "takenDay", "lday", "lstreak", "qday", "qtrack", "qp0", "qp1", "qp2", "qclaim", "money", "gems", "chest", "launches", "launchTicks", "hand", "sound", "track", "avatar", "avatars", "avatar2", "avatars2", "unlocked",
+            foreach (var k in new[] { "adGemDay", "adGemCount", "takenDay", "lday", "lstreak", "qday", "qtrack", "qp0", "qp1", "qp2", "qclaim", "money", "gems", "chest", "launches", "launchTicks", "hand", "sound", "track", "avatar", "avatars", "avatar2", "avatars2", "unlocked",
                                       "sens", "tut" })
                 yield return k;
             for (int t = 0; t < TrackLibrary.Count; t++)
@@ -202,6 +212,8 @@ namespace SledSurfers
                 PlayerPrefs.DeleteKey(K("money"));
             }
             s.takenDay = PlayerPrefs.GetInt(K("takenDay"), 0);
+            s.adGemDay = PlayerPrefs.GetInt(K("adGemDay"), 0);
+            s.adGemCount = PlayerPrefs.GetInt(K("adGemCount"), 0);
             s.questDay = PlayerPrefs.GetInt(K("qday"), 0);
             s.questTrack = Mathf.Clamp(PlayerPrefs.GetInt(K("qtrack"), 0), 0, TrackLibrary.Count - 1);
             for (int i = 0; i < DailyQuests.PerDay; i++) s.questProgress[i] = PlayerPrefs.GetInt(K("qp" + i), 0);
@@ -219,6 +231,8 @@ namespace SledSurfers
                 PlayerPrefs.SetString(K("taken_t" + t), taken[t] ?? "");
             }
             PlayerPrefs.SetInt(K("takenDay"), takenDay);
+            PlayerPrefs.SetInt(K("adGemDay"), adGemDay);
+            PlayerPrefs.SetInt(K("adGemCount"), adGemCount);
             PlayerPrefs.SetInt(K("gems"), gems);
             PlayerPrefs.SetString(K("chest"), chestReadyTicks.ToString());
             PlayerPrefs.SetInt(K("launches"), launches);
