@@ -1160,17 +1160,6 @@ namespace SledSurfers
                 ui.RefreshShop(save.gems, CoinPackAmounts(), save.FreeGemsLeft);
                 ui.RefreshHub(save, -1);
             };
-            ui.ShopBuyCoins += k =>
-            {
-                int cost = GameUI.CoinPackGems[k];
-                if (save.gems < cost) { sfx.Deny(); ui.ShopNote("Not enough gems"); return; }
-                save.gems -= cost;
-                save.money += CoinPackAmounts()[k];
-                save.Save();
-                sfx.Coin();
-                ui.RefreshShop(save.gems, CoinPackAmounts(), save.FreeGemsLeft);
-                ui.RefreshHub(save, -1);
-            };
             // Gerçek ödeme henüz bağlı değil: satın alma düğmeleri yalnızca bilgi verir.
             ui.ShopPurchase += id => { sfx.Deny(); ui.ShopNote("Purchases are coming soon"); };
             ui.TestOffer += () =>

@@ -1430,7 +1430,6 @@ namespace SledSurfers
         static readonly int[] LaunchPacks = { 20, 80, 200 };
         static readonly string[] LaunchPrices = { "$0.99", "$2.49", "$4.99" };
         /// Elmasla coin paketleri (ödeme gerektirmez, hemen çalışır): elmas fiyatı; coin miktarı parkura göre (GameController).
-        public static readonly int[] CoinPackGems = { 5, 12, 25, 45, 60, 75 };
         /// Coin paketlerinin miktarları (kullanıcı kararı 2026-10-11: altı sabit paket).
         public static readonly int[] CoinPackCoins = { 7500, 20000, 50000, 100000, 150000, 200000 };
 
@@ -1516,12 +1515,11 @@ namespace SledSurfers
             shopBody.Add(Section("LAUNCHES"));
             shopBody.Add(Grid(LaunchPacks, LaunchPrices, IconKind.Slingshot, "launches_", null, null));
 
-            // Coin: elmasla (ödeme gerektirmez; elmasa kullanım alanı)
+            // Coin paketleri
             shopBody.Add(Section("COINS"));
             VisualElement coinRow = null;
-            for (int k = 0; k < CoinPackGems.Length; k++)
+            for (int k = 0; k < CoinPackCoins.Length; k++)
             {
-                int index = k;
                 if (k % 3 == 0)
                 {
                     coinRow = E("row", "shop-grid");
@@ -1532,10 +1530,9 @@ namespace SledSurfers
                 shopCoinAmounts[k].style.fontSize = 46;
                 cell.Add(shopCoinAmounts[k]);
                 cell.Add(ShopArt("coins_" + (k + 1), IconKind.Coin, 96 + 14 * k));
-                var buy = B(() => ShopBuyCoins?.Invoke(index), "btn", "btn-blue", "shop-price");
-                buy.Add(new Icon(IconKind.Gem, 48));
-                buy.Add(Sp(L(CoinPackGems[k].ToString()), 8));
-                cell.Add(buy);
+                // Coin paketleri gerçek parayla satılır (kullanıcı kararı 2026-10-11); fiyat mağazadan.
+                string coinId = "coins_" + CoinPackCoins[k];
+                cell.Add(PriceButton(Store.Price(coinId), () => ShopPurchase?.Invoke(coinId)));
                 coinRow.Add(cell);
             }
 

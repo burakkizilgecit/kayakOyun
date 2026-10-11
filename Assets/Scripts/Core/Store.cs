@@ -11,7 +11,9 @@ namespace SledSurfers
         {
             { "noads_pack", "$4.99" }, { "noads", "$3.49" }, { "double_rocket", "$5.99" }, { "auto_x3", "$2.49" },
             { "gems_10", "$1.99" }, { "gems_30", "$4.99" }, { "gems_100", "$9.99" }, { "gems_150", "$13.99" }, { "gems_200", "$17.99" },
-            { "gems_500", "$19.99" }, { "launches_20", "$0.99" }, { "launches_80", "$2.49" }, { "launches_200", "$4.99" },
+            { "gems_500", "$19.99" }, { "coins_7500", "$0.99" }, { "coins_20000", "$1.99" }, { "coins_50000", "$3.99" }, { "coins_100000", "$6.99" },
+            { "coins_150000", "$8.99" }, { "coins_200000", "$9.99" },
+            { "launches_20", "$0.99" }, { "launches_80", "$2.49" }, { "launches_200", "$4.99" },
             { "deal_auto_x3", "$1.99" }, { "deal_double_rocket", "$3.99" }, { "deal_noads_pack", "$3.49" }, { "deal_gems_100", "$6.99" },
             { "deal_starter", "$1.99" },
         };
