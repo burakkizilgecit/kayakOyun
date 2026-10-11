@@ -508,7 +508,7 @@
 .shop-free { flex-direction: row; align-items: center; border-radius: 40px; padding: 14px 22px; background-color: #C84AE0;
              border-width: 5px; border-bottom-width: 14px; border-color: #F0B8FF; border-bottom-color: #8A2AA0; }
 .shop-free > .shop-price { align-self: center; }
-.shop-grid { flex-wrap: wrap; justify-content: space-between; }
+.shop-grid { justify-content: space-between; align-items: stretch; }
 .shop-cell { width: 31.5%; margin-top: 22px; padding: 10px 12px 14px 12px; align-items: center; }
 .shop-cell > .shop-price { margin-top: 6px; font-size: 42px; height: 96px; }
 .shop-cell > .shop-price Label { font-size: 44px; }
@@ -558,3 +558,5 @@
                     -unity-text-outline-width: 4px; -unity-text-outline-color: #1E6A1A; }
 .deal-buy-price { font-size: 88px; color: #FFFFFF; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); margin-bottom: -10px;
                   -unity-text-outline-width: 6px; -unity-text-outline-color: #1E6A1A; }
+
+.shop-grid, .shop-section, .shop-free, .shop-cell { flex-shrink: 0; }

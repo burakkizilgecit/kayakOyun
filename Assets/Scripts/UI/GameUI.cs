@@ -1425,18 +1425,6 @@ namespace SledSurfers
         readonly Label[] shopCoinAmounts = new Label[3];
         float shopNoteClock = -1f;
 
-        /// Gerçek parayla satılan ürünler (fiyatlar yer tutucu; mağaza bağlanınca mağazanın yerel fiyatı gösterilir).
-        public struct ShopItem { public string id, title, text, price; public IconKind icon; public Color color; public string tag; }
-
-        static readonly ShopItem[] ShopBundles =
-        {
-            new ShopItem { id = "noads_pack", title = "NO ADS PACK", text = "No forced ads  +  10 gems", price = "$4.99", icon = IconKind.Video,
-                           color = new Color32(0x9B, 0x5C, 0xFF, 0xFF), tag = "BEST DEAL" },
-            new ShopItem { id = "double_rocket", title = "DOUBLE BOOST", text = "Use your rocket twice per run\nPermanent", price = "$5.99",
-                           icon = IconKind.Rocket, color = new Color32(0x3F, 0xA4, 0xFF, 0xFF) },
-            new ShopItem { id = "auto_x3", title = "AUTO x3 COINS", text = "Triple earnings without ads\nfor 12 hours", price = "$2.49",
-                           icon = IconKind.Coin, color = new Color32(0xFF, 0xA8, 0x1A, 0xFF) },
-        };
         static readonly int[] GemPacks = { 10, 30, 100, 150, 200, 500 };
         static readonly string[] GemPrices = { "$1.99", "$4.99", "$9.99", "$13.99", "$17.99", "$19.99" };
         static readonly int[] LaunchPacks = { 20, 80, 200 };
@@ -1499,45 +1487,11 @@ namespace SledSurfers
             scroll.contentContainer.style.paddingBottom = 40;
             shopBody = scroll.contentContainer;
 
-            // Paketler: büyük kart (ikon solda, başlık kurdelesi, açıklama, fiyat düğmesi)
-            foreach (var item in ShopBundles)
-            {
-                var it = item;
-                var card = E("shop-bundle");
-                card.style.backgroundImage = new StyleBackground(VGrad(Color.Lerp(it.color, Color.white, 0.25f), it.color));
-                card.style.borderBottomColor = Color.Lerp(it.color, Color.black, 0.3f);
-                var art = E("shop-art");
-                var glow = E("shop-art-glow");
-                glow.style.backgroundImage = new StyleBackground(Radial());
-                art.Add(glow);
-                art.Add(new Icon(it.icon, 150));
-                card.Add(art);
-                var col = E("grow");
-                var rib = E("shop-ribbon");
-                rib.Add(L(it.title, "shop-ribbon-text"));
-                col.Add(rib);
-                col.Add(L(it.text, "shop-text"));
-                col.Add(PriceButton(Store.Price(it.id), () => ShopPurchase?.Invoke(it.id)));
-                card.Add(col);
-                if (!string.IsNullOrEmpty(it.tag)) card.Add(L(it.tag, "shop-tag"));
-                shopBody.Add(card);
-            }
-            var noAds = E("card", "row", "shop-line");
-            noAds.Add(new Icon(IconKind.Video, 84, Ink));
-            var noAdsText = L("Disable forced ads", "heavy");
-            noAdsText.style.fontSize = 40;
-            noAdsText.style.flexGrow = 1;
-            noAdsText.style.marginLeft = 16;
-            noAds.Add(noAdsText);
-            noAds.Add(PriceButton(Store.Price("noads"), () => ShopPurchase?.Invoke("noads")));
-            shopBody.Add(noAds);
-            var hint = L("Rewarded ads (x3 coins, chests, launches) stay available.", "shop-hint");
-            shopBody.Add(hint);
-
+            // Mağazada yalnızca elmas, fırlatma hakkı ve coin satılır (kullanıcı kararı 2026-10-11); paketler günlük fırsatlarda.
             // Elmas: reklamla ücretsiz + paketler
             shopBody.Add(Section("GEMS"));
             var free = E("shop-free");
-            free.Add(new Icon(IconKind.Gem, 110));
+            free.Add(ShopArt("gem_free", IconKind.Gem, 110));
             var freeText = L("x1", "outlined");
             freeText.style.fontSize = 70;
             freeText.style.flexGrow = 1;
@@ -1567,7 +1521,7 @@ namespace SledSurfers
                 shopCoinAmounts[k] = L("", "outlined");
                 shopCoinAmounts[k].style.fontSize = 52;
                 cell.Add(shopCoinAmounts[k]);
-                cell.Add(new Icon(IconKind.Coin, 96 + 14 * k));
+                cell.Add(ShopArt("coins_" + (k + 1), IconKind.Coin, 96 + 14 * k));
                 var buy = B(() => ShopBuyCoins?.Invoke(index), "btn", "btn-blue", "shop-price");
                 buy.Add(new Icon(IconKind.Gem, 48));
                 buy.Add(Sp(L(CoinPackGems[k].ToString()), 8));
@@ -1581,21 +1535,43 @@ namespace SledSurfers
             safe.Add(shopModal);
         }
 
+        /// Ürün görseli: Resources/UI/Shop/<ad>.png varsa o (180 px kutuda), yoksa çizilen ikon.
+        static VisualElement ShopArt(string name, IconKind fallback, float iconSize)
+        {
+            var tex = Resources.Load<Texture2D>("UI/Shop/" + name);
+            if (tex == null) return new Icon(fallback, iconSize);
+            var img = new VisualElement();
+            img.style.width = 190;
+            img.style.height = 160;
+            img.style.backgroundImage = new StyleBackground(tex);
+            img.style.unityBackgroundScaleMode = ScaleMode.ScaleToFit;
+            return img;
+        }
+
         VisualElement Grid(int[] amounts, string[] prices, IconKind icon, string idPrefix, int[] tagAt, string[] tags)
         {
-            var grid = E("row", "shop-grid");
+            // Üçerli satırlar (sarmalı tek satır ikinci sıranın yüksekliğini hesaba katmıyordu: bölümler üst üste biniyordu).
+            var grid = E("col");
+            grid.style.flexShrink = 0;
+            grid.style.alignItems = Align.Stretch;
+            VisualElement line = null;
             int tagIndex = 0;
             for (int k = 0; k < amounts.Length; k++)
             {
+                if (k % 3 == 0)
+                {
+                    line = E("row", "shop-grid");
+                    grid.Add(line);
+                }
                 string id = idPrefix + amounts[k];
                 var cell = E("card", "col", "shop-cell");
                 var amount = L(amounts[k].ToString(), "outlined");
                 amount.style.fontSize = 60;
                 cell.Add(amount);
-                cell.Add(new Icon(icon, 84 + Mathf.Min(40, 8 * k)));
+                cell.Add(ShopArt(id, icon, 84 + Mathf.Min(40, 8 * k)));
                 cell.Add(PriceButton(Store.Price(id), () => ShopPurchase?.Invoke(id)));
                 if (tagAt != null && System.Array.IndexOf(tagAt, k) >= 0 && tagIndex < tags.Length) cell.Add(L(tags[tagIndex++], "shop-tag"));
-                grid.Add(cell);
+                line.Add(cell);
             }
             return grid;
         }
