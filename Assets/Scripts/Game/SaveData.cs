@@ -93,6 +93,11 @@ namespace SledSurfers
             adGemCount++;
         }
 
+        /// Günün fırsatı: hangi gün, hangi teklif, ne zaman bitiyor (UTC) ve bugün gösterildi mi.
+        public int dealDay, dealIndex;
+        public long dealEndTicks;
+        public bool dealSeen;
+
         public int track;      // seçili parkur
         public int avatar;     // seçili karakter (AvatarLibrary)
         public int avatarsOwned = 0b1;   // sahip olunan karakterler (bit maskesi; ilki — Panda — ücretsiz)
@@ -157,7 +162,7 @@ namespace SledSurfers
         static System.Collections.Generic.IEnumerable<string> Keys()
         {
             for (int t = 0; t < TrackLibrary.Count; t++) { PlayerPrefs.DeleteKey(K("money_t" + t)); PlayerPrefs.DeleteKey(K("taken_t" + t)); }
-            foreach (var k in new[] { "adGemDay", "adGemCount", "takenDay", "lday", "lstreak", "qday", "qtrack", "qp0", "qp1", "qp2", "qclaim", "money", "gems", "chest", "launches", "launchTicks", "hand", "sound", "track", "avatar", "avatars", "avatar2", "avatars2", "unlocked",
+            foreach (var k in new[] { "dealDay", "dealIndex", "dealEnd", "dealSeen", "adGemDay", "adGemCount", "takenDay", "lday", "lstreak", "qday", "qtrack", "qp0", "qp1", "qp2", "qclaim", "money", "gems", "chest", "launches", "launchTicks", "hand", "sound", "track", "avatar", "avatars", "avatar2", "avatars2", "unlocked",
                                       "sens", "tut" })
                 yield return k;
             for (int t = 0; t < TrackLibrary.Count; t++)
@@ -212,6 +217,10 @@ namespace SledSurfers
                 PlayerPrefs.DeleteKey(K("money"));
             }
             s.takenDay = PlayerPrefs.GetInt(K("takenDay"), 0);
+            s.dealDay = PlayerPrefs.GetInt(K("dealDay"), 0);
+            s.dealIndex = PlayerPrefs.GetInt(K("dealIndex"), 0);
+            s.dealEndTicks = long.TryParse(PlayerPrefs.GetString(K("dealEnd"), "0"), out var de) ? de : 0;
+            s.dealSeen = PlayerPrefs.GetInt(K("dealSeen"), 0) != 0;
             s.adGemDay = PlayerPrefs.GetInt(K("adGemDay"), 0);
             s.adGemCount = PlayerPrefs.GetInt(K("adGemCount"), 0);
             s.questDay = PlayerPrefs.GetInt(K("qday"), 0);
@@ -231,6 +240,10 @@ namespace SledSurfers
                 PlayerPrefs.SetString(K("taken_t" + t), taken[t] ?? "");
             }
             PlayerPrefs.SetInt(K("takenDay"), takenDay);
+            PlayerPrefs.SetInt(K("dealDay"), dealDay);
+            PlayerPrefs.SetInt(K("dealIndex"), dealIndex);
+            PlayerPrefs.SetString(K("dealEnd"), dealEndTicks.ToString());
+            PlayerPrefs.SetInt(K("dealSeen"), dealSeen ? 1 : 0);
             PlayerPrefs.SetInt(K("adGemDay"), adGemDay);
             PlayerPrefs.SetInt(K("adGemCount"), adGemCount);
             PlayerPrefs.SetInt(K("gems"), gems);

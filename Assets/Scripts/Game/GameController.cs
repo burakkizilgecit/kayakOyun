@@ -147,7 +147,12 @@ namespace SledSurfers
         public void DebugBuy(int i) => Buy(i);
         public void DebugMap() => ui.ShowMap(save);
         public void DebugShop() => ui.ShowShop(save.gems, CoinPackAmounts(), save.FreeGemsLeft);
-        public void DebugOffer() => ui.ShowOffer(WelcomeOffer());
+        public void DebugOffer(int index)
+        {
+            save.dealIndex = index;
+            save.dealEndTicks = System.DateTime.UtcNow.AddHours(Store.Deals[index].hours).Ticks;
+            ui.ShowDeal(Store.Deals[index], save.dealEndTicks, save.avatar);
+        }
         /// Roket düğmesine basılmış gibi (arayüz olayının yolu) ve roket durumu.
         public void DebugPressRocket() => rocketRequested = true;
         public string DebugRocketState => "durum " + state + " hak " + sled.rocketCharges + " ateşlenen " + sled.stats.rocketsFired
@@ -381,6 +386,17 @@ namespace SledSurfers
                 loginShown = true;
                 ShowLogin();
             }
+            // Günün fırsatı: oyun açılınca (günde bir kez) kendiliğinden gösterilir; günlük ödülün üstünde açılır.
+            if (!AutoShot.Requested)
+            {
+                TodaysDeal();
+                if (!save.dealSeen && DealActive)
+                {
+                    save.dealSeen = true;
+                    save.Save();
+                    ShowDeal();
+                }
+            }
         }
 
         // ---------------------------------------------------------------- günlük görevler ve giriş ödülü
@@ -537,35 +553,28 @@ namespace SledSurfers
 
         static int Round50(float v) => Mathf.Max(50, Mathf.RoundToInt(v / 50f) * 50);
 
-        /// Karşılama teklifi: içerik değişken (oyuncunun durumuna göre seçilir). Gerçek ödeme bağlanınca oyuna girişte
-        /// gösterilecek; şimdilik yalnızca test düğmesinden açılır.
-        GameUI.Offer WelcomeOffer()
+        /// Günün fırsatı: gün değişince yenisi seçilir ve bitiş zamanı kayda yazılır (süre oyun verisinden okunur).
+        Store.Deal TodaysDeal()
         {
-            // Oyuncunun eksiğine göre üç teklif: yeni oyuncuya başlangıç paketi, reklam görmüş oyuncuya reklamsız paket,
-            // ilerlemiş oyuncuya çift roket.
-            if (save.unlocked == 0)
-                return new GameUI.Offer
-                {
-                    title = "STARTER PACK", subtitle = "A flying start for new heroes!", price = "$1.99", oldPrice = "$5.99", badge = "-65%",
-                    productId = "starter_pack", secondsLeft = 24 * 3600,
-                    items = new[] { "50 gems", CoinPackAmounts()[2].ToString("N0", System.Globalization.CultureInfo.InvariantCulture) + " coins", "20 launches" },
-                    icons = new[] { IconKind.Gem, IconKind.Coin, IconKind.Slingshot },
-                };
-            if (save.unlocked < 3)
-                return new GameUI.Offer
-                {
-                    title = "NO ADS PACK", subtitle = "Play without interruptions", price = "$3.99", oldPrice = "$6.99", badge = "-40%",
-                    productId = "noads_pack_offer", secondsLeft = 12 * 3600,
-                    items = new[] { "No forced ads, forever", "30 gems", "Auto x3 coins for 12 hours" },
-                    icons = new[] { IconKind.Video, IconKind.Gem, IconKind.Coin },
-                };
-            return new GameUI.Offer
+            int today = DailyQuests.Today;
+            if (save.dealDay != today)
             {
-                title = "ROCKET PACK", subtitle = "Go twice as far!", price = "$4.99", oldPrice = "$9.99", badge = "-50%",
-                productId = "rocket_pack_offer", secondsLeft = 6 * 3600,
-                items = new[] { "Double boost, forever", "100 gems", "80 launches" },
-                icons = new[] { IconKind.Rocket, IconKind.Gem, IconKind.Slingshot },
-            };
+                save.dealDay = today;
+                save.dealIndex = Store.DealOfDay(today, save.unlocked);
+                save.dealEndTicks = System.DateTime.UtcNow.AddHours(Store.Deals[save.dealIndex].hours).Ticks;
+                save.dealSeen = false;
+                save.Save();
+            }
+            return Store.Deals[Mathf.Clamp(save.dealIndex, 0, Store.Deals.Length - 1)];
+        }
+
+        bool DealActive => save.dealEndTicks > System.DateTime.UtcNow.Ticks;
+
+        void ShowDeal()
+        {
+            var deal = TodaysDeal();
+            if (!DealActive) return;
+            ui.ShowDeal(deal, save.dealEndTicks, save.avatar);
         }
 
         void PlaceHubSled()
@@ -1167,7 +1176,15 @@ namespace SledSurfers
             };
             // Gerçek ödeme henüz bağlı değil: satın alma düğmeleri yalnızca bilgi verir.
             ui.ShopPurchase += id => { sfx.Deny(); ui.ShopNote("Purchases are coming soon"); };
-            ui.TestOffer += () => ui.ShowOffer(WelcomeOffer());
+            ui.TestOffer += () =>
+            {
+                // Test: bugünün fırsatını baştan başlatıp göster (sırayla bir sonrakine geçer).
+                save.dealIndex = (save.dealIndex + 1) % Store.Deals.Length;
+                save.dealDay = DailyQuests.Today;
+                save.dealEndTicks = System.DateTime.UtcNow.AddHours(Store.Deals[save.dealIndex].hours).Ticks;
+                save.Save();
+                ui.ShowDeal(Store.Deals[save.dealIndex], save.dealEndTicks, save.avatar);
+            };
             ui.Play += () => { if (state == State.Hub) EnterAim(); };
             ui.OpenQuests += () => RefreshQuests(true);
             ui.ClaimQuest += ClaimQuestReward;
@@ -1194,7 +1211,10 @@ namespace SledSurfers
                 {
                     if (save.gems < info.price)
                     {
+                        // Elmas yetmiyor: mağazaya yönlendir (elmas paketleri ve günde 2 ücretsiz elmas orada).
                         sfx.Deny();
+                        ui.ShowShop(save.gems, CoinPackAmounts(), save.FreeGemsLeft);
+                        ui.ShopNote("Not enough gems — get more here");
                         return;
                     }
                     save.gems -= info.price;

@@ -132,10 +132,13 @@ namespace SledSurfers
                 game.DebugShop();
                 yield return new WaitForSeconds(0.8f);
                 yield return Shot("k_shop");
-                game.DebugHub();
-                game.DebugOffer();
-                yield return new WaitForSeconds(1f);
-                yield return Shot("k_offer");
+                for (int d = 0; d < Store.Deals.Length; d++)
+                {
+                    game.DebugHub();
+                    game.DebugOffer(d);
+                    yield return new WaitForSeconds(1f);
+                    yield return Shot("k_deal" + d);
+                }
                 SaveData.ClearAll();   // yalnız test önekli kayıt (gerçek kayıt korunur)
                 Application.Quit();
                 yield break;

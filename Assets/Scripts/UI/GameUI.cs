@@ -1262,7 +1262,7 @@ namespace SledSurfers
                 unlock.style.marginTop = 14;
                 settingsCard.Add(unlock);
                 var offerTest = B(() => { ShowSettings(false); TestOffer?.Invoke(); }, "btn", "btn-white", "btn-mid");
-                offerTest.text = "Show welcome offer";
+                offerTest.text = "Show daily deal";
                 offerTest.style.alignSelf = Align.Stretch;
                 offerTest.style.marginTop = 14;
                 settingsCard.Add(offerTest);
@@ -1421,9 +1421,8 @@ namespace SledSurfers
         public event Action<string> ShopPurchase;
 
         VisualElement shopModal, shopBody, offerModal, offerCard;
-        Label shopNote, shopGems, offerTitle, offerSub, offerPrice, offerOld, offerBadge, offerTimer;
+        Label shopNote, shopGems;
         readonly Label[] shopCoinAmounts = new Label[3];
-        VisualElement offerItems;
         float shopNoteClock = -1f;
 
         /// Gerçek parayla satılan ürünler (fiyatlar yer tutucu; mağaza bağlanınca mağazanın yerel fiyatı gösterilir).
@@ -1518,7 +1517,7 @@ namespace SledSurfers
                 rib.Add(L(it.title, "shop-ribbon-text"));
                 col.Add(rib);
                 col.Add(L(it.text, "shop-text"));
-                col.Add(PriceButton(it.price, () => ShopPurchase?.Invoke(it.id)));
+                col.Add(PriceButton(Store.Price(it.id), () => ShopPurchase?.Invoke(it.id)));
                 card.Add(col);
                 if (!string.IsNullOrEmpty(it.tag)) card.Add(L(it.tag, "shop-tag"));
                 shopBody.Add(card);
@@ -1530,7 +1529,7 @@ namespace SledSurfers
             noAdsText.style.flexGrow = 1;
             noAdsText.style.marginLeft = 16;
             noAds.Add(noAdsText);
-            noAds.Add(PriceButton("$3.49", () => ShopPurchase?.Invoke("noads")));
+            noAds.Add(PriceButton(Store.Price("noads"), () => ShopPurchase?.Invoke("noads")));
             shopBody.Add(noAds);
             var hint = L("Rewarded ads (x3 coins, chests, launches) stay available.", "shop-hint");
             shopBody.Add(hint);
@@ -1594,7 +1593,7 @@ namespace SledSurfers
                 amount.style.fontSize = 60;
                 cell.Add(amount);
                 cell.Add(new Icon(icon, 84 + Mathf.Min(40, 8 * k)));
-                cell.Add(PriceButton(prices[k], () => ShopPurchase?.Invoke(id)));
+                cell.Add(PriceButton(Store.Price(id), () => ShopPurchase?.Invoke(id)));
                 if (tagAt != null && System.Array.IndexOf(tagAt, k) >= 0 && tagIndex < tags.Length) cell.Add(L(tags[tagIndex++], "shop-tag"));
                 grid.Add(cell);
             }
@@ -1629,95 +1628,200 @@ namespace SledSurfers
             shopNoteClock = 0f;
         }
 
-        /// Karşılama teklifi (gerçek ödeme gelince oyuna girişte gösterilecek; içerik değişken).
-        public struct Offer
-        {
-            public string title, subtitle, price, oldPrice, badge, productId;
-            public string[] items;       // satır metinleri
-            public IconKind[] icons;     // satır ikonları
-            public int secondsLeft;      // teklifin süresi (geri sayım)
-        }
+        // ---------------------------------------------------------------- günlük fırsat penceresi
+        // Kullanıcı isteği (2026-10-11, referans görsel): panel, başlık kurdelesi, metinler, kapatma ve satın alma
+        // düğmeleri ayrı bileşenler; illüstrasyon ayrı bir görsel katmanı. Fiyat mağazadan (Store.Price), süre oyun
+        // verisinden (bitiş zamanı) gelir; pencerede hiçbir fiyat elle yazılmaz.
 
-        Offer currentOffer;
-        float offerClock;
+        VisualElement dealRays, dealArt, dealArtFallback, dealHeadline;
+        Label dealTitle, dealInfo, dealCaption, dealPriceLabel, dealOldPrice, dealTimer;
+        Button dealClose, dealBuy;
+        Store.Deal currentDeal;
+        long dealEndTicks;
+        /// Günlük fırsat penceresi kapatıldı / satın alma istendi (ürün kimliği ShopPurchase ile gider).
+        public event Action DealClosed;
 
         void BuildOffer()
         {
             offerModal = E("fill", "dim", "center", "pick");
             offerModal.style.display = DisplayStyle.None;
-            offerCard = E("offer-card", "col", "pop", "off");
-            offerCard.style.backgroundImage = new StyleBackground(VGrad(new Color32(0x4F, 0xB8, 0xFF, 0xFF), new Color32(0x2A, 0x6C, 0xE0, 0xFF)));
 
-            var rays = E("offer-rays");
-            rays.style.backgroundImage = new StyleBackground(Radial());
-            rays.pickingMode = PickingMode.Ignore;
-            rays.name = "offer-rays";
-            offerCard.Add(rays);
-
-            var rib = E("shop-ribbon", "offer-ribbon");
-            offerTitle = L("", "shop-ribbon-text");
-            offerTitle.style.fontSize = 64;
-            rib.Add(offerTitle);
-            offerCard.Add(rib);
-            offerBadge = L("", "offer-badge");
-            offerCard.Add(offerBadge);
-
-            offerSub = L("", "outlined");
-            offerSub.style.fontSize = 44;
-            offerSub.style.whiteSpace = WhiteSpace.Normal;
-            offerSub.style.unityTextAlign = TextAnchor.MiddleCenter;
-            offerSub.style.marginTop = 26;
-            offerCard.Add(offerSub);
-
-            offerItems = E("offer-items");
-            offerCard.Add(offerItems);
-
-            offerTimer = L("", "offer-timer");
-            offerCard.Add(offerTimer);
-
-            var priceRow = E("row");
-            priceRow.style.marginTop = 10;
-            offerOld = L("", "offer-old");
-            priceRow.Add(offerOld);
-            offerCard.Add(priceRow);
-            var buy = B(() => ShopPurchase?.Invoke(currentOffer.productId), "btn", "btn-green", "btn-big");
-            offerPrice = L("", "outlined");
-            offerPrice.style.fontSize = 80;
-            buy.Add(offerPrice);
-            buy.style.alignSelf = Align.Stretch;
-            buy.style.marginTop = 6;
-            offerCard.Add(buy);
-            var later = B(() => Close(offerModal, offerCard), "btn", "offer-later");
-            later.text = "Maybe later";
-            offerCard.Add(later);
+            // 1) Panel
+            offerCard = DealPanel();
+            // 2) Başlık kurdelesi (iki ucu kuyruklu)
+            offerCard.Add(DealRibbon(out dealTitle));
+            // 3) Kapatma düğmesi
+            dealClose = DealCloseButton(() => { Close(offerModal, offerCard); DealClosed?.Invoke(); });
+            offerCard.Add(dealClose);
+            // 4) Büyük metin (vurgulu kelime ayrı renkte)
+            dealHeadline = E("deal-headline");
+            offerCard.Add(dealHeadline);
+            // 5) İllüstrasyon katmanı: ışık huzmesi + görsel (Resources/UI/Offers/<art>); görsel yoksa oyun içi çizim
+            var artBox = E("deal-art-box");
+            dealRays = E("deal-rays");
+            dealRays.style.backgroundImage = new StyleBackground(Radial());
+            dealRays.pickingMode = PickingMode.Ignore;
+            artBox.Add(dealRays);
+            dealArt = E("deal-art");
+            artBox.Add(dealArt);
+            dealArtFallback = E("deal-art-fallback");
+            artBox.Add(dealArtFallback);
+            offerCard.Add(artBox);
+            // 6) Bilgi şeridi
+            var infoRow = E("row", "deal-info");
+            dealInfo = L("", "deal-info-text");
+            infoRow.Add(dealInfo);
+            infoRow.Add(new Icon(IconKind.Video, 60));
+            offerCard.Add(infoRow);
+            // 7) Süre (oyun verisinden) ve indirimsiz fiyat
+            var meta = E("row", "deal-meta");
+            dealTimer = L("", "deal-timer");
+            meta.Add(dealTimer);
+            dealOldPrice = L("", "deal-old");
+            meta.Add(dealOldPrice);
+            offerCard.Add(meta);
+            // 8) Satın alma düğmesi: üstte açıklama satırı, altında mağaza fiyatı
+            dealBuy = DealBuyButton(out dealCaption, out dealPriceLabel, () => ShopPurchase?.Invoke(currentDeal.productId));
+            offerCard.Add(dealBuy);
 
             offerModal.Add(offerCard);
             safe.Add(offerModal);
         }
 
-        public void ShowOffer(Offer offer)
+        VisualElement DealPanel()
         {
-            currentOffer = offer;
-            offerClock = 0f;
-            offerTitle.text = offer.title;
-            offerSub.text = offer.subtitle;
-            offerPrice.text = offer.price;
-            offerOld.text = string.IsNullOrEmpty(offer.oldPrice) ? "" : "Was " + offer.oldPrice;
-            offerBadge.text = offer.badge ?? "";
-            offerBadge.style.display = string.IsNullOrEmpty(offer.badge) ? DisplayStyle.None : DisplayStyle.Flex;
-            offerItems.Clear();
-            for (int k = 0; k < offer.items.Length; k++)
+            var panel = E("deal-panel", "col", "pop", "off");
+            panel.style.backgroundImage = new StyleBackground(VGrad(new Color32(0x3F, 0xA8, 0xFF, 0xFF), new Color32(0x1E, 0x62, 0xD8, 0xFF)));
+            return panel;
+        }
+
+        VisualElement DealRibbon(out Label title)
+        {
+            var wrap = E("deal-ribbon-wrap");
+            wrap.pickingMode = PickingMode.Ignore;
+            wrap.Add(E("deal-ribbon-tail", "deal-ribbon-tail-l"));
+            wrap.Add(E("deal-ribbon-tail", "deal-ribbon-tail-r"));
+            var rib = E("deal-ribbon");
+            rib.style.backgroundImage = new StyleBackground(VGrad(new Color32(0xFF, 0xC8, 0x4A, 0xFF), new Color32(0xFF, 0x96, 0x1A, 0xFF)));
+            title = L("", "deal-ribbon-text");
+            rib.Add(title);
+            wrap.Add(rib);
+            return wrap;
+        }
+
+        Button DealCloseButton(Action onClick)
+        {
+            var b = B(onClick, "btn", "deal-close");
+            b.style.backgroundImage = new StyleBackground(VGrad(new Color32(0xFF, 0x5A, 0x4A, 0xFF), new Color32(0xE0, 0x1E, 0x1E, 0xFF)));
+            var x = new VisualElement();
+            x.pickingMode = PickingMode.Ignore;
+            x.style.width = x.style.height = 52;
+            x.generateVisualContent += ctx =>
             {
-                var row = E("row", "offer-item");
-                row.Add(new Icon(offer.icons[Mathf.Min(k, offer.icons.Length - 1)], 84));
-                var text = L(offer.items[k], "heavy");
-                text.style.fontSize = 42;
-                text.style.marginLeft = 18;
-                text.style.color = Ink;
-                row.Add(text);
-                offerItems.Add(row);
+                var pt = ctx.painter2D;
+                pt.strokeColor = Color.white;
+                pt.lineWidth = 12f;
+                pt.lineCap = LineCap.Round;
+                pt.BeginPath(); pt.MoveTo(new Vector2(8f, 8f)); pt.LineTo(new Vector2(44f, 44f)); pt.Stroke();
+                pt.BeginPath(); pt.MoveTo(new Vector2(44f, 8f)); pt.LineTo(new Vector2(8f, 44f)); pt.Stroke();
+            };
+            b.Add(x);
+            return b;
+        }
+
+        Button DealBuyButton(out Label caption, out Label price, Action onClick)
+        {
+            var b = B(onClick, "btn", "deal-buy");
+            b.style.backgroundImage = new StyleBackground(VGrad(new Color32(0x8C, 0xE8, 0x4A, 0xFF), new Color32(0x3F, 0xC0, 0x2E, 0xFF)));
+            var gloss = E("deal-buy-gloss");
+            gloss.pickingMode = PickingMode.Ignore;
+            b.Add(gloss);
+            caption = L("", "deal-buy-caption");
+            b.Add(caption);
+            price = L("", "deal-buy-price");
+            b.Add(price);
+            return b;
+        }
+
+        /// "GET {X3} COINS" → satır satır etiketler; { } arası sarı ve büyük.
+        void SetHeadline(string text)
+        {
+            dealHeadline.Clear();
+            foreach (var line in text.Split('\n'))
+            {
+                var row = E("row");
+                row.style.justifyContent = Justify.Center;
+                foreach (var part in System.Text.RegularExpressions.Regex.Split(line, @"(\{[^}]*\})"))
+                {
+                    if (part.Length == 0) continue;
+                    bool hi = part[0] == '{';
+                    var l = L(hi ? part.Substring(1, part.Length - 2) : part, "deal-headline-text");
+                    if (hi) l.AddToClassList("deal-headline-hi");
+                    row.Add(l);
+                }
+                dealHeadline.Add(row);
             }
+        }
+
+        /// Oyun içi çizim (görsel dosyası yokken): karakterin portresi, çevresinde tema ikonları.
+        void BuildFallbackArt(string art, StyleBackground portrait)
+        {
+            dealArtFallback.Clear();
+            IconKind kind = art == "gems" ? IconKind.Gem : art == "rocket" ? IconKind.Rocket : art == "noads" ? IconKind.Video
+                          : art == "starter" ? IconKind.Chest : IconKind.Coin;
+            // Arkada dağınık ikonlar (iki yay), önde ikon yığını, ortada karakter
+            float[] ax = { -250f, -175f, -70f, 80f, 185f, 255f, -215f, 220f }, ay = { -60f, -150f, -185f, -180f, -140f, -50f, 60f, 70f };
+            float[] asz = { 96f, 82f, 70f, 76f, 88f, 100f, 110f, 104f }, arot = { -24f, 14f, -8f, 18f, -16f, 26f, 10f, -12f };
+            for (int k = 0; k < ax.Length; k++)
+            {
+                var ic = new Icon(kind, asz[k]);
+                ic.style.position = Position.Absolute;
+                ic.style.left = 300f + ax[k] - asz[k] * 0.5f;
+                ic.style.top = 210f + ay[k] - asz[k] * 0.5f;
+                ic.style.rotate = new Rotate(arot[k]);
+                dealArtFallback.Add(ic);
+            }
+            var hero = E("deal-hero");
+            hero.style.backgroundImage = portrait;
+            dealArtFallback.Add(hero);
+            for (int k = 0; k < 9; k++)
+            {
+                float sz = 84f + 10f * (k % 3);
+                var ic = new Icon(kind, sz);
+                ic.style.position = Position.Absolute;
+                ic.style.left = 60f + k * 56f - (k % 2) * 10f;
+                ic.style.top = 318f + (k % 2 == 0 ? 0f : 26f) + (k % 3) * 6f;
+                dealArtFallback.Add(ic);
+            }
+        }
+
+        /// deal: gösterilecek fırsat; endTicks: bitiş anı (UTC, oyun verisi); heroPortrait: illüstrasyon yoksa kullanılan karakter.
+        public void ShowDeal(Store.Deal deal, long endTicks, int heroAvatar)
+        {
+            currentDeal = deal;
+            dealEndTicks = endTicks;
+            dealTitle.text = deal.title;
+            SetHeadline(deal.headline);
+            dealInfo.text = deal.info;
+            dealCaption.text = deal.buttonCaption;
+            dealPriceLabel.text = Store.Price(deal.productId);   // fiyat mağazadan
+            bool hasOld = !string.IsNullOrEmpty(deal.regularId);
+            dealOldPrice.text = hasOld ? "Was " + Store.Price(deal.regularId) : "";
+            dealOldPrice.style.display = hasOld ? DisplayStyle.Flex : DisplayStyle.None;
+            var tex = Resources.Load<Texture2D>("UI/Offers/" + deal.art);
+            dealArt.style.backgroundImage = tex != null ? new StyleBackground(tex) : new StyleBackground();
+            dealArt.style.display = tex != null ? DisplayStyle.Flex : DisplayStyle.None;
+            dealArtFallback.style.display = tex != null ? DisplayStyle.None : DisplayStyle.Flex;
+            if (tex == null) BuildFallbackArt(deal.art, Portrait(heroAvatar));
+            UpdateDealTimer();
             Open(offerModal, offerCard);
+        }
+
+        void UpdateDealTimer()
+        {
+            long left = System.Math.Max(0L, (dealEndTicks - System.DateTime.UtcNow.Ticks) / System.TimeSpan.TicksPerSecond);
+            dealTimer.text = "Ends in " + (left / 3600).ToString("00") + ":" + (left / 60 % 60).ToString("00") + ":" + (left % 60).ToString("00");
+            if (left <= 0 && offerModal.style.display.value == DisplayStyle.Flex) Close(offerModal, offerCard);
         }
 
         void TickShop(float dt)
@@ -1730,13 +1834,10 @@ namespace SledSurfers
             }
             if (offerModal.style.display.value == DisplayStyle.Flex)
             {
-                offerClock += dt;
-                int left = Mathf.Max(0, currentOffer.secondsLeft - Mathf.FloorToInt(offerClock));
-                offerTimer.text = "Offer ends in " + (left / 3600).ToString("00") + ":" + (left / 60 % 60).ToString("00") + ":" + (left % 60).ToString("00");
-                var rays = offerCard.Q("offer-rays");
-                rays.style.rotate = new Rotate(time * 20f);
-                float s = 1f + 0.05f * Mathf.Sin(time * 5f);
-                offerBadge.style.scale = new Scale(new Vector2(s, s));
+                UpdateDealTimer();
+                dealRays.style.rotate = new Rotate(time * 18f);
+                float s2 = 1f + 0.03f * Mathf.Sin(time * 5f);
+                dealBuy.style.scale = new Scale(new Vector2(s2, s2));
             }
         }
 

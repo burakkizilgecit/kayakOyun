@@ -516,20 +516,45 @@
              background-color: rgba(30, 24, 48, 0.88); color: #FFFFFF; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf");
              -unity-text-align: middle-center; white-space: normal; -unity-text-outline-width: 0; }
 
-/* ------------------------------------------------------------ karşılama teklifi */
-.offer-card { width: 88%; border-radius: 54px; padding: 0 34px 30px 34px; border-width: 7px; border-bottom-width: 18px;
-              border-color: #BFE6FF; border-bottom-color: #1C4E96; -unity-background-scale-mode: stretch-to-fill; }
-.offer-rays { position: absolute; left: 5%; right: 5%; top: 60px; height: 520px; -unity-background-scale-mode: stretch-to-fill;
-              -unity-background-image-tint-color: rgba(255, 255, 255, 0.5); }
-.offer-ribbon { margin-top: -52px; }
-.offer-badge { position: absolute; right: -22px; top: 36px; rotate: 14deg; padding: 6px 22px 2px 22px; border-radius: 22px; font-size: 44px;
-               background-color: #F0453A; color: #FFFFFF; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf");
-               border-width: 4px; border-color: #FFFFFF; -unity-text-outline-width: 0; }
-.offer-items { margin-top: 20px; align-self: stretch; }
-.offer-item { align-items: center; background-color: rgba(255, 255, 255, 0.92); border-radius: 30px; padding: 10px 22px; margin-top: 14px;
-              border-bottom-width: 8px; border-color: rgba(28, 78, 150, 0.35); }
-.offer-timer { font-size: 36px; color: #FFFFFF; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); margin-top: 22px;
-               padding: 6px 26px 2px 26px; border-radius: 24px; background-color: rgba(20, 40, 90, 0.55); -unity-text-outline-width: 0; }
-.offer-old { font-size: 36px; color: rgba(255, 255, 255, 0.85); -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); -unity-text-outline-width: 0; }
-.offer-later { background-color: rgba(0, 0, 0, 0); border-width: 0; font-size: 38px; color: rgba(255, 255, 255, 0.9); margin-top: 14px;
-               -unity-text-outline-width: 0; }
+/* ------------------------------------------------------------ günlük fırsat penceresi */
+.deal-panel { width: 88%; border-radius: 56px; padding: 0 30px 34px 30px; border-width: 8px; border-bottom-width: 20px;
+              border-color: #7FD0FF; border-bottom-color: #1548A8; -unity-background-scale-mode: stretch-to-fill; }
+.deal-ribbon-wrap { align-self: center; margin-top: -56px; height: 128px; justify-content: center; }
+.deal-ribbon { padding: 10px 46px 2px 46px; border-radius: 26px; border-width: 5px; border-bottom-width: 12px;
+               border-color: #FFE9A8; border-bottom-color: #C86A0A; -unity-background-scale-mode: stretch-to-fill; }
+.deal-ribbon-text { font-size: 68px; color: #FFFFFF; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf");
+                    -unity-text-outline-width: 5px; -unity-text-outline-color: #7A3E00; margin: -8px 0 -8px 0; }
+.deal-ribbon-tail { position: absolute; top: 34px; width: 70px; height: 78px; background-color: #E8830F;
+                    border-width: 4px; border-color: #C86A0A; border-radius: 10px; }
+.deal-ribbon-tail-l { left: -34px; rotate: -8deg; }
+.deal-ribbon-tail-r { right: -34px; rotate: 8deg; }
+.deal-close { position: absolute; right: -34px; top: -30px; width: 104px; height: 104px; border-radius: 52px; padding: 0;
+              border-width: 6px; border-bottom-width: 10px; border-color: #FFFFFF; border-bottom-color: #8A1010;
+              align-items: center; justify-content: center; -unity-background-scale-mode: stretch-to-fill; }
+.deal-headline { margin-top: 14px; align-self: stretch; }
+.deal-headline-text { font-size: 58px; color: #FFFFFF; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); margin: -14px 6px -14px 6px;
+                      -unity-text-outline-width: 5px; -unity-text-outline-color: #123C8A; }
+.deal-headline-hi { color: #FFE23A; font-size: 76px; margin-top: -24px; margin-bottom: -22px; }
+.deal-art-box { align-self: center; width: 600px; height: 440px; margin-top: 10px; align-items: center; justify-content: center; }
+.deal-rays { position: absolute; left: -40px; right: -40px; top: -30px; bottom: -30px; -unity-background-scale-mode: stretch-to-fill;
+             -unity-background-image-tint-color: rgba(255, 245, 190, 0.85); }
+.deal-art { position: absolute; left: 0; right: 0; top: 0; bottom: 0; -unity-background-scale-mode: scale-to-fit; }
+.deal-art-fallback { position: absolute; left: 0; right: 0; top: 0; bottom: 0; }
+.deal-hero { position: absolute; left: 170px; top: 60px; width: 260px; height: 320px; -unity-background-scale-mode: scale-to-fit; }
+.deal-info { align-self: stretch; align-items: center; justify-content: center; margin-top: 12px; padding: 10px 20px;
+             border-radius: 26px; background-color: rgba(18, 60, 138, 0.55); }
+.deal-info-text { flex-shrink: 1; font-size: 34px; color: #FFFFFF; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); white-space: normal;
+                  -unity-text-align: middle-center; margin-right: 12px; -unity-text-outline-width: 0; }
+.deal-meta { align-self: stretch; justify-content: space-between; align-items: center; margin-top: 12px; }
+.deal-timer { font-size: 34px; color: #FFFFFF; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); padding: 4px 22px 0 22px; border-radius: 22px;
+              background-color: rgba(18, 40, 90, 0.6); -unity-text-outline-width: 0; }
+.deal-old { font-size: 36px; color: rgba(255, 255, 255, 0.8); -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); -unity-text-outline-width: 0;
+            border-bottom-width: 0; margin-right: 10px; }
+.deal-buy { align-self: stretch; height: 176px; margin: 12px 30px 0 30px; border-radius: 44px; padding: 0; overflow: hidden;
+            border-width: 6px; border-bottom-width: 16px; border-color: #D8FFB0; border-bottom-color: #1E7A1A;
+            flex-direction: column; align-items: center; justify-content: center; -unity-background-scale-mode: stretch-to-fill; }
+.deal-buy-gloss { position: absolute; left: 20px; right: 20px; top: 6px; height: 22px; border-radius: 20px; background-color: rgba(255, 255, 255, 0.22); }
+.deal-buy-caption { font-size: 38px; color: #FFFFFF; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); margin-bottom: -22px;
+                    -unity-text-outline-width: 4px; -unity-text-outline-color: #1E6A1A; }
+.deal-buy-price { font-size: 88px; color: #FFFFFF; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); margin-bottom: -10px;
+                  -unity-text-outline-width: 6px; -unity-text-outline-color: #1E6A1A; }
