@@ -352,8 +352,11 @@ namespace SledSurfers
         public static float[] CycleScale = { 1.1f, 1.4f, 1.8f, 1.8f, 1.8f, 1.8f, 1.8f };
         // Çayır: belirgin inişli çıkışlı uzun dalgalar (kullanıcı 2026-10-10: çok düzlük vardı). 70 m'de bir, 2.4 m:
         // eğim neredeyse düz (%8) ile dik (%30) arasında gidip gelir; tepeler yumuşak (81 km/sa'nın altında havalanmaz).
-        public static float[] WaveLength = { 70f, 60f, 70f, 70f, 70f, 70f, 70f };
-        public static float[] WaveAmp = { 2.4f, 1.2f, 0.6f, 0.6f, 0.6f, 0.6f, 0.6f };
+        // Orman (kullanıcı 2026-10-11: dümdüzdü; rastgele değil, enerji kuralına göre): tepede havalanma koşulu
+        // v²·A·(2π/λ)² > g. 90 m'de 2.2 m'lik dalga 25 m/s'de (90 km/sa) yerde tutar (0.67 g) ama eğimi +%5 yokuş yukarı ile
+        // -%26 iniş arasında değiştirir; dalga indiği kadar çıkar, yamacın net düşüşü (= sürtünme kaybı) aynı kalır.
+        public static float[] WaveLength = { 70f, 90f, 70f, 70f, 70f, 70f, 70f };
+        public static float[] WaveAmp = { 2.4f, 2.2f, 0.6f, 0.6f, 0.6f, 0.6f, 0.6f };
         /// Krater duvarının yüksekliği (m; 0 = yok) ve pistteki yeri (uzunluk oranı).
         public static float[] WallRise = { 0f, 0f, 0f, 0f, 0f, 0f, 16f };
         public static float WallAt = 0.72f;
@@ -858,7 +861,7 @@ namespace SledSurfers
             for (float z = 0f; z < t.finishZ; z += 1f)
                 if (t.Slope(z - 1f) > 0.08f && t.Slope(z + 2f) < -0.02f) lips.Add(z);
             float reach = t.halfWidth + TrackProfile.BankRim - 1.5f;
-            for (float z = 165f; z < t.finishZ - 30f; z += R(3.5f, 7f))   // ilk 165 m boş: sapan hızıyla engele girilmesin
+            for (float z = 110f; z < t.finishZ - 30f; z += R(3.5f, 7f))   // ilk 165 m boş: sapan hızıyla engele girilmesin
             {
                 bool skip = false;
                 foreach (var w in t.water) if (z > w.x - 80f && z < w.y + 20f) skip = true;
@@ -868,8 +871,9 @@ namespace SledSurfers
                 float side = rnd.Next(2) == 0 ? -1f : 1f;
                 // Patika ortasına göre yanal konum: çoğu patikanın dışında, bazıları tam kenarında (dar geçit hissi)
                 // Güzergâhın iki yanında ±5 m'lik koridor açık kalır (oradaki engeller aşağıda, seyrek ve sırayla gelir).
-                float off = side * (rnd.NextDouble() < 0.25 ? R(TrackProfile.PathHalfWidth + 3.3f, TrackProfile.PathHalfWidth + 4.5f)
-                                                            : R(TrackProfile.PathHalfWidth + 4.5f, reach));
+                // Koridorun hemen kenarındaki (yakın) engeller de yalnızca kızağın yavaş olduğu çıkış kısmında; inişte uzakta.
+                float off = side * (rnd.NextDouble() < 0.25 && t.Slope(z) > -0.07f ? R(TrackProfile.PathHalfWidth + 3.3f, TrackProfile.PathHalfWidth + 4.5f)
+                                                            : R(TrackProfile.PathHalfWidth + (t.Slope(z) > -0.07f ? 4.5f : 6.5f), reach));
                 float x = t.PathX(z) + off;
                 if (Mathf.Abs(x - t.CenterX(z)) > reach) continue;
                 // Güzergâha 7 m'den yakın yerde yalnız ince gövdeli ağaç; geniş kayalar daha dışarıda.
@@ -879,9 +883,12 @@ namespace SledSurfers
             // Güzergâhın üstünde de engeller (kullanıcı 2026-10-11: ağaçlar hep kenardaydı, yol dümdüzdü): 24-38 m'de bir,
             // sırayla sağa-sola kayık; arada kızağın geçeceği boşluk hep kalır (oyuncu aralarından kıvrılır).
             float turn = 1f;
-            for (float z = 240f; z < t.finishZ - 40f; z += R(45f, 70f))
+            for (float z = 150f; z < t.finishZ - 40f; z += R(45f, 70f))
             {
-                bool skip = false;
+                // Enerji kuralı: ağaç inişin dibine (kızağın en hızlı olduğu yer) konmaz; dalganın çıkış kısmına, eğimin
+                // yatıklaştığı yere kaydırılır: kızak orada yavaşlar, kaçınmaya zamanı olur.
+                for (int k = 0; k < 20 && t.Slope(z) < -0.07f; k++) z += 3f;
+                bool skip = t.Slope(z) < -0.07f;
                 foreach (var w in t.water) if (z > w.x - 85f && z < w.y + 25f) skip = true;
                 foreach (var f in t.forks) if (z > f.z0 - 15f && z < f.z1 + 15f) skip = true;
                 foreach (float lip in lips) if (z > lip - 15f && z < lip + 110f) skip = true;
@@ -909,7 +916,7 @@ namespace SledSurfers
             if (UseGlide)
             {
                 var gp = GlideStart(1, false);
-                var gobs = Glide(gp, 1, 33, 0.3f, false, true);
+                var gobs = Glide(gp, 1, 33, 0.75f, false, true);   // çok rampa: Orman süzülme haritası (kullanıcı 2026-10-11)
                 var gt = gp.Build(Names[1], Lengths[1], 8f, 220f, 2.3f, 85f, 5);
                 // Kullanıcı kararı (2026-10-10): Orman Çayır'dan farklı hissettirsin: yan yamaç yok (dümdüz açık orman),
                 // zeminde rastgele ağaçlar ve kayalar; aralarından geçilir, çarpan düşer.
