@@ -21,6 +21,18 @@ namespace SledSurfers.EditorTools
                 tex.alphaIsTransparency = true;
                 return;
             }
+            if (assetPath.Contains("/Resources/UI/Shop/") || assetPath.Contains("/Resources/UI/Offers/"))
+            {
+                // Mağaza ve fırsat görselleri: arayüzde küçültülerek gösterilir (mipmap + üçlü süzme tırtığı önler),
+                // saydam kenar rengi doğru, sıkıştırma yok (boyanmış görselde bantlanma olmasın).
+                tex.mipmapEnabled = true;
+                tex.filterMode = UnityEngine.FilterMode.Trilinear;
+                tex.alphaIsTransparency = true;
+                tex.textureCompression = TextureImporterCompression.Uncompressed;
+                tex.npotScale = TextureImporterNPOTScale.None;
+                tex.wrapMode = UnityEngine.TextureWrapMode.Clamp;
+                return;
+            }
             if (assetPath.Contains("/Resources/Avatars/Meshy/")) tex.maxTextureSize = 1024;
         }
 
