@@ -120,7 +120,7 @@ namespace SledSurfers
                     q.target = Round(TrackLibrary.Show(L * R(2f, 3f) * hard), 500);
                     q.text = "Slide " + q.target + " m in total today"; break;
                 case QuestKind.Coins:
-                    q.target = Round(R(40f, 70f) * hard, 10);
+                    q.target = Mathf.RoundToInt(R(4f, 8f) * hard);   // altınlar tek tek ve dağınık
                     q.text = "Collect " + q.target + " coins on the track"; break;
                 case QuestKind.Gems:
                     q.target = Mathf.RoundToInt(R(2f, 4f) * hard);

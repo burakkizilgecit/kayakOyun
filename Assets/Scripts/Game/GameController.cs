@@ -146,6 +146,8 @@ namespace SledSurfers
         public void DebugSettings(bool show) => ui.DebugSettings(show);
         public void DebugBuy(int i) => Buy(i);
         public void DebugMap() => ui.ShowMap(save);
+        public void DebugShop() => ui.ShowShop(save.gems, CoinPackAmounts());
+        public void DebugOffer() => ui.ShowOffer(WelcomeOffer());
         /// Roket düğmesine basılmış gibi (arayüz olayının yolu) ve roket durumu.
         public void DebugPressRocket() => rocketRequested = true;
         public string DebugRocketState => "durum " + state + " hak " + sled.rocketCharges + " ateşlenen " + sled.stats.rocketsFired
@@ -526,6 +528,46 @@ namespace SledSurfers
 
         Color dustColor = Color.white;
         Vector2 camDir = Vector2.up;   // koşu kamerasının yumuşatılmış yatay yönü (x, z)
+        /// Elmasla coin paketleri: miktar bulunulan parkurun fiyat düzeyine göre (ucuz bir yükseltmenin ~4, 15 ve 45 katı).
+        int[] CoinPackAmounts()
+        {
+            float unit = 250f * TrackLibrary.CostScale[save.track];
+            return new[] { Round50(unit * 4f), Round50(unit * 15f), Round50(unit * 45f) };
+        }
+
+        static int Round50(float v) => Mathf.Max(50, Mathf.RoundToInt(v / 50f) * 50);
+
+        /// Karşılama teklifi: içerik değişken (oyuncunun durumuna göre seçilir). Gerçek ödeme bağlanınca oyuna girişte
+        /// gösterilecek; şimdilik yalnızca test düğmesinden açılır.
+        GameUI.Offer WelcomeOffer()
+        {
+            // Oyuncunun eksiğine göre üç teklif: yeni oyuncuya başlangıç paketi, reklam görmüş oyuncuya reklamsız paket,
+            // ilerlemiş oyuncuya çift roket.
+            if (save.unlocked == 0)
+                return new GameUI.Offer
+                {
+                    title = "STARTER PACK", subtitle = "A flying start for new heroes!", price = "$1.99", oldPrice = "$5.99", badge = "-65%",
+                    productId = "starter_pack", secondsLeft = 24 * 3600,
+                    items = new[] { "50 gems", CoinPackAmounts()[2].ToString("N0", System.Globalization.CultureInfo.InvariantCulture) + " coins", "20 launches" },
+                    icons = new[] { IconKind.Gem, IconKind.Coin, IconKind.Slingshot },
+                };
+            if (save.unlocked < 3)
+                return new GameUI.Offer
+                {
+                    title = "NO ADS PACK", subtitle = "Play without interruptions", price = "$3.99", oldPrice = "$6.99", badge = "-40%",
+                    productId = "noads_pack_offer", secondsLeft = 12 * 3600,
+                    items = new[] { "No forced ads, forever", "30 gems", "Auto x3 coins for 12 hours" },
+                    icons = new[] { IconKind.Video, IconKind.Gem, IconKind.Coin },
+                };
+            return new GameUI.Offer
+            {
+                title = "ROCKET PACK", subtitle = "Go twice as far!", price = "$4.99", oldPrice = "$9.99", badge = "-50%",
+                productId = "rocket_pack_offer", secondsLeft = 6 * 3600,
+                items = new[] { "Double boost, forever", "100 gems", "80 launches" },
+                icons = new[] { IconKind.Rocket, IconKind.Gem, IconKind.Slingshot },
+            };
+        }
+
         void PlaceHubSled()
         {
             float x = track.PathX(HubForward);
@@ -562,8 +604,9 @@ namespace SledSurfers
             bool finished = sled.end == RunEnd.Finished;
             float income = Upgrades.IncomeMultiplier(save.levels[(int)UpgradeType.Income]) * (save.Perk == Perk.Income ? 1.1f : 1f);
             int bonus = FinishBonus * (save.track + 1);
-            int earned = Mathf.RoundToInt((distance * (0.4f + 0.6f * Mathf.Clamp01(fill)) + loot.coins * Collectibles.CoinValue
-                                           + (finished ? bonus : 0)) * income * TrackLibrary.PayFactors[save.track]);
+            // Pistte toplanan altın sabit değerlidir (120): gelir ve parkur çarpanı yalnızca mesafe ve bitiş ödülüne uygulanır.
+            int earned = Mathf.RoundToInt((distance * (0.4f + 0.6f * Mathf.Clamp01(fill)) + (finished ? bonus : 0))
+                                          * income * TrackLibrary.PayFactors[save.track]) + loot.coins * Collectibles.CoinValue;
             save.gems += loot.gems;
             string unlockedName = null;
             if (finished && save.track == save.unlocked && save.unlocked < TrackLibrary.Count - 1)
@@ -610,7 +653,7 @@ namespace SledSurfers
                 distance = distance,
                 earned = earned,
                 finishBonus = bonus,
-                coins = loot.coins,
+                coins = loot.coins * Collectibles.CoinValue,   // ekranda altının değeri gösterilir
                 gems = loot.gems,
                 trackName = track.name,
                 unlockedName = unlockedName,
@@ -1100,6 +1143,29 @@ namespace SledSurfers
         void WireUi()
         {
             ui.Retry += EnterAim;
+            ui.OpenShop += () => ui.ShowShop(save.gems, CoinPackAmounts());
+            ui.ShopFreeGem += () =>
+            {
+                save.gems += 1;
+                save.Save();
+                sfx.Coin();
+                ui.RefreshShop(save.gems, CoinPackAmounts());
+                ui.RefreshHub(save, -1);
+            };
+            ui.ShopBuyCoins += k =>
+            {
+                int cost = GameUI.CoinPackGems[k];
+                if (save.gems < cost) { sfx.Deny(); ui.ShopNote("Not enough gems"); return; }
+                save.gems -= cost;
+                save.money += CoinPackAmounts()[k];
+                save.Save();
+                sfx.Coin();
+                ui.RefreshShop(save.gems, CoinPackAmounts());
+                ui.RefreshHub(save, -1);
+            };
+            // Gerçek ödeme henüz bağlı değil: satın alma düğmeleri yalnızca bilgi verir.
+            ui.ShopPurchase += id => { sfx.Deny(); ui.ShopNote("Purchases are coming soon"); };
+            ui.TestOffer += () => ui.ShowOffer(WelcomeOffer());
             ui.Play += () => { if (state == State.Hub) EnterAim(); };
             ui.OpenQuests += () => RefreshQuests(true);
             ui.ClaimQuest += ClaimQuestReward;
@@ -1328,7 +1394,7 @@ namespace SledSurfers
                 rocketReady = state == State.Run && sled.CanFireRocket,
                 rocketCharges = sled.rocketCharges,
                 gems = save.gems,
-                runCoins = loot.coins,
+                runCoins = loot.coins * Collectibles.CoinValue,
                 runGems = loot.gems,
                 chestSeconds = ChestSeconds(),
                 launches = save.launches,

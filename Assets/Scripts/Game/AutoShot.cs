@@ -128,6 +128,14 @@ namespace SledSurfers
                 game.DebugSettings(true);
                 yield return new WaitForSeconds(0.8f);
                 yield return Shot("k_settings");
+                game.DebugSettings(false);
+                game.DebugShop();
+                yield return new WaitForSeconds(0.8f);
+                yield return Shot("k_shop");
+                game.DebugHub();
+                game.DebugOffer();
+                yield return new WaitForSeconds(1f);
+                yield return Shot("k_offer");
                 SaveData.ClearAll();   // yalnız test önekli kayıt (gerçek kayıt korunur)
                 Application.Quit();
                 yield break;

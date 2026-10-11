@@ -7,7 +7,7 @@ namespace SledSurfers
     /// Düz kısımlarda sıra sıra coin, çukurların üstünde yay biçiminde coin ve yayın tepesinde elmas bulunur.
     public class Collectibles
     {
-        public const int CoinValue = 2;
+        public const int CoinValue = 120;   // her altın 120 (kullanıcı kararı 2026-10-11); gelir çarpanları uygulanmaz
         const float PickRadius = 1.6f;
         const float CoinSize = 0.9f;
         const float GemSize = 1.1f;
@@ -50,48 +50,57 @@ namespace SledSurfers
                 return false;
             }
 
-            // 1) Düz kısımlarda sıra sıra coin; engelin önündeki şeritten kaçınılır.
-            float[] lanes = { -2.6f, 0f, 2.6f };
-            for (float z = 28f; z < track.finishZ - 12f; z += R(26f, 42f))
+            // 1) Altınlar tek tek, pistin her yerine dağılmış (kullanıcı kararı 2026-10-11): art arda sıra yok, her altın
+            // CoinValue (120) eder ve çoğu bir bedel ister: güzergâhın dışında (yol uzar, çimen yavaşlatır), su/çamurun
+            // ortasında (fren) ya da tam karşıda (bedelsiz). Engelin dibine konmaz.
+            void Coin(float z, float x) => Add(new Vector3(x, track.Height(x, z) + 0.8f, z), false);
+            bool Free(float z, float x)
             {
-                int n = 5 + rng.Next(4);
-                float length = n * 2.2f;
-                if (NearWater(z, 10f) || NearWater(z + length, 10f)) continue;
-                if (NearFork(z - 4f) || NearFork(z + length + 4f)) continue;   // çatalda altınlar şeridine dizilir (aşağıda)
-                float lane = lanes[rng.Next(lanes.Length)];
-                for (int tries = 0; tries < 3 && Blocked(track, lane, z, z + length); tries++)
-                    lane = lanes[(System.Array.IndexOf(lanes, lane) + 1) % lanes.Length];
-                if (Blocked(track, lane, z, z + length)) continue;
-                for (int i = 0; i < n; i++)
+                foreach (var o in track.obstacles)
+                    if (Mathf.Abs(o.z - z) < 5f && Mathf.Abs(o.x - x) < o.halfWidth + 1.6f) return false;
+                return true;
+            }
+            float reach = track.halfWidth + (track.bankScale <= 0f ? 5f : 1.5f);
+            for (float z = 45f; z < track.finishZ - 15f; z += R(34f, 62f))
+            {
+                if (NearWater(z, 14f) || NearFork(z)) continue;
+                double roll = rng.NextDouble();
+                float x;
+                if (roll < 0.35) x = track.PathX(z) + R(-0.6f, 0.6f);                       // tam karşıda
+                else if (roll < 0.7)                                                          // yolun dışında: yol uzar
                 {
-                    float zz = z + i * 2.2f;
-                    float x = track.PathX(zz) + lane;
-                    Add(new Vector3(x, track.Height(x, zz) + 0.8f, zz), false);
+                    float side = rng.Next(2) == 0 ? -1f : 1f;
+                    x = Mathf.Clamp(track.PathX(z) + side * R(3.2f, 5.6f), track.CenterX(z) - reach, track.CenterX(z) + reach);
                 }
-                z += length;
+                else x = track.PathX(z) + (rng.Next(2) == 0 ? -1f : 1f) * R(1.6f, 2.6f);    // yol kenarında
+                if (Free(z, x)) Coin(z, x);
+            }
+            // Su ve çamurun ortasında: almak için içinden geçmek (frenlenmek) gerekir. Lekelerin yarısında.
+            foreach (var zone in track.surfaces)
+            {
+                if (zone.type == Surface.Ice || rng.NextDouble() < 0.5 || zone.cz < 40f || zone.cz > track.finishZ - 15f) continue;
+                float x = (zone.onPath ? track.PathX(zone.cz) : track.CenterX(zone.cz)) + zone.cx;
+                if (Free(zone.cz, x)) Coin(zone.cz, x);
             }
 
-            // 1b) Çatalın iyi şeridi boyunca altın sırası: hangi yolun seçileceğini gösterir.
+            // 1b) Çatalın altınlı şeridinde iki altın (hangi şeridin ödüllü olduğunu gösterir).
             foreach (var f in track.forks)
-                for (float zz = f.z0 + TrackProfile.ForkBlend; zz <= f.z1 - TrackProfile.ForkBlend; zz += 2.4f)
+                foreach (float u in new[] { 0.38f, 0.62f })
                 {
-                    float x = track.GuideX(zz);
-                    Add(new Vector3(x, track.Height(x, zz) + 0.8f, zz), false);
+                    float zz = Mathf.Lerp(f.z0, f.z1, u);
+                    Coin(zz, track.GuideX(zz));
                 }
 
-            // 2) Köprülerin tablası boyunca coin sırası (ortada pembe elmas): düz ve tam ortadan geçmenin ödülü.
+            // 2) Köprü tablasının ortasında pembe elmas: düz ve tam ortadan geçmenin ödülü.
             foreach (var b in track.bridges)
             {
                 int n = Mathf.Max(3, Mathf.RoundToInt((b.r1 - b.r0) / 2.2f));
-                for (int i = 0; i <= n; i++)
-                {
-                    float zz = Mathf.Lerp(b.r0, b.r1, (float)i / n);
-                    Add(new Vector3(b.x, TrackProfile.DeckHeight(b, zz) + 0.6f, zz), i == n / 2);
-                    items[items.Count - 1].small = true;
-                }
+                float zz = Mathf.Lerp(b.r0, b.r1, (float)(n / 2) / n);
+                Add(new Vector3(b.x, TrackProfile.DeckHeight(b, zz) + 0.6f, zz), true);
+                items[items.Count - 1].small = true;
             }
 
-            // 3) Köprüsüz çukurların üstünde yay: atlayan kızağın yoluna benzer; tepesinde pembe elmas.
+            // 3) Köprüsüz çukurların üstünde, atlayışın tepesinde pembe elmas; iki yanında birer altın.
             foreach (var w in track.water)
             {
                 if (track.BridgeAt((w.x + w.y) * 0.5f, out _)) continue;
@@ -100,12 +109,12 @@ namespace SledSurfers
                 float lift = Mathf.Clamp(width * 0.12f, 2.5f, 14f);
                 float h0 = track.Height(z0 - 6f), h1 = track.Height(z1 + 6f);
                 int n = Mathf.Clamp(Mathf.RoundToInt(width / 3.2f), 4, 40);
-                for (int i = 0; i <= n; i++)
+                foreach (int k in new[] { n / 4, n / 2, n - n / 4 })
                 {
-                    float t = (float)i / n;
+                    float t = (float)k / n;
                     float zz = Mathf.Lerp(z0, z1, t);
                     float y = Mathf.Lerp(h0, h1, t) + 1.4f + lift * Mathf.Sin(t * Mathf.PI);
-                    Add(new Vector3(track.CenterX(zz), y, zz), i == n / 2);
+                    Add(new Vector3(track.CenterX(zz), y, zz), k == n / 2);
                 }
             }
 

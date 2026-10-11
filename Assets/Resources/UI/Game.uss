@@ -227,7 +227,8 @@
 /* ------------------------------------------------------------ ana ekran */
 
 .hub-title {
-    background-color: rgba(0, 0, 0, 0); border-width: 0; margin: 6px 0 0 0; padding: 0;
+    background-color: rgba(20, 70, 50, 0.9); border-width: 5px; border-bottom-width: 12px; border-color: rgba(255, 255, 255, 0.85);
+    border-radius: 44px; margin: 10px 30px 0 30px; padding: 14px 20px 18px 20px;
     flex-direction: column; align-items: center;
 }
 .side-btn { width: 150px; height: 150px; flex-direction: column; border-radius: 38px; padding: 0; margin: 0 0 30px 0; align-self: flex-end; }
@@ -346,10 +347,12 @@
 .pcard-pips { flex-direction: row; margin: 6px 12px 10px 12px; height: 18px; }
 .pcard-pip { flex-grow: 1; height: 16px; border-radius: 8px; margin: 0 3px 0 3px; border-bottom-width: 4px; }
 .pcard-btn {
-    height: 88px; margin: 0 10px; border-radius: 26px; border-width: 3px; border-bottom-width: 10px; font-size: 36px; padding: 4px 6px 0 6px;
+    height: 104px; margin: 0 10px; border-radius: 26px; border-width: 3px; border-bottom-width: 10px; font-size: 34px; padding: 2px 6px 0 6px;
+    flex-direction: column; align-items: center; justify-content: center;
     overflow: hidden; -unity-background-scale-mode: stretch-to-fill;
 }
-.pcard-btn > Label { font-size: 36px; }
+.pcard-btn Label { font-size: 34px; }
+.pcard-btn > .pcard-btn-cap { font-size: 24px; margin-top: -4px; -unity-text-outline-width: 2px; }
 .pcard-shine { position: absolute; top: -20px; bottom: -20px; width: 34px; background-color: rgba(255, 255, 255, 0.45); rotate: 20deg; }
 
 .side-card {
@@ -437,25 +440,22 @@
 /* ------------------------------------------------------------ ana ekran */
 .hub-shade-top { position: absolute; left: 0; right: 0; top: -200px; height: 640px; -unity-background-scale-mode: stretch-to-fill; }
 .hub-shade-bottom { position: absolute; left: 0; right: 0; bottom: -200px; height: 760px; -unity-background-scale-mode: stretch-to-fill; }
-.hub-ribbon {
-    padding: 12px 64px 6px 64px; border-radius: 40px; justify-content: center; align-items: center;
-    border-width: 5px; border-bottom-width: 14px; border-color: #FFFFFF; -unity-background-scale-mode: stretch-to-fill;
-}
+.hub-ribbon { padding: 0; justify-content: center; align-items: center; border-width: 0; }
 /* Baloo'nun satır kutusu harflerden çok uzun: üst/alt boşluk kırpılır, kurdele yazıya göre boylanır (Ç'nin çengeli dahil). */
-.hub-ribbon-text { font-size: 84px; color: #FFFFFF; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf");
+.hub-ribbon-text { font-size: 80px; color: #FFFFFF; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf");
                    -unity-text-outline-width: 4px; -unity-text-outline-color: rgba(30, 24, 48, 0.55); margin-top: -20px; margin-bottom: -18px; }
-.hub-sub { font-size: 34px; color: #FFFFFF; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); margin-top: 18px;
+.hub-sub { font-size: 36px; color: #FFFFFF; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); margin-top: 14px;
            -unity-text-outline-width: 3px; -unity-text-outline-color: rgba(30, 24, 48, 0.6); }
 .hub-bar {
-    width: 470px; height: 46px; margin-top: 6px; border-radius: 23px; overflow: hidden;
+    width: 620px; height: 56px; margin-top: 8px; border-radius: 28px; overflow: hidden;
     background-color: rgba(30, 24, 48, 0.55); border-width: 4px; border-color: #FFFFFF;
 }
 .hub-bar-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 19px; -unity-background-scale-mode: stretch-to-fill; }
 .hub-bar-shine { position: absolute; left: 6px; right: 6px; top: 4px; height: 9px; border-radius: 5px; background-color: rgba(255, 255, 255, 0.35); }
-.hub-bar-pct { position: absolute; left: 0; right: 0; top: 0; bottom: 0; -unity-text-align: middle-center; font-size: 28px; color: #FFFFFF;
+.hub-bar-pct { position: absolute; left: 0; right: 0; top: 0; bottom: 0; -unity-text-align: middle-center; font-size: 34px; color: #FFFFFF;
                -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); -unity-text-outline-width: 3px; -unity-text-outline-color: rgba(30, 24, 48, 0.7);
                margin-top: 3px; }
-.hub-bar-flag { position: absolute; right: 6px; top: -2px; }
+.hub-bar-flag { position: absolute; right: 8px; top: 3px; }
 .play-wrap { align-self: center; width: 660px; height: 200px; margin-bottom: 26px; align-items: center; justify-content: center; }
 .play-btn {
     width: 460px; height: 150px; border-radius: 50px; padding: 0; overflow: hidden;
@@ -472,3 +472,64 @@
 .rocket-label { position: absolute; left: 0; right: 0; bottom: 14px; font-size: 34px; color: #FFFFFF;
                 -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); -unity-text-align: middle-center;
                 -unity-text-outline-width: 4px; -unity-text-outline-color: #1C4E96; }
+
+/* ------------------------------------------------------------ yükseltme paneli */
+.upg-panel { border-top-left-radius: 48px; border-top-right-radius: 48px; border-bottom-left-radius: 30px; border-bottom-right-radius: 30px;
+             padding: 6px 14px 16px 14px; margin: 0 -8px; border-width: 4px; border-color: rgba(255, 255, 255, 0.35); }
+.upg-head { justify-content: center; align-items: center; margin-bottom: 4px; }
+.upg-title { font-size: 46px; color: #FFFFFF; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); margin: 0 22px;
+             -unity-text-outline-width: 3px; -unity-text-outline-color: rgba(10, 30, 24, 0.7); }
+.upg-line { flex-grow: 1; height: 4px; border-radius: 2px; background-color: rgba(255, 255, 255, 0.4); margin-top: 6px; }
+
+/* ------------------------------------------------------------ mağaza */
+.shop-page { padding: 24px 28px 0 28px; -unity-background-scale-mode: stretch-to-fill; }
+.shop-close { background-color: #F0453A; border-color: #B0261E; font-size: 60px; color: #FFFFFF; }
+.shop-section { font-size: 50px; color: #FFFFFF; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); -unity-text-align: middle-center;
+                margin: 34px 0 10px 0; -unity-text-outline-width: 4px; -unity-text-outline-color: rgba(30, 24, 80, 0.6); }
+.shop-bundle { flex-direction: row; align-items: center; border-radius: 44px; margin-top: 46px; padding: 20px 22px 22px 14px;
+               border-width: 6px; border-bottom-width: 16px; border-color: rgba(255, 255, 255, 0.9); -unity-background-scale-mode: stretch-to-fill; }
+.shop-art { width: 250px; height: 220px; align-items: center; justify-content: center; }
+.shop-art-glow { position: absolute; left: 0; right: 0; top: 0; bottom: 0; -unity-background-scale-mode: stretch-to-fill; }
+.shop-ribbon { align-self: center; margin-top: -58px; padding: 6px 30px 0 30px; border-radius: 22px; background-color: #FFB02E;
+               border-width: 4px; border-bottom-width: 10px; border-color: #FFE7A8; border-bottom-color: #C8700A; }
+.shop-ribbon-text { font-size: 50px; color: #FFFFFF; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf");
+                    -unity-text-outline-width: 4px; -unity-text-outline-color: #8A4A00; }
+.shop-text { font-size: 36px; color: #FFFFFF; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); -unity-text-align: middle-center;
+             white-space: normal; margin: 10px 0 10px 0; -unity-text-outline-width: 3px; -unity-text-outline-color: rgba(30, 24, 60, 0.55); }
+.shop-price { height: 110px; border-radius: 30px; border-bottom-width: 12px; font-size: 52px; padding: 4px 18px 0 18px; align-self: stretch; }
+.shop-price Label { font-size: 52px; }
+.shop-tag { position: absolute; right: -14px; top: -20px; rotate: 12deg; padding: 2px 16px 0 16px; border-radius: 14px; font-size: 28px;
+            background-color: #F0453A; color: #FFFFFF; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf");
+            border-width: 3px; border-color: #FFFFFF; -unity-text-outline-width: 0; }
+.shop-line { margin-top: 22px; align-items: center; padding: 16px 20px; }
+.shop-line > .shop-price { align-self: center; width: 300px; }
+.shop-hint { font-size: 30px; color: rgba(255, 255, 255, 0.9); -unity-font: url("Fonts/Baloo2-ExtraBold.ttf");
+             -unity-text-align: middle-center; margin-top: 10px; white-space: normal; -unity-text-outline-width: 0; }
+.shop-free { flex-direction: row; align-items: center; border-radius: 40px; padding: 14px 22px; background-color: #C84AE0;
+             border-width: 5px; border-bottom-width: 14px; border-color: #F0B8FF; border-bottom-color: #8A2AA0; }
+.shop-free > .shop-price { align-self: center; }
+.shop-grid { flex-wrap: wrap; justify-content: space-between; }
+.shop-cell { width: 31.5%; margin-top: 22px; padding: 10px 12px 14px 12px; align-items: center; }
+.shop-cell > .shop-price { margin-top: 6px; font-size: 42px; height: 96px; }
+.shop-cell > .shop-price Label { font-size: 44px; }
+.shop-note { position: absolute; left: 60px; right: 60px; bottom: 60px; padding: 18px 24px; border-radius: 30px; font-size: 38px;
+             background-color: rgba(30, 24, 48, 0.88); color: #FFFFFF; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf");
+             -unity-text-align: middle-center; white-space: normal; -unity-text-outline-width: 0; }
+
+/* ------------------------------------------------------------ karşılama teklifi */
+.offer-card { width: 88%; border-radius: 54px; padding: 0 34px 30px 34px; border-width: 7px; border-bottom-width: 18px;
+              border-color: #BFE6FF; border-bottom-color: #1C4E96; -unity-background-scale-mode: stretch-to-fill; }
+.offer-rays { position: absolute; left: 5%; right: 5%; top: 60px; height: 520px; -unity-background-scale-mode: stretch-to-fill;
+              -unity-background-image-tint-color: rgba(255, 255, 255, 0.5); }
+.offer-ribbon { margin-top: -52px; }
+.offer-badge { position: absolute; right: -22px; top: 36px; rotate: 14deg; padding: 6px 22px 2px 22px; border-radius: 22px; font-size: 44px;
+               background-color: #F0453A; color: #FFFFFF; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf");
+               border-width: 4px; border-color: #FFFFFF; -unity-text-outline-width: 0; }
+.offer-items { margin-top: 20px; align-self: stretch; }
+.offer-item { align-items: center; background-color: rgba(255, 255, 255, 0.92); border-radius: 30px; padding: 10px 22px; margin-top: 14px;
+              border-bottom-width: 8px; border-color: rgba(28, 78, 150, 0.35); }
+.offer-timer { font-size: 36px; color: #FFFFFF; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); margin-top: 22px;
+               padding: 6px 26px 2px 26px; border-radius: 24px; background-color: rgba(20, 40, 90, 0.55); -unity-text-outline-width: 0; }
+.offer-old { font-size: 36px; color: rgba(255, 255, 255, 0.85); -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); -unity-text-outline-width: 0; }
+.offer-later { background-color: rgba(0, 0, 0, 0); border-width: 0; font-size: 38px; color: rgba(255, 255, 255, 0.9); margin-top: 14px;
+               -unity-text-outline-width: 0; }

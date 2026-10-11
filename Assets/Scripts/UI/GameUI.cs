@@ -195,6 +195,9 @@ namespace SledSurfers
         VisualElement hubRibbon, playPill;
         Icon playHand;
         Button playButton;
+        VisualElement hubTitlePanel, hubUpgPanel;
+        /// Mağaza ve (test) karşılama teklifi.
+        public event Action OpenShop, TestOffer;
         readonly StarShape[] playStars = new StarShape[9];
 
         /// Beş köşeli yıldız (görsel dosyasız): OYNA düğmesinin çevresindeki parıltılar.
@@ -460,6 +463,8 @@ namespace SledSurfers
             BuildPartUnlock();
             BuildQuests();
             BuildLogin();
+            BuildShop();
+            BuildOffer();
             BuildNoLaunches();
 
             root.Query<VisualElement>().ForEach(e =>
@@ -718,6 +723,7 @@ namespace SledSurfers
 
             // Parkur başlığı: dokununca harita açılır.
             var title = B(() => OpenMap?.Invoke(), "hub-title");
+            hubTitlePanel = title;
             // Pist adı, pist renginde degrade bir kurdelenin üstünde
             hubRibbon = E("hub-ribbon");
             hubTrackName = L("", "hub-ribbon-text");
@@ -782,8 +788,16 @@ namespace SledSurfers
             map.Add(new Icon(IconKind.Map, 108, Color.white));
             map.Add(L("MAP", "side-label"));
             side.Add(map);
+            var shop = SideCard(() => OpenShop?.Invoke(), new Color32(0xFF, 0x7A, 0xB8, 0xFF), new Color32(0xD8, 0x3F, 0x86, 0xFF));
+            shop.Add(new Icon(IconKind.Gem, 104));
+            shop.Add(L("SHOP", "side-label"));
+            side.Add(shop);
             var rocket = BuildUpgradeCard((int)UpgradeType.Rocket);
             rocket.root.style.width = 214;
+            // Roket kartı sağda kalır ama küçülür (kullanıcı kararı 2026-10-11): sağ üst köşesinden %80.
+            rocket.root.style.transformOrigin = new TransformOrigin(Length.Percent(100), Length.Percent(0));
+            rocket.root.style.scale = new Scale(new Vector2(0.8f, 0.8f));
+            rocket.root.style.marginBottom = -70;
             side.Add(rocket.root);
             cards[(int)UpgradeType.Rocket] = rocket;
             mid.Add(side);
@@ -822,8 +836,18 @@ namespace SledSurfers
             playPill.Add(play);
             p.Add(playPill);
 
+            // UPGRADES paneli: kartların arkasında koyu, yuvarlak köşeli zemin ve başlık.
+            var panel = E("upg-panel");
+            hubUpgPanel = panel;
+            var head = E("row", "upg-head");
+            head.Add(E("upg-line"));
+            head.Add(L("UPGRADES", "upg-title"));
+            head.Add(E("upg-line"));
+            panel.Add(head);
             var row = E("row");
             row.style.alignItems = Align.Stretch;
+            panel.Add(row);
+            p.Add(panel);
             for (int i = 0; i < (int)UpgradeType.Rocket; i++)
             {
                 var c = BuildUpgradeCard(i);
@@ -833,7 +857,6 @@ namespace SledSurfers
                 cards[i] = c;
                 row.Add(c.root);
             }
-            p.Add(row);
         }
 
         /// Dairesel hız göstergesi: altı açık (270°) gri iz, hızla dolan camgöbeği yay; uçta parlak nokta.
@@ -946,14 +969,20 @@ namespace SledSurfers
             c.shine = E("pcard-shine");
             c.shine.pickingMode = PickingMode.Ignore;
             c.buy.Add(c.shine);
-            c.coin = new Icon(IconKind.Coin, 42);
-            c.buy.Add(c.coin);
-            c.gem = new Icon(IconKind.Gem, 40);
-            c.buy.Add(c.gem);
-            c.lockIcon = new Icon(IconKind.Lock, 34, Color.white);
-            c.buy.Add(c.lockIcon);
+            // Üstte "UPGRADE", altında ikon + fiyat (iki satır).
+            c.buy.Add(L("UPGRADE", "pcard-btn-cap"));
+            var priceRow = E("row");
+            priceRow.pickingMode = PickingMode.Ignore;
+            priceRow.style.marginTop = -12;
+            c.coin = new Icon(IconKind.Coin, 38);
+            priceRow.Add(c.coin);
+            c.gem = new Icon(IconKind.Gem, 36);
+            priceRow.Add(c.gem);
+            c.lockIcon = new Icon(IconKind.Lock, 30, Color.white);
+            priceRow.Add(c.lockIcon);
             c.cost = Sp(L(""), 6);
-            c.buy.Add(c.cost);
+            priceRow.Add(c.cost);
+            c.buy.Add(priceRow);
             c.root.Add(c.buy);
             return c;
         }
@@ -1094,12 +1123,15 @@ namespace SledSurfers
             int t = save.track;
             float progress = Mathf.Clamp01(save.bests[t] / TrackLibrary.Lengths[t]);
             hubTrackName.text = TrackLibrary.Names[t].ToUpper(Tr);
-            hubTrackSub.text = "TRACK " + (t + 1) + "  ·  " + TrackLibrary.Show(TrackLibrary.Lengths[t]) + " m";
+            hubTrackSub.text = "Track " + (t + 1) + "  ·  Target: " + TrackLibrary.Show(TrackLibrary.Lengths[t]) + " m";
             hubTrackPct.text = Mathf.FloorToInt(progress * 100f) + "%";
             hubTrackFill.style.width = Length.Percent(Mathf.Max(progress * 100f, 4f));
             var tc = TrackColors[Mathf.Clamp(t, 0, TrackColors.Length - 1)];
-            hubRibbon.style.backgroundImage = new StyleBackground(VGrad(Color.Lerp(tc, Color.white, 0.35f), tc));
-            hubRibbon.style.borderBottomColor = Color.Lerp(tc, Color.black, 0.3f);
+            // Başlık ve yükseltme panelleri parkurun koyu tonunda (ormanda koyu yeşil, çölde koyu kum...).
+            var dark = Color.Lerp(tc, new Color(0.05f, 0.1f, 0.12f), 0.62f);
+            hubTitlePanel.style.backgroundColor = new Color(dark.r, dark.g, dark.b, 0.9f);
+            hubTitlePanel.style.borderBottomColor = Color.Lerp(dark, Color.black, 0.35f);
+            hubUpgPanel.style.backgroundColor = new Color(dark.r, dark.g, dark.b, 0.9f);
             var fillCol = save.Finished(t) ? (Color)new Color32(0x3F, 0xD1, 0x5B, 0xFF) : (Color)new Color32(0xFF, 0xB0, 0x20, 0xFF);
             hubTrackFill.style.backgroundImage = new StyleBackground(VGrad(Color.Lerp(fillCol, Color.white, 0.4f), fillCol));
         }
@@ -1229,6 +1261,11 @@ namespace SledSurfers
                 unlock.style.alignSelf = Align.Stretch;
                 unlock.style.marginTop = 14;
                 settingsCard.Add(unlock);
+                var offerTest = B(() => { ShowSettings(false); TestOffer?.Invoke(); }, "btn", "btn-white", "btn-mid");
+                offerTest.text = "Show welcome offer";
+                offerTest.style.alignSelf = Align.Stretch;
+                offerTest.style.marginTop = 14;
+                settingsCard.Add(offerTest);
                 var money = B(() => { TestMoney?.Invoke(); ShowSettings(false); }, "btn", "btn-white", "btn-mid");
                 money.text = "+100k coins, +100 gems";
                 money.style.alignSelf = Align.Stretch;
@@ -1375,6 +1412,325 @@ namespace SledSurfers
         }
 
         /// Sandık ödülünü gösterir; DEVAM ile ClaimChest(çarpan) yayınlanır.
+        // ================================================================ mağaza ve karşılama teklifi
+
+        /// Mağaza olayları: reklamla ücretsiz elmas, elmasla coin paketi (dizin), gerçek parayla ürün (kimlik; ödeme
+        /// sistemi bağlanana kadar yalnızca "yakında" bilgisi gösterilir).
+        public event Action ShopFreeGem;
+        public event Action<int> ShopBuyCoins;
+        public event Action<string> ShopPurchase;
+
+        VisualElement shopModal, shopBody, offerModal, offerCard;
+        Label shopNote, shopGems, offerTitle, offerSub, offerPrice, offerOld, offerBadge, offerTimer;
+        readonly Label[] shopCoinAmounts = new Label[3];
+        VisualElement offerItems;
+        float shopNoteClock = -1f;
+
+        /// Gerçek parayla satılan ürünler (fiyatlar yer tutucu; mağaza bağlanınca mağazanın yerel fiyatı gösterilir).
+        public struct ShopItem { public string id, title, text, price; public IconKind icon; public Color color; public string tag; }
+
+        static readonly ShopItem[] ShopBundles =
+        {
+            new ShopItem { id = "noads_pack", title = "NO ADS PACK", text = "No forced ads  +  10 gems", price = "$4.99", icon = IconKind.Video,
+                           color = new Color32(0x9B, 0x5C, 0xFF, 0xFF), tag = "BEST DEAL" },
+            new ShopItem { id = "double_rocket", title = "DOUBLE BOOST", text = "Use your rocket twice per run\nPermanent", price = "$5.99",
+                           icon = IconKind.Rocket, color = new Color32(0x3F, 0xA4, 0xFF, 0xFF) },
+            new ShopItem { id = "auto_x3", title = "AUTO x3 COINS", text = "Triple earnings without ads\nfor 12 hours", price = "$2.49",
+                           icon = IconKind.Coin, color = new Color32(0xFF, 0xA8, 0x1A, 0xFF) },
+        };
+        static readonly int[] GemPacks = { 10, 30, 100, 150, 200, 500 };
+        static readonly string[] GemPrices = { "$1.99", "$4.99", "$9.99", "$13.99", "$17.99", "$19.99" };
+        static readonly int[] LaunchPacks = { 20, 80, 200 };
+        static readonly string[] LaunchPrices = { "$0.99", "$2.49", "$4.99" };
+        /// Elmasla coin paketleri (ödeme gerektirmez, hemen çalışır): elmas fiyatı; coin miktarı parkura göre (GameController).
+        public static readonly int[] CoinPackGems = { 3, 10, 25 };
+
+        VisualElement Section(string text)
+        {
+            var l = L(text, "shop-section");
+            return l;
+        }
+
+        Button PriceButton(string price, Action onClick)
+        {
+            var b = B(onClick, "btn", "btn-green", "shop-price");
+            b.text = price;
+            return b;
+        }
+
+        void BuildShop()
+        {
+            shopModal = E("fill", "pick", "shop-page");
+            shopModal.style.display = DisplayStyle.None;
+            shopModal.style.backgroundImage = new StyleBackground(VGrad(new Color32(0x5C, 0x7C, 0xF0, 0xFF), new Color32(0x8A, 0x70, 0xE8, 0xFF)));
+
+            var top = E("topbar");
+            var wallet = E("row");
+            var gemPill = E("pill");
+            gemPill.Add(new Icon(IconKind.Gem, 60));
+            shopGems = Sp(L("0", "outlined"), 10);
+            shopGems.style.fontSize = 46;
+            gemPill.Add(shopGems);
+            wallet.Add(gemPill);
+            top.Add(wallet);
+            var title = L("SHOP", "outlined");
+            title.style.fontSize = 84;
+            top.Add(title);
+            var close = B(() => shopModal.style.display = DisplayStyle.None, "btn", "btn-round", "shop-close");
+            close.text = "X";
+            top.Add(close);
+            shopModal.Add(top);
+
+            shopNote = L("", "shop-note");
+            shopNote.style.display = DisplayStyle.None;
+
+            var scroll = new ScrollView(ScrollViewMode.Vertical);
+            scroll.style.flexGrow = 1;
+            scroll.style.flexShrink = 1;
+            scroll.verticalScrollerVisibility = ScrollerVisibility.Hidden;
+            scroll.horizontalScrollerVisibility = ScrollerVisibility.Hidden;
+            scroll.touchScrollBehavior = ScrollView.TouchScrollBehavior.Elastic;
+            scroll.style.overflow = Overflow.Hidden;
+            var inner = scroll.Q(className: "unity-scroll-view__content-and-vertical-scroll-container");
+            if (inner != null) { inner.style.flexGrow = 1; inner.style.flexShrink = 1; inner.style.flexDirection = FlexDirection.Row; }
+            scroll.contentViewport.style.flexGrow = 1;
+            scroll.contentViewport.style.flexShrink = 1;
+            scroll.contentViewport.style.overflow = Overflow.Hidden;
+            scroll.contentContainer.style.flexShrink = 0;
+            scroll.contentContainer.style.paddingBottom = 40;
+            shopBody = scroll.contentContainer;
+
+            // Paketler: büyük kart (ikon solda, başlık kurdelesi, açıklama, fiyat düğmesi)
+            foreach (var item in ShopBundles)
+            {
+                var it = item;
+                var card = E("shop-bundle");
+                card.style.backgroundImage = new StyleBackground(VGrad(Color.Lerp(it.color, Color.white, 0.25f), it.color));
+                card.style.borderBottomColor = Color.Lerp(it.color, Color.black, 0.3f);
+                var art = E("shop-art");
+                var glow = E("shop-art-glow");
+                glow.style.backgroundImage = new StyleBackground(Radial());
+                art.Add(glow);
+                art.Add(new Icon(it.icon, 150));
+                card.Add(art);
+                var col = E("grow");
+                var rib = E("shop-ribbon");
+                rib.Add(L(it.title, "shop-ribbon-text"));
+                col.Add(rib);
+                col.Add(L(it.text, "shop-text"));
+                col.Add(PriceButton(it.price, () => ShopPurchase?.Invoke(it.id)));
+                card.Add(col);
+                if (!string.IsNullOrEmpty(it.tag)) card.Add(L(it.tag, "shop-tag"));
+                shopBody.Add(card);
+            }
+            var noAds = E("card", "row", "shop-line");
+            noAds.Add(new Icon(IconKind.Video, 84, Ink));
+            var noAdsText = L("Disable forced ads", "heavy");
+            noAdsText.style.fontSize = 40;
+            noAdsText.style.flexGrow = 1;
+            noAdsText.style.marginLeft = 16;
+            noAds.Add(noAdsText);
+            noAds.Add(PriceButton("$3.49", () => ShopPurchase?.Invoke("noads")));
+            shopBody.Add(noAds);
+            var hint = L("Rewarded ads (x3 coins, chests, launches) stay available.", "shop-hint");
+            shopBody.Add(hint);
+
+            // Elmas: reklamla ücretsiz + paketler
+            shopBody.Add(Section("GEMS"));
+            var free = E("shop-free");
+            free.Add(new Icon(IconKind.Gem, 110));
+            var freeText = L("x1", "outlined");
+            freeText.style.fontSize = 70;
+            freeText.style.flexGrow = 1;
+            freeText.style.marginLeft = 10;
+            free.Add(freeText);
+            var freeBtn = B(() => ShowAd(() => ShopFreeGem?.Invoke()), "btn", "btn-blue", "shop-price");
+            freeBtn.Add(new Icon(IconKind.Video, 56));
+            freeBtn.Add(Sp(L("FREE"), 10));
+            freeBtn.style.width = 300;
+            free.Add(freeBtn);
+            shopBody.Add(free);
+            shopBody.Add(Grid(GemPacks, GemPrices, IconKind.Gem, "gems_", new[] { -1, -1, 2, -1, -1, 5 }, new[] { "POPULAR", "BEST VALUE" }));
+
+            // Fırlatma hakkı
+            shopBody.Add(Section("LAUNCHES"));
+            shopBody.Add(Grid(LaunchPacks, LaunchPrices, IconKind.Slingshot, "launches_", null, null));
+
+            // Coin: elmasla (ödeme gerektirmez; elmasa kullanım alanı)
+            shopBody.Add(Section("COINS"));
+            var coinRow = E("row", "shop-grid");
+            for (int k = 0; k < CoinPackGems.Length; k++)
+            {
+                int index = k;
+                var cell = E("card", "col", "shop-cell");
+                shopCoinAmounts[k] = L("", "outlined");
+                shopCoinAmounts[k].style.fontSize = 52;
+                cell.Add(shopCoinAmounts[k]);
+                cell.Add(new Icon(IconKind.Coin, 96 + 14 * k));
+                var buy = B(() => ShopBuyCoins?.Invoke(index), "btn", "btn-blue", "shop-price");
+                buy.Add(new Icon(IconKind.Gem, 48));
+                buy.Add(Sp(L(CoinPackGems[k].ToString()), 8));
+                cell.Add(buy);
+                coinRow.Add(cell);
+            }
+            shopBody.Add(coinRow);
+
+            shopModal.Add(scroll);
+            shopModal.Add(shopNote);
+            safe.Add(shopModal);
+        }
+
+        VisualElement Grid(int[] amounts, string[] prices, IconKind icon, string idPrefix, int[] tagAt, string[] tags)
+        {
+            var grid = E("row", "shop-grid");
+            int tagIndex = 0;
+            for (int k = 0; k < amounts.Length; k++)
+            {
+                string id = idPrefix + amounts[k];
+                var cell = E("card", "col", "shop-cell");
+                var amount = L(amounts[k].ToString(), "outlined");
+                amount.style.fontSize = 60;
+                cell.Add(amount);
+                cell.Add(new Icon(icon, 84 + Mathf.Min(40, 8 * k)));
+                cell.Add(PriceButton(prices[k], () => ShopPurchase?.Invoke(id)));
+                if (tagAt != null && System.Array.IndexOf(tagAt, k) >= 0 && tagIndex < tags.Length) cell.Add(L(tags[tagIndex++], "shop-tag"));
+                grid.Add(cell);
+            }
+            return grid;
+        }
+
+        /// coinAmounts: elmasla coin paketlerinin bu parkurdaki miktarları.
+        public void ShowShop(int gems, int[] coinAmounts)
+        {
+            RefreshShop(gems, coinAmounts);
+            shopModal.style.display = DisplayStyle.Flex;
+        }
+
+        public void RefreshShop(int gems, int[] coinAmounts)
+        {
+            shopGems.text = gems.ToString();
+            for (int k = 0; k < shopCoinAmounts.Length; k++) shopCoinAmounts[k].text = coinAmounts[k].ToString("N0", Tr);
+        }
+
+        /// Mağazanın altında kısa bilgi (ör. ödeme henüz bağlı değil, elmas yetmiyor).
+        public void ShopNote(string text)
+        {
+            shopNote.text = text;
+            shopNote.style.display = DisplayStyle.Flex;
+            shopNoteClock = 0f;
+        }
+
+        /// Karşılama teklifi (gerçek ödeme gelince oyuna girişte gösterilecek; içerik değişken).
+        public struct Offer
+        {
+            public string title, subtitle, price, oldPrice, badge, productId;
+            public string[] items;       // satır metinleri
+            public IconKind[] icons;     // satır ikonları
+            public int secondsLeft;      // teklifin süresi (geri sayım)
+        }
+
+        Offer currentOffer;
+        float offerClock;
+
+        void BuildOffer()
+        {
+            offerModal = E("fill", "dim", "center", "pick");
+            offerModal.style.display = DisplayStyle.None;
+            offerCard = E("offer-card", "col", "pop", "off");
+            offerCard.style.backgroundImage = new StyleBackground(VGrad(new Color32(0x4F, 0xB8, 0xFF, 0xFF), new Color32(0x2A, 0x6C, 0xE0, 0xFF)));
+
+            var rays = E("offer-rays");
+            rays.style.backgroundImage = new StyleBackground(Radial());
+            rays.pickingMode = PickingMode.Ignore;
+            rays.name = "offer-rays";
+            offerCard.Add(rays);
+
+            var rib = E("shop-ribbon", "offer-ribbon");
+            offerTitle = L("", "shop-ribbon-text");
+            offerTitle.style.fontSize = 64;
+            rib.Add(offerTitle);
+            offerCard.Add(rib);
+            offerBadge = L("", "offer-badge");
+            offerCard.Add(offerBadge);
+
+            offerSub = L("", "outlined");
+            offerSub.style.fontSize = 44;
+            offerSub.style.whiteSpace = WhiteSpace.Normal;
+            offerSub.style.unityTextAlign = TextAnchor.MiddleCenter;
+            offerSub.style.marginTop = 26;
+            offerCard.Add(offerSub);
+
+            offerItems = E("offer-items");
+            offerCard.Add(offerItems);
+
+            offerTimer = L("", "offer-timer");
+            offerCard.Add(offerTimer);
+
+            var priceRow = E("row");
+            priceRow.style.marginTop = 10;
+            offerOld = L("", "offer-old");
+            priceRow.Add(offerOld);
+            offerCard.Add(priceRow);
+            var buy = B(() => ShopPurchase?.Invoke(currentOffer.productId), "btn", "btn-green", "btn-big");
+            offerPrice = L("", "outlined");
+            offerPrice.style.fontSize = 80;
+            buy.Add(offerPrice);
+            buy.style.alignSelf = Align.Stretch;
+            buy.style.marginTop = 6;
+            offerCard.Add(buy);
+            var later = B(() => Close(offerModal, offerCard), "btn", "offer-later");
+            later.text = "Maybe later";
+            offerCard.Add(later);
+
+            offerModal.Add(offerCard);
+            safe.Add(offerModal);
+        }
+
+        public void ShowOffer(Offer offer)
+        {
+            currentOffer = offer;
+            offerClock = 0f;
+            offerTitle.text = offer.title;
+            offerSub.text = offer.subtitle;
+            offerPrice.text = offer.price;
+            offerOld.text = string.IsNullOrEmpty(offer.oldPrice) ? "" : "Was " + offer.oldPrice;
+            offerBadge.text = offer.badge ?? "";
+            offerBadge.style.display = string.IsNullOrEmpty(offer.badge) ? DisplayStyle.None : DisplayStyle.Flex;
+            offerItems.Clear();
+            for (int k = 0; k < offer.items.Length; k++)
+            {
+                var row = E("row", "offer-item");
+                row.Add(new Icon(offer.icons[Mathf.Min(k, offer.icons.Length - 1)], 84));
+                var text = L(offer.items[k], "heavy");
+                text.style.fontSize = 42;
+                text.style.marginLeft = 18;
+                text.style.color = Ink;
+                row.Add(text);
+                offerItems.Add(row);
+            }
+            Open(offerModal, offerCard);
+        }
+
+        void TickShop(float dt)
+        {
+            if (shopNoteClock >= 0f)
+            {
+                shopNoteClock += dt;
+                shopNote.style.opacity = Mathf.Clamp01(2.6f - shopNoteClock);
+                if (shopNoteClock > 2.6f) { shopNoteClock = -1f; shopNote.style.display = DisplayStyle.None; }
+            }
+            if (offerModal.style.display.value == DisplayStyle.Flex)
+            {
+                offerClock += dt;
+                int left = Mathf.Max(0, currentOffer.secondsLeft - Mathf.FloorToInt(offerClock));
+                offerTimer.text = "Offer ends in " + (left / 3600).ToString("00") + ":" + (left / 60 % 60).ToString("00") + ":" + (left % 60).ToString("00");
+                var rays = offerCard.Q("offer-rays");
+                rays.style.rotate = new Rotate(time * 20f);
+                float s = 1f + 0.05f * Mathf.Sin(time * 5f);
+                offerBadge.style.scale = new Scale(new Vector2(s, s));
+            }
+        }
+
         // ================================================================ günlük görevler ve giriş ödülü
 
         VisualElement questModal, questCard, questDot, loginModal, loginCard;
@@ -1711,6 +2067,7 @@ namespace SledSurfers
                 float pulse = 1f + 0.04f * Mathf.Sin(time * 5f);
                 chestTriple.style.scale = new Scale(new Vector2(pulse, pulse));
             }
+            TickShop(dt);
             if (partClock >= 0f)
             {
                 partClock += dt;
