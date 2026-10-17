@@ -358,8 +358,8 @@ namespace SledSurfers
 
         /// Pist başına süzülme ayarları: yavaşlama yamacı eğimi (pist başında → sonunda; sona doğru düzleşir, her kızak
         /// seviyesi bir iki yamaç daha aşar), yamaç uzunluğu, kanal eğimi ve uzunluğu.
-        public static float[] SlowGrade = { 0.178f, 0.18f, 0.14f, 0.1f, 0.1f, 0.08f, 0.08f };   // 2026-10-10: uzun yokuşlarla yeniden tarandı (Mars: sona doğru belirgin azalır; pervane telafisiyle sonda hafif yokuş yukarı)
-        public static float[] SlowGradeEnd = { 0.173f, 0.16f, 0.14f, 0.1f, 0.1f, 0.08f, 0.045f };
+        public static float[] SlowGrade = { 0.178f, 0.18f, 0.18f, 0.1f, 0.1f, 0.08f, 0.08f };   // 2026-10-10: uzun yokuşlarla yeniden tarandı (Mars: sona doğru belirgin azalır; pervane telafisiyle sonda hafif yokuş yukarı)
+        public static float[] SlowGradeEnd = { 0.173f, 0.16f, 0.162f, 0.1f, 0.1f, 0.08f, 0.045f };
         public static Vector2[] SlowLength = { new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f) };
         public static float[] BoostGrade = { 0.42f, 0.36f, 0.36f, 0.34f, 0.34f, 0.34f, 0.32f };
         public static float[] BoostLength = { 25f, 25f, 25f, 25f, 25f, 25f, 25f };
@@ -993,55 +993,104 @@ namespace SledSurfers
             new Vector2(130f, 295f), new Vector2(345f, 500f), new Vector2(500f, 610f), new Vector2(655f, 700f), new Vector2(715f, 800f), new Vector2(845f, 905f), new Vector2(918f, 1030f),
         };
 
+        /// Whispering Woods dereleri (kullanıcı 2026-10-18): pisti enine kesen dere, üstünde tek ince köprü. Köprü vadinin
+        /// ortasında değil: oyuncu geçmek için sola, sağa ya da ortaya kaymak zorunda. (orta z, açıklık, köprünün yeri)
+        /// Yokuş çıkışlarında (içbükey, kızak yere basar ve yavaşlar): tepe/sahanlık kenarının arkasında hızlı kızak
+        /// hafifçe havalanıp dereye havadan giriyordu; rampa inişine de denk gelmez.
+        static readonly Vector3[] WoodsCreeks = { new Vector3(342f, 14f, 0f), new Vector3(692f, 14f, -3.5f), new Vector3(1022f, 14f, 3.5f) };
+        /// Dere köprüsünün yarı genişliği (Kanyon'daki ince köprülerin 0.8'i yerine).
+        public const float CreekBridgeHalfWidth = 1.3f;
+
         static Path WoodsDrawn()
         {
-            const int track = 1;
-            float length = Lengths[track];
-            // Şekil, z'ye göre eğim ve dönüşümler korunarak monoton kübik (PCHIP) eğriyle çizilir: tepe ve çukurlar
-            // çizimdeki yerinde kalır, aralarda taşma (fazladan tümsek) olmaz.
-            int n = WoodsZ.Length;
-            var d = new float[n];
-            var h = new float[n - 1];
-            var s = new float[n - 1];
-            for (int k = 0; k < n - 1; k++) { h[k] = WoodsZ[k + 1] - WoodsZ[k]; s[k] = (WoodsR[k + 1] - WoodsR[k]) / h[k]; }
-            for (int k = 1; k < n - 1; k++)
-            {
-                if (s[k - 1] * s[k] <= 0f) { d[k] = 0f; continue; }
-                float w1 = 2f * h[k] + h[k - 1], w2 = h[k] + 2f * h[k - 1];
-                d[k] = (w1 + w2) / (w1 / s[k - 1] + w2 / s[k]);
-            }
-            d[0] = 0f; d[n - 1] = s[n - 2];
-            float Rel(float z)
-            {
-                if (z <= WoodsZ[0]) return WoodsR[0];
-                if (z >= WoodsZ[n - 1]) return WoodsR[n - 1];
-                int k = 0;
-                while (WoodsZ[k + 1] < z) k++;
-                float t = (z - WoodsZ[k]) / h[k], t2 = t * t, t3 = t2 * t;
-                return (2f * t3 - 3f * t2 + 1f) * WoodsR[k] + (t3 - 2f * t2 + t) * h[k] * d[k]
-                       + (-2f * t3 + 3f * t2) * WoodsR[k + 1] + (t3 - t2) * h[k] * d[k + 1];
-            }
-            // Genel eğim baştan sona SlowGrade → SlowGradeEnd (her seviye biraz daha ileri); pervane telafisi diğer
-            // parkurlardaki gibi.
-            var p = new Path(-30f).Flat(26f);
-            float y0 = p.y, drop = 0f, zPrev = 0f;
-            for (float z = 0f; z <= length + 60f; z += 2f)
-            {
-                float t = Mathf.Clamp01(z / length);
-                drop += (Mathf.Lerp(SlowGrade[track], SlowGradeEnd[track], t) - PropGrade(track)) * (z - zPrev);
-                zPrev = z;
-                p.points.Add(new Vector2(z, y0 - drop + Rel(Mathf.Min(z, length))));
-            }
-            p.corners.Add(-4f);
-            var last = p.points[p.points.Count - 1];
-            p.z = last.x;
-            p.y = last.y;
+            var p = Drawn(1, WoodsZ, WoodsR, WoodsCreeks);
             foreach (var kk in WoodsKickers)
             {
                 p.sharp.Add(new Vector2(kk.x - 4f, kk.y + 10f));
                 p.straight.Add(new Vector2(kk.x - 15f, kk.y + 90f));
             }
             return p;
+        }
+
+        /// Çizimden pist: (zs, rs) göreli şekli genel eğime (SlowGrade → SlowGradeEnd, pervane telafili) yatırır.
+        /// Şekil monoton kübik (PCHIP) eğriyle çizilir: tepe ve çukurlar çizimdeki yerinde kalır, aralarda taşma olmaz.
+        /// creeks: (orta z, açıklık, köprünün vadi ortasına göre yeri): enine dere, kıyılar dik, üstünde ince köprü.
+        static Path Drawn(int track, float[] zs, float[] rs, Vector3[] creeks)
+        {
+            float length = Lengths[track];
+            int n = zs.Length;
+            var d = new float[n];
+            var h = new float[n - 1];
+            var s = new float[n - 1];
+            for (int k = 0; k < n - 1; k++) { h[k] = zs[k + 1] - zs[k]; s[k] = (rs[k + 1] - rs[k]) / h[k]; }
+            for (int k = 1; k < n - 1; k++)
+            {
+                if (s[k - 1] * s[k] <= 0f) { d[k] = 0f; continue; }
+                float w1 = 2f * h[k] + h[k - 1], w2 = h[k] + 2f * h[k - 1];
+                d[k] = (w1 + w2) / (w1 / s[k - 1] + w2 / s[k]);
+            }
+            d[n - 1] = s[n - 2];
+            float Rel(float z)
+            {
+                if (z <= zs[0]) return rs[0];
+                if (z >= zs[n - 1]) return rs[n - 1];
+                int k = 0;
+                while (zs[k + 1] < z) k++;
+                float t = (z - zs[k]) / h[k], t2 = t * t, t3 = t2 * t;
+                return (2f * t3 - 3f * t2 + 1f) * rs[k] + (t3 - 2f * t2 + t) * h[k] * d[k]
+                       + (-2f * t3 + 3f * t2) * rs[k + 1] + (t3 - t2) * h[k] * d[k + 1];
+            }
+            var p = new Path(-30f).Flat(26f);
+            p.corners.Add(-4f);
+            var grid = new List<Vector2>();
+            float y0 = p.y, drop = 0f, zPrev = 0f;
+            for (float z = 0f; z <= length + 60f; z += 2f)
+            {
+                float t = Mathf.Clamp01(z / length);
+                drop += (Mathf.Lerp(SlowGrade[track], SlowGradeEnd[track], t) - PropGrade(track)) * (z - zPrev);
+                zPrev = z;
+                grid.Add(new Vector2(z, y0 - drop + Rel(Mathf.Min(z, length))));
+            }
+            int c = 0;
+            for (int g = 0; g < grid.Count; g++)
+            {
+                if (creeks != null && c < creeks.Length && grid[g].x >= creeks[c].x - creeks[c].y * 0.5f)
+                {
+                    // Dere (Path.Bridge gibi): kıyıdan 1.5 m'de BridgeDepth iner, düz yatak (su), karşı kıyıya çıkar.
+                    int g1 = g;
+                    while (g1 < grid.Count - 1 && grid[g1].x < grid[g].x + creeks[c].y) g1++;
+                    Vector2 a = grid[g], b = grid[g1];
+                    float bed = Mathf.Min(a.y, b.y) - BridgeDepth;
+                    p.points.Add(a);
+                    p.points.Add(new Vector2(a.x + 1.5f, bed));
+                    p.points.Add(new Vector2(b.x - 1.5f, bed));
+                    p.points.Add(b);
+                    p.water.Add(new Vector3(a.x + 0.5f, b.x - 0.5f, bed + 0.9f));
+                    p.bridges.Add(new Vector2(a.x, b.x));
+                    p.sharp.Add(new Vector2(a.x - 3f, b.x + 3f));
+                    p.straight.Add(new Vector2(a.x - 75f, b.x + 6f));
+                    g = g1;
+                    c++;
+                    continue;
+                }
+                p.points.Add(grid[g]);
+            }
+            var last = p.points[p.points.Count - 1];
+            p.z = last.x;
+            p.y = last.y;
+            return p;
+        }
+
+        /// Çizimli pistte köprüleri derenin yerine kaydırır (Build tablayı güzergâha koyar).
+        static void PlaceCreekBridges(TrackProfile t, Vector3[] creeks, float halfWidth)
+        {
+            for (int k = 0; k < t.bridges.Count && k < creeks.Length; k++)
+            {
+                var b = t.bridges[k];
+                b.x = t.CenterX((b.r0 + b.r1) * 0.5f) + creeks[k].z;
+                b.hw = halfWidth;
+                t.bridges[k] = b;
+            }
         }
 
         /// Parkur 2 — Orman (5 km). Basamaklar + her 5 basamakta bir vadi atlayışı: çukurlar giderek genişler,
@@ -1061,6 +1110,7 @@ namespace SledSurfers
                 // Rampa önünde (görünmeyen) güzergâh vadinin ortasında ve düz: kızak dudağa açılı gelip süzülürken
                 // vadiden yana çıkmasın.
                 foreach (var kk in WoodsKickers) gt.centerZones.Add(new Vector2(kk.x - 60f, kk.y + 100f));
+                PlaceCreekBridges(gt, WoodsCreeks, CreekBridgeHalfWidth);
                 ScatterForest(gt, 33, WoodsClear);
                 AddObstacles(gt, gobs);
                 return gt;
@@ -1099,15 +1149,48 @@ namespace SledSurfers
         }
 
         /// Parkur 3 — Kanyon (4,5 km). Daha yüksek tepeler ve her 4 basamakta bir geniş kanyon: büyük kanat ister.
+        /// Sunset Canyon profili (kullanıcının 2. çizimi, 2026-10-18): basamaklar ve uçurumlar. Fırlatmadan sonra çanak,
+        /// yuvarlak büyük tepe, keskin kenar ve aşağıda basamak, çukur, yatık uzun plato, yine keskin kenar, vadi, küçük
+        /// tepe, uzun hafif iniş; çizim iki kez (ikincisi daha derin) tekrar eder. Kenardan uçan kızak aşağı eğimli
+        /// yamaca iner (iniş yumuşak).
+        static readonly float[] CanyonZ =
+        {
+            0, 25, 60, 75, 150, 180, 216, 224, 250, 262, 320, 365, 410, 440, 500, 508, 540, 595, 630, 700, 760, 775, 830, 860, 868, 895, 905, 960, 1000, 1045, 1080, 1130, 1138, 1175, 1230, 1265, 1340, 1400,
+        };
+        static readonly float[] CanyonR =
+        {
+            0, 0, -8, -8.3f, 2, 4, 4, 3.2f, -3, -3.5f, -4, -7, -2, -1.8f, -1, -1.8f, -10, -6, -8.5f, -7, -14, -14.3f, -9.5f, -9, -9.8f, -16, -16.5f, -17, -20, -16, -15.6f, -15, -15.8f, -24, -21, -23.5f, -23, -27,
+        };
+        /// Uçurum kenarları (yuvarlak tepenin bitişi, dudak): yumuşatma silmesin, iniş alanında vadi düz.
+        static readonly Vector2[] CanyonEdges = { new Vector2(216f, 224f), new Vector2(500f, 508f), new Vector2(860f, 868f), new Vector2(1130f, 1138f) };
+        /// Dar köprülü dereler: yokuş çıkışlarında (kızak yerde, yavaşlıyor), köprü patikada.
+        static readonly Vector3[] CanyonCreeks = { new Vector3(392f, 14f, 0f), new Vector3(800f, 14f, 0f), new Vector3(1024f, 14f, 0f) };
+        /// Çatallar yatık platolarda (z başı, tip, altınlı şerit): kenardan inişten ve köprüden uzakta.
+        static readonly Vector3[] CanyonForks = { new Vector3(430f, 1f, 1f), new Vector3(1062f, 2f, -1f) };
+
         public static TrackProfile Canyon()
         {
             if (UseGlide)
             {
-                var gp = GlideStart(2, false);
-                var gobs = Glide(gp, 2, 47, 0.3f, false, true);
+                var gp = Drawn(2, CanyonZ, CanyonR, CanyonCreeks);
+                foreach (var e in CanyonEdges)
+                {
+                    gp.sharp.Add(new Vector2(e.x - 6f, e.y + 8f));
+                    gp.straight.Add(new Vector2(e.x - 15f, e.y + 90f));
+                }
+                float end = gp.z;
+                foreach (var f in CanyonForks)
+                {
+                    gp.z = f.x;
+                    gp.Fork(0f, ForkLength, (int)f.y, (int)f.z, false, true);
+                }
+                gp.z = end;
                 var gt = gp.Build(Names[2], Lengths[2], 7f, 240f, 2.2f, 90f, 7);
+                // Kanyonun köprüsü dar kalır (ormandakinden dar), ama 0.8'de gecikmeli oyuncu yokuş çıkarken yavaşken bile
+                // düşüyordu.
+                PlaceCreekBridges(gt, CanyonCreeks, 1.05f);
                 ScatterRocks(gt, 47, 22f);
-                AddObstacles(gt, gobs);
+                AddObstacles(gt, new List<Vector2>());
                 return gt;
             }
             var p = Start(CanyonGrade, false);

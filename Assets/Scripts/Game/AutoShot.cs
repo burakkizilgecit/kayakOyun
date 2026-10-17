@@ -215,9 +215,20 @@ namespace SledSurfers
                 Application.Quit();
                 yield break;
             }
-            if (mode == "woods")
+            if (mode == "woods" || mode == "drawn")
             {
-                yield return WoodsShots();
+                yield return DrawnShots(1, new[] { 25, 25, 25, 25, 25 }, new (float, string)[]
+                {
+                    (60f, "w1_bowl"), (320f, "w2_creek1_ahead"), (405f, "w3_peak_ahead"), (480f, "w4_kicker_ahead"),
+                    (530f, "w5_glide"), (672f, "w6_creek2_ahead"), (750f, "w7_edge_air"), (1000f, "w8_creek3_ahead"),
+                });
+                if (mode == "drawn")
+                    yield return DrawnShots(2, new[] { 25, 25, 20, 25, 20 }, new (float, string)[]
+                    {
+                        (60f, "c1_bowl"), (200f, "c2_edge_ahead"), (235f, "c3_edge_air"), (372f, "c4_creek1_ahead"),
+                        (440f, "c5_fork"), (490f, "c6_edge2_ahead"), (520f, "c7_glide"), (780f, "c8_creek2_ahead"),
+                        (850f, "c9_edge3_ahead"), (1180f, "c10_valley"),
+                    });
                 SaveData.ClearAll();   // yalnız test önekli kayıt (gerçek kayıt korunur)
                 Application.Quit();
                 yield break;
@@ -504,24 +515,18 @@ namespace SledSurfers
                 }
         }
 
-        /// Whispering Woods (çizimden profil): çanak, çukur, sivri zirve, dip rampası (kalkış, süzülme), uçurum kenarı.
-        IEnumerator WoodsShots()
+        /// Çizimden pist (Whispering Woods, Sunset Canyon): bir koşuda verilen mesafelerde görüntü (çanak, dere, kenar, süzülme).
+        IEnumerator DrawnShots(int track, int[] levels, (float z, string name)[] marks)
         {
             game.DebugHideTutorial();
             game.debugAutopilot = true;
-            game.DebugReset(new[] { 25, 25, 25, 25, 25 }, 0);
-            game.DebugTrack(1, 1);
+            game.DebugReset(levels, 0);
+            game.DebugTrack(track, track);
             yield return new WaitForSeconds(1.5f);
             game.DebugAim();
             yield return new WaitForSeconds(0.5f);
             game.DebugLaunch(1f);
             float t = 0f;
-            var marks = new (float z, string name)[]
-            {
-                (60f, "w1_bowl"), (285f, "w2_valley"), (405f, "w3_peak_ahead"), (480f, "w4_kicker_ahead"),
-                (530f, "w5_glide"), (565f, "w6_glide_far"), (715f, "w7_edge_ahead"), (750f, "w8_edge_air"),
-                (915f, "w9_kicker2_ahead"), (960f, "w10_glide2"),
-            };
             foreach (var m in marks)
             {
                 while (!game.DebugInResult && game.DebugDistance < m.z && t < 150f) { t += Time.deltaTime; yield return null; }

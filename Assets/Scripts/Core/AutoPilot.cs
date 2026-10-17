@@ -134,6 +134,10 @@ namespace SledSurfers
         static float BestLane(TrackProfile track, SledPhysics sled, float atZ)
         {
             float look = Mathf.Max(20f, sled.Speed * 2f);
+            // Önde köprü varsa ona kadar bak: oyuncu tablayı uzaktan görür, yerine erkenden kayar (yan yana köprüye son
+            // anda sert direksiyonla yönelmek sütü döküp gecikmeli oyuncuyu dereye düşürüyordu).
+            for (float d = look; d <= 60f; d += 3f)
+                if (track.BridgeAt(atZ + d, out _)) { look = d + 6f; break; }
             float best = track.PathX(atZ), bestScore = float.MinValue;
             for (float off = -track.halfWidth; off <= track.halfWidth; off += 0.5f)
             {
@@ -146,7 +150,7 @@ namespace SledSurfers
                     if (track.BridgeAt(zz, out var br))
                     {
                         float bo = Mathf.Abs(x - br.x);
-                        if (bo > TrackProfile.BridgeHalfWidth - 0.15f) { score -= 60f; continue; }
+                        if (bo > br.HalfWidth - 0.15f) { score -= 60f; continue; }
                         score -= bo * 8f;
                     }
                     if (Mathf.Abs(x - track.CenterX(zz)) > track.halfWidth) { score -= 1f; continue; }

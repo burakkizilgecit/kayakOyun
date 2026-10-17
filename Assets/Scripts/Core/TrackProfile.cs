@@ -101,7 +101,13 @@ namespace SledSurfers
         /// (x) düz tahta tabla. z0..z1 / y0 → y1: tabla (kıyılara biraz uzanır: profil yumuşatması dudağı yuvarlar,
         /// tabla dudaktan önce başlamazsa hızlı kızak dudakta havalanıyordu). r0..r1: derenin kendisi; orada tablanın
         /// dışına kayan kızak dereye düşer, koşu biter.
-        public struct Bridge { public float z0, z1, r0, r1, x, y0, y1; }
+        /// hw: tablanın yarı genişliği (0: BridgeHalfWidth). Enine derelerin köprüsü daha geniş (oyuncu yerini bulmalı,
+        /// ip cambazlığı yapmamalı).
+        public struct Bridge
+        {
+            public float z0, z1, r0, r1, x, y0, y1, hw;
+            public float HalfWidth => hw > 0f ? hw : BridgeHalfWidth;
+        }
         public readonly List<Bridge> bridges = new List<Bridge>();
         /// Tablanın yarı genişliği (kızağın ortası bu aralıkta kalmalı; kızak 0.76 m genişliğinde). 0.6'da simdeki
         /// ortalama oyuncu Kanyon ve Karlı Dağ'ın ilk köprüsünden hep düşüyordu (yol haritası aşama 3).
@@ -398,7 +404,7 @@ namespace SledSurfers
         public float Height(float x, float z)
         {
             foreach (var b in bridges)
-                if (z >= b.z0 && z <= b.z1 && Mathf.Abs(x - b.x) <= BridgeHalfWidth) return DeckHeight(b, z);
+                if (z >= b.z0 && z <= b.z1 && Mathf.Abs(x - b.x) <= b.HalfWidth) return DeckHeight(b, z);
             return TerrainHeight(x, z);
         }
 
@@ -411,7 +417,7 @@ namespace SledSurfers
         public bool OnDeck(float x, float z)
         {
             foreach (var b in bridges)
-                if (z >= b.z0 && z <= b.z1 && Mathf.Abs(x - b.x) <= BridgeHalfWidth) return true;
+                if (z >= b.z0 && z <= b.z1 && Mathf.Abs(x - b.x) <= b.HalfWidth) return true;
             return false;
         }
 
@@ -419,7 +425,7 @@ namespace SledSurfers
         public bool OverRavine(float x, float z)
         {
             foreach (var b in bridges)
-                if (z > b.r0 && z < b.r1 && Mathf.Abs(x - b.x) > BridgeHalfWidth) return true;
+                if (z > b.r0 && z < b.r1 && Mathf.Abs(x - b.x) > b.HalfWidth) return true;
             return false;
         }
 
@@ -500,6 +506,20 @@ namespace SledSurfers
             foreach (var s in surfaces)
                 if (s.Contains(z, s.onPath ? dp : dc)) return s.type;
             return Surface.Ground;
+        }
+
+        /// Arcade steering keeps low-speed control, but ice needs an earlier, wider turn.
+        /// Decks retain full control so an overlapping surface patch cannot make a bridge unfair.
+        public float LateralGrip(float z, float x)
+        {
+            if (OnDeck(x, z)) return 1f;
+            switch (SurfaceAt(z, x))
+            {
+                case Surface.Ice: return 0.72f;
+                case Surface.Mud: return 0.88f;
+                case Surface.Puddle: return 0.9f;
+                default: return 1f;
+            }
         }
 
         /// Konuma göre kinetik sürtünme katsayısı: patika normal, çimen biraz yavaş, su çok yavaş, buz kaygan.
