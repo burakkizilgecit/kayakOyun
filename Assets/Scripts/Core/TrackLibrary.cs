@@ -253,6 +253,26 @@ namespace SledSurfers
                 straight.Add(new Vector2(start - 10f, z + 90f));   // hızlı kızak dudaktan ~80 m uçar
                 return To(3f, -fall);
             }
+
+            // Kar dudağına giriş kademeli dikleşir; doğrusal rampanın başlangıcındaki ani sıkışmayı önler.
+            // Arkadaki kar yamacı iniş alanıdır: uçmak için roket ya da bir dereyi aşmak gerekmez.
+            public Path SnowTakeoff(float length, float entrySlope, float exitSlope, float fall)
+            {
+                float z0 = z, y0 = y;
+                int samples = Mathf.CeilToInt(length / 2f);
+                for (int i = 1; i <= samples; i++)
+                {
+                    float s = length * i / samples;
+                    points.Add(new Vector2(z0 + s, y0 + entrySlope * s
+                        + (exitSlope - entrySlope) * s * s / (2f * length)));
+                }
+                z += length;
+                y += (entrySlope + exitSlope) * length * 0.5f;
+                lastLip = z;
+                sharp.Add(new Vector2(z0 - 2f, z + 6f));
+                straight.Add(new Vector2(z0 - 12f, z + 100f));
+                return To(3f, -fall);
+            }
         }
 
         // ------------------------------------------------------------------ yeni haritalar (2026-10-09)
@@ -338,8 +358,8 @@ namespace SledSurfers
 
         /// Pist başına süzülme ayarları: yavaşlama yamacı eğimi (pist başında → sonunda; sona doğru düzleşir, her kızak
         /// seviyesi bir iki yamaç daha aşar), yamaç uzunluğu, kanal eğimi ve uzunluğu.
-        public static float[] SlowGrade = { 0.178f, 0.105f, 0.14f, 0.1f, 0.1f, 0.08f, 0.08f };   // 2026-10-10: uzun yokuşlarla yeniden tarandı (Mars: sona doğru belirgin azalır; pervane telafisiyle sonda hafif yokuş yukarı)
-        public static float[] SlowGradeEnd = { 0.173f, 0.105f, 0.14f, 0.1f, 0.1f, 0.08f, 0.045f };
+        public static float[] SlowGrade = { 0.178f, 0.18f, 0.14f, 0.1f, 0.1f, 0.08f, 0.08f };   // 2026-10-10: uzun yokuşlarla yeniden tarandı (Mars: sona doğru belirgin azalır; pervane telafisiyle sonda hafif yokuş yukarı)
+        public static float[] SlowGradeEnd = { 0.173f, 0.16f, 0.14f, 0.1f, 0.1f, 0.08f, 0.045f };
         public static Vector2[] SlowLength = { new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f) };
         public static float[] BoostGrade = { 0.42f, 0.36f, 0.36f, 0.34f, 0.34f, 0.34f, 0.32f };
         public static float[] BoostLength = { 25f, 25f, 25f, 25f, 25f, 25f, 25f };
@@ -355,8 +375,9 @@ namespace SledSurfers
         // Orman (kullanıcı 2026-10-11: dümdüzdü; rastgele değil, enerji kuralına göre): tepede havalanma koşulu
         // v²·A·(2π/λ)² > g. 90 m'de 2.2 m'lik dalga 25 m/s'de (90 km/sa) yerde tutar (0.67 g) ama eğimi +%5 yokuş yukarı ile
         // -%26 iniş arasında değiştirir; dalga indiği kadar çıkar, yamacın net düşüşü (= sürtünme kaybı) aynı kalır.
-        public static float[] WaveLength = { 70f, 90f, 70f, 70f, 70f, 70f, 70f };
-        public static float[] WaveAmp = { 2.4f, 2.2f, 0.6f, 0.6f, 0.6f, 0.6f, 0.6f };
+        public static float[] WaveLength = { 70f, 90f, 70f, 80f, 70f, 70f, 70f };
+        // Kar: geniş tepeler; net yamaç düşüşü değişmeden 0.6 m yerine 2 m kabartı.
+        public static float[] WaveAmp = { 2.4f, 2.2f, 0.6f, 2f, 0.6f, 0.6f, 0.6f };
         /// Krater duvarının yüksekliği (m; 0 = yok) ve pistteki yeri (uzunluk oranı).
         public static float[] WallRise = { 0f, 0f, 0f, 0f, 0f, 0f, 16f };
         public static float WallAt = 0.72f;
@@ -409,6 +430,9 @@ namespace SledSurfers
                 // Kalıcı pervane (bu piste gelen oyuncuda takılı) yamaçta eğim gibi iter: pist o kadar yatık kurulur ki
                 // ekonomi pervanesiz ayarla aynı kalsın; pervane eski pistlere dönünce gerçek avantaj olur.
                 slowGrade = Mathf.Lerp(SlowGrade[track], SlowGradeEnd[track], t) - PropGrade(track);
+                // Sık uçuşların hava/iniş kaybını sonraki kar yamaçlarının uzun inişi karşılar.
+                // Başlangıç döngüsü aynı kalır: ilk seviyenin menzili sapan yükseltmesini atlamaz.
+                if (track == 3 && i > 0) slowGrade += 0.02f;
                 float L = Mathf.Lerp(SlowLength[track].x, SlowLength[track].y, t) * CycleScale[track] * R(0.85f, 1.15f);
                 // Yamaç-kanal döngüsü bitiş çizgisini geçene kadar sürer: sonda kanalsız uzun yamaç (duvar) kalmasın,
                 // zorluk yalnızca eğimin pist boyunca azalmasından gelsin (her seviye biraz daha ileri).
@@ -427,10 +451,15 @@ namespace SledSurfers
                 // Yavaşlama yamacı: hafif dalgalı. Bazılarının başında (kanal çıkışı, hız en yüksekken) atlama rampası:
                 // havada kalış = coin. Yamaç ortasındaki rampa yavaşlamış kızağı hep aynı yerde durduruyordu.
                 bool kick = i > 0 && rnd.NextDouble() < kickChance;
+                // Kar parkurunda kalkışlar rastlantıya veya köprü seçimine bağlı kalmaz.
+                if (track == 3) kick = i > 0 && (i % 2 == 1);
                 float kickH = kick ? R(1.6f, 2.4f) : 0f;
+                float snowDropCorrection = 0f;
                 // İnce köprü (kanal çıkışında, rampa yerine): kızak hızlıyken düz ve tam ortadan geçmeli.
                 bool bridge = i > 0 && p.z > length * 0.12f && p.z < length - 60f && p.z - lastBridge > BridgeSpacing
                               && brnd.NextDouble() < BridgeChance[track];
+                // Bitiş yaklaşımında uzun köprü girişi açıklığı çizginin dibine taşımamalı.
+                if (track == 3 && (kick || p.z > length - 180f)) bridge = false;
                 if (bridge)
                 {
                     kick = false;
@@ -448,6 +477,7 @@ namespace SledSurfers
                     // Kısa yaklaşım yavaş parkurlarda 22 m; hızlı parkurlarda 32 m (22 m'de kızak hizalanamayıp düşüyordu).
                     float lead = approach == 2 ? (track <= 1 ? 22f : 32f) : BridgeLead;
                     float settle = track <= 1 ? 10f : 20f;   // köprüden önceki düz eğimli son kısım
+                    if (track == 3) { lead = 60f; settle = 40f; } // süzülme/roket sonrası dar tablaya yerden ve hizalı giriş
                     p.Hills(14f, 1, 0f, (boostGrade + slowGrade) * 0.5f * 14f);
                     if (approach == 0)
                     {
@@ -471,7 +501,16 @@ namespace SledSurfers
                 {
                     // Kanaldan doğrudan rampaya geçiş 2.5 g'lik sıkışma yapıp sütü bir anda boşaltıyordu: önce 10 m yamaç.
                     p.Hills(10f, 1, 0f, slowGrade * 10f);
-                    p.Ramp(8f, kickH, 0.8f);
+                    if (track == 3)
+                    {
+                        float y0 = p.y;
+                        p.SnowTakeoff(18f, -slowGrade, 0.26f, 1.2f);
+                        kickH = p.y - y0 + 0.8f;
+                        // Daha uzun giriş kalan yamaçtan alınır; döngünün mesafesi ve net düşüşü korunur.
+                        L -= 10f;
+                        snowDropCorrection = slowGrade * 10f;
+                    }
+                    else p.Ramp(8f, kickH, 0.8f);
                     Pickup(4f);
                     L = Mathf.Max(25f, L - 10f);
                 }
@@ -489,7 +528,8 @@ namespace SledSurfers
                     p.Fork(fo, ForkLength, variant, good, snow, allowIce);
                 }
                 // Çatallı yamaçta kendi su/çamur şeridi konmaz (rastgele sayılar yine çekilir: pistin geri kalanı aynı kalsın).
-                p.mute = fork;
+                // Süzülme inişinde zorunlu şerit değişimi olmasın; buz/çamur diğer yamaçlarda kalır.
+                p.mute = fork || (track == 3 && kick);
                 switch (kind)
                 {
                     case 1:
@@ -509,7 +549,15 @@ namespace SledSurfers
                     }
                 p.mute = false;
                 // Yamaç (rampadan sonra başlar; su/çamur ve buz konumları buna göre)
-                p.Hills(L, Mathf.Max(1, Mathf.RoundToInt(L / WaveLength[track])), WaveAmp[track], slowGrade * L + Mathf.Max(0f, kickH - 0.8f), kick ? 1.4f : 1f);
+                int waves = Mathf.Max(1, Mathf.RoundToInt(L / WaveLength[track]));
+                float amplitude = WaveAmp[track];
+                if (track == 3)
+                {
+                    // Köprüden kalan kısa parçada tam boy tepe sıkışmasın: eğrilik dalga boyuyla korunur.
+                    float spanScale = Mathf.Min(1f, L / waves / WaveLength[track]);
+                    amplitude *= spanScale * spanScale;
+                }
+                p.Hills(L, waves, amplitude, slowGrade * L + Mathf.Max(0f, kickH - 0.8f) + snowDropCorrection, kick ? 1.4f : 1f);
                 // Hız toplatan iniş kanalı (Çayır'da buzsuz)
                 if (allowIce) p.Lane(Surface.Ice, 4f, boostLen - 8f, -1.8f, 1.8f, true);
                 p.Hills(boostLen, 1, 0f, boostGrade * boostLen, 1.2f);
@@ -523,6 +571,14 @@ namespace SledSurfers
         static Path GlideStart(int track, bool puddle)
         {
             float g = SlowGrade[track];
+            if (track == 3)
+            {
+                // İlk uçuş düşük seviyede de erişilebilir (dudak 44 m). Başlangıcın 116 m / -12 m
+                // birleşimi korunur; uzun, karlı iniş çanağı kanadın açılmasına yer bırakır.
+                var snow = new Path(-30f).Flat(26f).Hills(30f, 1, 0.6f, g * 30f);
+                snow.SnowTakeoff(18f, -g, 0.22f, 1.2f);
+                return snow.Hills(69f, 1, 2.6f, snow.y + g * 120f, 1.4f);
+            }
             var p = new Path(-30f).Flat(26f).Hills(50f, 1, 0.3f, g * 50f);
             if (puddle) p.Puddle(5f, -g * 5f);
             return p.Hills(puddle ? 65f : 70f, 1, 0.3f, g * (puddle ? 65f : 70f));
@@ -853,7 +909,7 @@ namespace SledSurfers
 
         /// Orman zemini: patikanın iki yanına (ve seyrek olarak kenarına) ağaç ve kayalar. Patikanın kendisi, köprü
         /// yaklaşımları, çatallar ve rampa inişleri boş kalır.
-        static void ScatterForest(TrackProfile t, int seed)
+        static void ScatterForest(TrackProfile t, int seed, Vector2[] clear = null)
         {
             var rnd = new System.Random(seed * 17 + 3);
             float R(float a, float b) => a + (b - a) * (float)rnd.NextDouble();
@@ -867,6 +923,8 @@ namespace SledSurfers
                 foreach (var w in t.water) if (z > w.x - 80f && z < w.y + 20f) skip = true;
                 foreach (var f in t.forks) if (z > f.z0 - 10f && z < f.z1 + 10f) skip = true;
                 foreach (float lip in lips) if (z > lip - 12f && z < lip + 110f) skip = true;
+                bool inClear = false;
+                if (clear != null) foreach (var c in clear) if (z > c.x && z < c.y) inClear = true;
                 if (skip || Mathf.Abs(t.Slope(z)) > 0.3f) continue;
                 float side = rnd.Next(2) == 0 ? -1f : 1f;
                 // Patika ortasına göre yanal konum: çoğu patikanın dışında, bazıları tam kenarında (dar geçit hissi)
@@ -875,7 +933,7 @@ namespace SledSurfers
                 float off = side * (rnd.NextDouble() < 0.25 && t.Slope(z) > -0.07f ? R(TrackProfile.PathHalfWidth + 3.3f, TrackProfile.PathHalfWidth + 4.5f)
                                                             : R(TrackProfile.PathHalfWidth + (t.Slope(z) > -0.07f ? 4.5f : 6.5f), reach));
                 float x = t.PathX(z) + off;
-                if (Mathf.Abs(x - t.CenterX(z)) > reach) continue;
+                if (Mathf.Abs(x - t.CenterX(z)) > reach || inClear && Mathf.Abs(off) < 9f) continue;   // uçuş bölgesinde yalnız uzak ağaçlar
                 // Güzergâha 7 m'den yakın yerde yalnız ince gövdeli ağaç; geniş kayalar daha dışarıda.
                 if (Mathf.Abs(off) < 7f || rnd.NextDouble() < 0.6) t.AddTree(z, off);
                 else t.AddRock(z, off);
@@ -892,6 +950,7 @@ namespace SledSurfers
                 foreach (var w in t.water) if (z > w.x - 85f && z < w.y + 25f) skip = true;
                 foreach (var f in t.forks) if (z > f.z0 - 15f && z < f.z1 + 15f) skip = true;
                 foreach (float lip in lips) if (z > lip - 15f && z < lip + 110f) skip = true;
+                if (clear != null) foreach (var c in clear) if (z > c.x && z < c.y) skip = true;
                 if (skip || Mathf.Abs(t.Slope(z)) > 0.3f) continue;
                 float off = turn * R(1.9f, 2.6f);   // güzergâhın yarısını kapatır: öbür yandan ~1 m kayarak geçilir
                 turn = -turn;
@@ -909,20 +968,100 @@ namespace SledSurfers
             t.SortObstacles();
         }
 
+        /// Whispering Woods profili (kullanıcının çizimi, 2026-10-18): genel eğimin üstüne/altına göreli şekil (z, m).
+        /// Baştaki çanak 2. çizimden, gerisi 1. çizimin sırası iki kez farklı boyda: büyük çukur, sahanlık, sivri zirve,
+        /// dipte rampa (kızak en hızlı yerde kalkar: süzülme), basamaklar. Rampa iniş alanı aşağı eğimli: yükselen zemine
+        /// inişte çarpma hızı kaza sınırını aşıyordu (profil hesabı: 12.6-13.7 m/s, şimdi ≤ 9).
+        static readonly float[] WoodsZ =
+        {
+            0, 25, 80, 95, 140, 160, 195, 225, 250, 305, 320, 365, 400, 425, 433, 490, 505, 513, 516, 575, 620, 650, 675,
+            710, 735, 741, 765, 790, 835, 860, 868, 915, 928, 936, 939, 1000, 1040, 1065, 1085, 1120, 1145, 1200,
+        };
+        static readonly float[] WoodsR =
+        {
+            0, 0, -9, -9.5f, 2, 3, 0, 3.5f, 3.5f, -9, -9.2f, 4, 5, 11, 11, -7, -9, -5.6f, -8.4f, -14, -4, -3.5f, -4.5f,
+            0, 0.5f, -2.5f, -9, -11, -5, -1, -1, -10, -12, -8.6f, -11.4f, -16, -9, -9, -11, -8, -8.5f, -12,
+        };
+        /// Dipteki rampalar ve uçurum kenarı (z0: giriş, z1: dudak): yumuşatma bunları silmesin, vadi düz gitsin.
+        /// Rampa mutlak olarak yükselir (8 m'de ~2 m, diğer parkurların rampası gibi): genel eğime yatırılınca çizimdeki
+        /// küçük çentik düzleşiyor, kızak burnunu kaldırmadan geçiyordu.
+        static readonly Vector2[] WoodsKickers = { new Vector2(505f, 513f), new Vector2(725f, 735f), new Vector2(928f, 936f) };
+        /// Hızlı kızağın havalandığı tepeler ve rampalar: kalkıştan inişe kadar engel yok (havada kaçınılamaz).
+        /// Simde son seviye rampalardan ~80 m, uçurum kenarından ~52 m süzülüyor; iniş noktasından sonra 20 m pay.
+        static readonly Vector2[] WoodsClear =
+        {
+            new Vector2(130f, 295f), new Vector2(345f, 500f), new Vector2(500f, 610f), new Vector2(655f, 700f), new Vector2(715f, 800f), new Vector2(845f, 905f), new Vector2(918f, 1030f),
+        };
+
+        static Path WoodsDrawn()
+        {
+            const int track = 1;
+            float length = Lengths[track];
+            // Şekil, z'ye göre eğim ve dönüşümler korunarak monoton kübik (PCHIP) eğriyle çizilir: tepe ve çukurlar
+            // çizimdeki yerinde kalır, aralarda taşma (fazladan tümsek) olmaz.
+            int n = WoodsZ.Length;
+            var d = new float[n];
+            var h = new float[n - 1];
+            var s = new float[n - 1];
+            for (int k = 0; k < n - 1; k++) { h[k] = WoodsZ[k + 1] - WoodsZ[k]; s[k] = (WoodsR[k + 1] - WoodsR[k]) / h[k]; }
+            for (int k = 1; k < n - 1; k++)
+            {
+                if (s[k - 1] * s[k] <= 0f) { d[k] = 0f; continue; }
+                float w1 = 2f * h[k] + h[k - 1], w2 = h[k] + 2f * h[k - 1];
+                d[k] = (w1 + w2) / (w1 / s[k - 1] + w2 / s[k]);
+            }
+            d[0] = 0f; d[n - 1] = s[n - 2];
+            float Rel(float z)
+            {
+                if (z <= WoodsZ[0]) return WoodsR[0];
+                if (z >= WoodsZ[n - 1]) return WoodsR[n - 1];
+                int k = 0;
+                while (WoodsZ[k + 1] < z) k++;
+                float t = (z - WoodsZ[k]) / h[k], t2 = t * t, t3 = t2 * t;
+                return (2f * t3 - 3f * t2 + 1f) * WoodsR[k] + (t3 - 2f * t2 + t) * h[k] * d[k]
+                       + (-2f * t3 + 3f * t2) * WoodsR[k + 1] + (t3 - t2) * h[k] * d[k + 1];
+            }
+            // Genel eğim baştan sona SlowGrade → SlowGradeEnd (her seviye biraz daha ileri); pervane telafisi diğer
+            // parkurlardaki gibi.
+            var p = new Path(-30f).Flat(26f);
+            float y0 = p.y, drop = 0f, zPrev = 0f;
+            for (float z = 0f; z <= length + 60f; z += 2f)
+            {
+                float t = Mathf.Clamp01(z / length);
+                drop += (Mathf.Lerp(SlowGrade[track], SlowGradeEnd[track], t) - PropGrade(track)) * (z - zPrev);
+                zPrev = z;
+                p.points.Add(new Vector2(z, y0 - drop + Rel(Mathf.Min(z, length))));
+            }
+            p.corners.Add(-4f);
+            var last = p.points[p.points.Count - 1];
+            p.z = last.x;
+            p.y = last.y;
+            foreach (var kk in WoodsKickers)
+            {
+                p.sharp.Add(new Vector2(kk.x - 4f, kk.y + 10f));
+                p.straight.Add(new Vector2(kk.x - 15f, kk.y + 90f));
+            }
+            return p;
+        }
+
         /// Parkur 2 — Orman (5 km). Basamaklar + her 5 basamakta bir vadi atlayışı: çukurlar giderek genişler,
         /// ilk vadiler küçük kanatla, sonuncular kızağın 4. seviyesinin sonundaki kanatla geçilir.
         public static TrackProfile Forest()
         {
             if (UseGlide)
             {
-                var gp = GlideStart(1, false);
-                var gobs = Glide(gp, 1, 33, 0.75f, false, true);   // çok rampa: Orman süzülme haritası (kullanıcı 2026-10-11)
-                var gt = gp.Build(Names[1], Lengths[1], 8f, 220f, 2.3f, 85f, 5);
+                var gp = WoodsDrawn();
+                var gobs = new List<Vector2>();
+                // Az kıvrım: yan yamaç yok, uzun süzülen kızak vadiden dışarı çıkmasın.
+                var gt = gp.Build(Names[1], Lengths[1], 4.5f, 260f, 2.3f, 85f, 5);
                 // Kullanıcı kararı (2026-10-10): Orman Çayır'dan farklı hissettirsin: yan yamaç yok (dümdüz açık orman),
                 // zeminde rastgele ağaçlar ve kayalar; aralarından geçilir, çarpan düşer.
                 gt.bankScale = 0f;
                 gt.noPath = true;   // toprak yol yok: çimenli açık orman
-                ScatterForest(gt, 33);
+                // Rampa önünde (görünmeyen) güzergâh vadinin ortasında ve düz: kızak dudağa açılı gelip süzülürken
+                // vadiden yana çıkmasın.
+                foreach (var kk in WoodsKickers) gt.centerZones.Add(new Vector2(kk.x - 60f, kk.y + 100f));
+                ScatterForest(gt, 33, WoodsClear);
                 AddObstacles(gt, gobs);
                 return gt;
             }
