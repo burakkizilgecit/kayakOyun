@@ -1427,14 +1427,7 @@ namespace SledSurfers
             };
             ui.Buy += Buy;
             ui.SetHand += SetHand;
-            ui.TestResetUpgrades += () =>
-            {
-                System.Array.Clear(save.levels, 0, save.levels.Length);
-                save.taken[save.track] = "";
-                loot.LoadTaken("");
-                save.Save();
-                EnterHub();
-            };
+            ui.TestResetUpgrades += ResetProgressForTest;
             ui.TestUnlockAll += () =>
             {
                 // Parkur "bitmiş" sayılmadan açılmaz: önceki parkurların rekoru bitişe çekilir.
@@ -1465,6 +1458,24 @@ namespace SledSurfers
                 SoundFx.SetEnabled(on);
             };
         }
+
+        /// Test düğmesi (yalnız geliştirme derlemesi): ilerleme baştan (kullanıcı 2026-10-18: kızak görünümü vs. her şey en
+        /// başa dönmeli). Bütün pistlerin kademeleri, pist paraları, toplanan altınlar, rekorlar, açılan pistler ve kalıcı
+        /// parçalar sıfırlanır; ilk piste dönülür, araç baştan kurulur. Elmas, karakterler ve ayarlar kalır.
+        void ResetProgressForTest()
+        {
+            foreach (var lv in save.trackLevels) System.Array.Clear(lv, 0, lv.Length);
+            System.Array.Clear(save.trackMoney, 0, save.trackMoney.Length);
+            System.Array.Clear(save.bests, 0, save.bests.Length);
+            for (int t = 0; t < save.taken.Length; t++) save.taken[t] = "";
+            save.unlocked = 0;
+            save.track = 0;
+            save.Save();
+            LoadTrack(0);   // Upgrades.Track ve kalıcı parçalar (PartTier = unlocked) burada yeniden kurulur
+            EnterHub();
+        }
+
+        public void DebugResetProgress() => ResetProgressForTest();
 
         void Buy(int i)
         {

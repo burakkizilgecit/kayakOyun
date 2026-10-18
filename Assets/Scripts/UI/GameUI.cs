@@ -1400,7 +1400,7 @@ namespace SledSurfers
             {
                 settingsCard.Add(SettingLabel("Test (dev build only)"));
                 var reset = B(() => { TestResetUpgrades?.Invoke(); ShowSettings(false); }, "btn", "btn-orange", "btn-mid");
-                reset.text = "Reset upgrades";
+                reset.text = "Reset progress";
                 reset.style.alignSelf = Align.Stretch;
                 settingsCard.Add(reset);
                 var unlock = B(() => { TestUnlockAll?.Invoke(); ShowSettings(false); }, "btn", "btn-white", "btn-mid");

@@ -239,6 +239,21 @@ namespace SledSurfers
                 Application.Quit();
                 yield break;
             }
+            if (mode == "reset")
+            {
+                // Test sıfırlaması: ileri pistte tam yükseltilmiş araç, sonra "Reset progress" ile başa dönüş.
+                game.DebugHideTutorial();
+                game.DebugReset(new[] { 30, 30, 30, 30, 30 }, 5000);
+                game.DebugTrack(5, 5);
+                yield return new WaitForSeconds(1.5f);
+                yield return Shot("r1_before");
+                game.DebugResetProgress();
+                yield return new WaitForSeconds(1.5f);
+                yield return Shot("r2_after");
+                SaveData.ClearAll();   // yalnız test önekli kayıt (gerçek kayıt korunur)
+                Application.Quit();
+                yield break;
+            }
             if (mode == "gallery")
             {
                 // İnceleme galerisi: her pistin aracı (kızak kartı, her kademe: kanatlar her kademede büyür), sapan, roket,
