@@ -76,7 +76,16 @@ namespace SledSurfers
             straps.SetParent(board, false);
             var strapMat = Mats.Solid(new Color(0.15f, 0.15f, 0.18f), 0.3f);
             foreach (float z in new[] { -0.25f, 0.3f })
-                Mats.Prim(PrimitiveType.Cube, "Strap", straps, new Vector3(0f, 0.3f, z), new Vector3(0.5f, 0.05f, 0.09f), strapMat);
+            {
+                var points = new List<Vector3>();
+                for (int k = 0; k <= 12; k++)
+                {
+                    float t = k / 12f;
+                    points.Add(new Vector3(Mathf.Lerp(-.23f, .23f, t), .27f + Mathf.Sin(t * Mathf.PI) * .12f, z));
+                }
+                EquipmentStyle.Surface(straps, "Arched binding", SledModel.Tube(points, .025f, 8), strapMat, Vector3.zero, Quaternion.identity);
+                Mats.Prim(PrimitiveType.Cube, "Binding buckle", straps, new Vector3(.18f, .33f, z), new Vector3(.07f, .035f, .08f), p.trim);
+            }
             p.unlocks.Add((straps, 1));
             // Yüzgeçler: küçük (her zaman), büyük (3. aşama)
             var fins = new GameObject("Fins").transform;

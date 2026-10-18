@@ -1,0 +1,39 @@
+EQUIPMENT VISUAL UPDATE — 2026-10-18
+
+Implemented:
+- Sled: double braided deformable rope, rubber handle, metal ferrules/tow eye, deck pads/rivets, airfoil spoiler and swept end plates.
+- Sandboard: curved bindings and buckles.
+- Wings: hinge hardware and matching racing inlays in game and preview.
+- Slingshots: post bindings and anchor bolts, including base tier.
+- Permanent addons: rudder inset/mount, swept four-blade propeller, seven-blade ducted fans, cooling collars, polished rims/fasteners; blue jet exhaust.
+- Rockets: swept fins, recessed bell nozzle, ignition ring, side vents, open metal collars and tapered plume.
+- Six rocket exhaust palettes: Firework orange; Blue Rocket blue; Twin Rocket green; Jet Engine purple; Turbo cyan; Golden Rocket gold.
+- Reduced fire particle emission 260 -> 140 per second per rocket; reusable rope buffers, no per-frame material/mesh creation.
+
+Source files:
+Assets/Scripts/Game/EquipmentStyle.cs (+ meta): shared procedural details and GripRope.
+Assets/Scripts/Game/RiderView.cs: rope motion, wing details, exhaust colors/positions/plume.
+Assets/Scripts/Game/PartVisuals.cs: rocket and slingshot details.
+Assets/Scripts/Game/PartAddons.cs: permanent motor/tail visuals.
+Assets/Scripts/Game/SledModel.cs: deck hardware and spoiler.
+Assets/Scripts/Game/SlingshotView.cs: base-stage decorative bindings.
+Assets/Scripts/Game/VehicleModels.cs: sandboard bindings.
+Assets/Scripts/Game/PartPreview.cs: shared rope and wing appearance.
+Assets/Scripts/Game/EquipmentReview.cs (+ meta), AutoShot.cs: isolated visual validation.
+
+Preserved:
+No character model/animation, terrain, physics, upgrade formulas, costs or save-system edits in this task.
+Existing stage unlocks and firing actions retained. Existing cup, income, hover and bobsled base models retained.
+
+Validation:
+Final Windows and Android builds succeeded with 0 errors.
+36 final PNG captures: 18 production-model renders + 18 live home/aim/fire frames across all six rocket stages.
+Six live firing checks passed. Model vertices were finite; all six exhaust colors distinct.
+Final test log has no exception/failure. Closeups and live screenshots visually inspected; gold collar overexposure fixed in a further iteration.
+No physical Android-device FPS measurement was performed.
+
+Gallery: Tools/out/equipment-polished/gallery.html
+Logs: Tools/out/equipment-polished.log, equipment-polished-windows.log, equipment-polished-android.log
+APK: Builds/Android/SledSurfers-test.apk (88,388,158 bytes)
+APK v2 signature verified.
+SHA256: EDA404AEF2D12B1BB6CC509EFAFDC42D3E7963F01A85A4B9A7538EB0806B7F6C

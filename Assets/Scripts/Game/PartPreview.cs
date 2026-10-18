@@ -211,8 +211,7 @@ namespace SledSurfers
             var parts = SledModel.Build(root, runner);
             parts.SetStage(stage);
             if (stage >= 1)
-                Mats.PlaceBetween(Mats.Prim(PrimitiveType.Cylinder, "Rope", root, Vector3.zero, Vector3.one, Mats.Solid(new Color(1f, 0.76f, 0.2f), 0.2f)),
-                                  SledModel.NoseEye, new Vector3(0.15f, 0.62f, 0.25f), 0.022f);
+                new GripRope(root).Update(SledModel.NoseEye, new Vector3(.15f, .62f, .25f));
             BuildWings(root, stage, level);
         }
 
@@ -233,8 +232,10 @@ namespace SledSurfers
                     w.localPosition = new Vector3(0.3f * s, 0.29f, -0.08f);
                     w.gameObject.AddComponent<MeshFilter>().sharedMesh = SledModel.WingMesh(span, chord, s);
                     w.gameObject.AddComponent<MeshRenderer>().sharedMaterial = body;
+                    var accent = Mats.Solid(RiderView.WingletColors[ws], .35f);
+                    EquipmentStyle.WingDetails(w, span, chord, s, accent);
                     Mats.Prim(PrimitiveType.Cube, "Winglet", w, new Vector3(span * s, 0.08f * span + 0.06f, -0.04f * chord),
-                              new Vector3(0.025f, 0.14f, 0.42f * chord), Mats.Solid(RiderView.WingletColors[ws], 0.35f));
+                              new Vector3(0.025f, 0.14f, 0.42f * chord), accent);
                 }
             }
         }

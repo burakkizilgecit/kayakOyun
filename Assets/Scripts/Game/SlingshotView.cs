@@ -3,7 +3,7 @@ using UnityEngine;
 namespace SledSurfers
 {
     /// Halatlı sapan: metal başlıklı yuvarlak ahşap direkler, aralarında örgü desenli kalın lastik halat
-    /// ve kızağın arkasını saran deri cep. Halat her karede yeniden bükülür: gevşekken sarkar, gerilince düzleşip incelir.
+    /// bulunur. Halat her karede yeniden bükülür: gevşekken sarkar, gerilince düzleşip incelir.
     public class SlingshotView
     {
         const int Sides = 8, Segments = 14;
@@ -27,7 +27,6 @@ namespace SledSurfers
             for (int s = 0; s < 2; s++)
             {
                 for (int i = decor[s].childCount - 1; i >= 0; i--) Object.Destroy(decor[s].GetChild(i).gameObject);
-                if (stage == 0) continue;
                 var look = new GameObject("Stage " + stage).transform;
                 look.SetParent(decor[s], false);
                 PartVisuals.BuildSlingDecor(look, stage, postHeight, s == 0 ? -1f : 1f);
@@ -40,7 +39,6 @@ namespace SledSurfers
             }
         }
         readonly Band left, right;
-        readonly Transform pouch;
         public readonly Vector3 leftTop, rightTop;
 
         public SlingshotView(Transform parent, float postX, float postZ, float groundY, float height)
@@ -73,16 +71,11 @@ namespace SledSurfers
             left = new Band(parent, bandMat);
             right = new Band(parent, bandMat);
 
-            pouch = Mats.Prim(PrimitiveType.Capsule, "Pouch", parent, Vector3.zero, new Vector3(0.2f, 0.3f, 0.12f),
-                              resources.Solid(new Color(0.42f, 0.24f, 0.13f), 0.3f));
         }
 
         public Vector3 Rest => (leftTop + rightTop) * 0.5f;
 
         /// stretch 0..1: gerginlik; color: lastiğin o anki rengi; thickness: yükseltme kalınlık çarpanı.
-        static readonly Vector3 PouchSize = new Vector3(0.2f, 0.3f, 0.12f);
-        public void SetPouchScale(float s) => pouch.localScale = PouchSize * s;
-
         public void Update(Vector3 pouchPos, float stretch, Color color, float thickness)
         {
             float radius = Mathf.Lerp(0.055f, 0.028f, stretch) * thickness;
@@ -91,11 +84,6 @@ namespace SledSurfers
             right.Set(rightTop, pouchPos, radius, sag);
             bandMat.color = color;
 
-            pouch.localPosition = pouchPos + Vector3.down * 0.02f;   // yerel: önizleme sahnesinde de doğru yerde
-            Vector3 toRest = Rest - pouchPos;
-            Vector3 fwd = toRest.sqrMagnitude > 0.01f ? toRest.normalized : Vector3.forward;
-            // Kapsül yatay uzanır (yerel y ekseni iki direğe doğru), cebin açık yüzü sapana bakar.
-            pouch.localRotation = Quaternion.LookRotation(fwd, Vector3.up) * Quaternion.Euler(0f, 0f, 90f);
         }
 
         /// Ahşap direk (alt mesh 0) + metal halkalar ve kubbeli başlık (alt mesh 1), y ekseni etrafında döndürülmüş profil.

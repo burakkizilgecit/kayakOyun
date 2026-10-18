@@ -32,13 +32,15 @@ namespace SledSurfers
             var steel = Mats.Solid(new Color(0.72f, 0.75f, 0.8f), 0.85f);
             var orange = Mats.Solid(new Color(1f, 0.56f, 0.12f), 0.6f);
             var yellow = Mats.Solid(new Color(1f, 0.84f, 0.2f), 0.5f);
-            var flame = Mats.Glow(new Color(1f, 0.6f, 0.15f), new Color(1f, 0.45f, 0.05f) * 2f);
-            var core = Mats.Glow(new Color(1f, 0.92f, 0.6f), new Color(1f, 0.85f, 0.4f) * 2.2f);
+            var flame = Mats.Glow(new Color(.12f, .65f, 1f), new Color(.08f, .42f, 1f) * 2f);
+            var core = Mats.Glow(new Color(.7f, .94f, 1f), new Color(.5f, .85f, 1f) * 2.2f);
             blurMat = new Material(Shader.Find("Sprites/Default")) { color = new Color(1f, 1f, 1f, 0f) };
 
             // ---- Aero kuyruk: geriye yatık dikey yüzgeç (ucu kırmızı) + iki yatay dengeleyici
             tail = Group("Aero Tail");
+            EquipmentStyle.Ring(tail, "Tail mount collar", new Vector3(0, .035f, .13f), .065f, .016f, steel);
             Part(tail, "Fin", Fin(0.3f, 0.15f, 0.3f, 0.15f, 0.03f), white, new Vector3(0f, 0.02f, 0.1f), Quaternion.identity);
+            Part(tail, "Rudder inset", Fin(.12f, .065f, .21f, .09f, .034f), dark, new Vector3(0, .07f, .025f), Quaternion.identity);
             Part(tail, "Fin Tip", Fin(0.15f, 0.11f, 0.07f, 0.035f, 0.034f), red, new Vector3(0f, 0.32f, -0.05f), Quaternion.identity);
             for (int s = -1; s <= 1; s += 2)
             {
@@ -53,7 +55,7 @@ namespace SledSurfers
             // tahta hizasına alındı (karakterin belinin altında kalır); pervane yere değmeyecek kadar küçük.
             Mats.Prim(PrimitiveType.Cube, "Mount", prop, new Vector3(0f, 0.01f, 0.08f), new Vector3(0.07f, 0.045f, 0.22f), white);
             Engine(prop, new Vector3(0f, 0.02f, -0.1f), 0.07f, 0.3f, white, red);
-            rotors.Add(Rotor(prop, new Vector3(0f, 0.02f, -0.27f), 0.19f, 3, 0.07f, steel, yellow, red));
+            rotors.Add(Rotor(prop, new Vector3(0f, 0.02f, -0.27f), 0.19f, 4, 0.055f, dark, yellow, red));
 
             // ---- Turbo pervane: kanat profilli halka içinde beş kanat, üç taşıyıcı kol
             turbo = Group("Turbo Propeller");
@@ -125,6 +127,8 @@ namespace SledSurfers
         static void Engine(Transform parent, Vector3 center, float radius, float length, Material body, Material band)
         {
             float h = length * 0.5f;
+            for (int i = 0; i < 3; i++)
+                EquipmentStyle.Ring(parent, "Cooling collar", center + new Vector3(0, 0, -h * (.2f + i * .22f)), radius * 1.05f, radius * .12f, band);
             Part(parent, "Engine", GlassModels.Lathe(new[]
             {
                 P(0f, h), P(radius * 0.55f, h * 0.9f), P(radius * 0.9f, h * 0.62f), P(radius, h * 0.2f), P(radius * 0.96f, -h * 0.4f),
@@ -142,6 +146,7 @@ namespace SledSurfers
             var r = new GameObject("Rotor").transform;
             r.SetParent(parent, false);
             r.localPosition = pos;
+            EquipmentStyle.Ring(r, "Hub lock ring", new Vector3(0, 0, -.025f), hubRadius * .87f, .009f, tipMat);
             // Burun konisi (arkaya, -z'ye sivrilir)
             Part(r, "Spinner", GlassModels.Lathe(new[]
             {
@@ -180,7 +185,14 @@ namespace SledSurfers
                 var q = Quaternion.Euler(0f, 0f, 60f + k * 120f);
                 Part(parent, "Strut", Fin(0.07f, 0.05f, radius, 0f, 0.016f), rimMat, pos + q * new Vector3(0f, 0f, 0.07f), q);
             }
-            rotors.Add(Rotor(parent, pos + new Vector3(0f, 0f, -0.03f), radius - 0.014f, 5, Mathf.Min(0.062f, radius * 0.3f), rimMat, tipMat, hubMat));
+            for (int k = 0; k < 6; k++)
+            {
+                float a = k * Mathf.PI / 3;
+                Mats.Prim(PrimitiveType.Sphere, "Duct fastener", parent,
+                    pos + new Vector3(Mathf.Cos(a) * (radius + .015f), Mathf.Sin(a) * (radius + .015f), -.078f), Vector3.one * .016f, rimMat);
+            }
+            EquipmentStyle.Ring(parent, "Rear polished rim", pos + new Vector3(0, 0, -.075f), radius + .025f, .012f, rimMat);
+            rotors.Add(Rotor(parent, pos + new Vector3(0f, 0f, -0.03f), radius - 0.014f, 7, Mathf.Min(0.05f, radius * 0.27f), bladeMat, tipMat, hubMat));
         }
 
         /// Pervane kanadı (+y yönünde, r0 → r1): uca doğru daralır, kökte dik uçta yatık (burulmuş). t0..t1: kanadın bu
@@ -198,8 +210,9 @@ namespace SledSurfers
                 float c = chord * (0.45f + 1.1f * t) * Mathf.Sqrt(Mathf.Max(0f, 1f - Mathf.Pow(t, 5f))) * 0.5f;
                 float twist = Mathf.Lerp(48f, 16f, t) * Mathf.Deg2Rad;
                 var half = new Vector3(Mathf.Cos(twist) * c, 0f, Mathf.Sin(twist) * c);
-                verts.Add(new Vector3(0f, r, 0f) - half);
-                verts.Add(new Vector3(0f, r, 0f) + half);
+                float sweep = chord * .7f * t * t;
+                verts.Add(new Vector3(sweep, r, 0f) - half);
+                verts.Add(new Vector3(sweep, r, 0f) + half);
             }
             for (int i = 0; i < n; i++)
             {
@@ -211,7 +224,7 @@ namespace SledSurfers
 
         /// Geriye yatık yüzgeç / kanatçık: tabanı (x-z düzleminde) baseChord uzunluğunda, +y yönünde height kadar
         /// yükselir, uç kordu tipChord, uç sweep kadar geride (-z). thickness: x yönünde kalınlık.
-        static Mesh Fin(float baseChord, float tipChord, float height, float sweep, float thickness)
+        internal static Mesh Fin(float baseChord, float tipChord, float height, float sweep, float thickness)
         {
             float h = thickness * 0.5f;
             // Yan görünüş (z, y): taban ön, taban arka, uç arka, uç ön

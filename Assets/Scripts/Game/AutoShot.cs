@@ -44,6 +44,30 @@ namespace SledSurfers
         {
             SaveData.ClearAll();   // yalnız test önekli kayıt (gerçek kayıt korunur)
             float t;
+            if (mode == "equipment")
+            {
+                homeTesting = true; homeDeadline = Time.realtimeSinceStartup + 150f;
+                Application.logMessageReceived += HomeLogFailure;
+                EquipmentReview.Capture(folder);
+                game.DebugHideTutorial(); game.debugAutopilot = false;
+                for (int stage = 0; stage < 6; stage++)
+                {
+                    int level = Mathf.Max(1, stage * 5);
+                    game.DebugReset(new[] { level, Mathf.Max(5, level), level, level, level }, 10000);
+                    game.DebugTrack(3, Mathf.Max(3, stage + 1));
+                    game.DebugHub(); yield return new WaitForSecondsRealtime(.4f);
+                    yield return Shot("equipment_home_" + stage);
+                    game.DebugAim(); game.DebugSetPull(.8f); yield return new WaitForSecondsRealtime(.3f);
+                    yield return Shot("equipment_aim_" + stage);
+                    game.DebugLaunch(1); yield return new WaitForSecondsRealtime(1.2f);
+                    game.DebugPressRocket(); yield return new WaitForSecondsRealtime(.15f);
+                    HomeCheck(game.DebugRocketFiring, "Equipment rocket did not fire at stage " + stage);
+                    yield return Shot("equipment_fire_" + stage);
+                }
+                Debug.Log("[EQUIPMENT TEST] Finished six live stages and model gallery.");
+                homeTesting = false; Application.logMessageReceived -= HomeLogFailure;
+                SaveData.ClearAll(); Application.Quit(homeFailed ? 1 : 0); yield break;
+            }
             if (mode == "snow")
             {
                 homeTesting = true;

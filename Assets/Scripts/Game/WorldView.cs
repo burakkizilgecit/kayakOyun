@@ -162,8 +162,6 @@ namespace SledSurfers
             bestText.text = "BEST " + TrackLibrary.Show(meters) + " m";
         }
 
-        public void SetPouchScale(float s) => sling.SetPouchScale(s);
-
         /// attachPoint: lastiğin kızağa bağlandığı nokta. Kızak bırakılınca lastik (kütleli bir yay gibi)
         /// ileri şaklar, sapanın önüne taşar ve titreşerek durulur.
         public void UpdateSlingshot(Vector3 attachPoint, Vector3 sledVelocity, bool attached, float dt)

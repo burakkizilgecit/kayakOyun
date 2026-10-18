@@ -48,6 +48,7 @@ namespace SledSurfers
         public static Vector3 BuildRocket(Transform r, int stage, Mesh body)
         {
             stage = Mathf.Clamp(stage, 0, 5);
+            EquipmentStyle.RocketDetails(r, stage);
             void Part(Mesh mesh, Material[] mats, Vector3 pos, Vector3 scale)
             {
                 var go = new GameObject("Part");
@@ -62,14 +63,13 @@ namespace SledSurfers
                 for (int f = 0; f < count; f++)
                 {
                     var rot = Quaternion.Euler(0f, 0f, offset + 360f / count * f);
-                    Mats.Prim(PrimitiveType.Cube, "Fin", r, rot * new Vector3(0f, 0.085f * size, 0f) + new Vector3(0f, 0f, z),
-                              new Vector3(0.018f, 0.07f * size, 0.11f * size), m, rot);
+                    EquipmentStyle.Surface(r, "Swept fin", PartAddons.Fin(.15f * size, .055f * size, .095f * size, .055f * size, .012f),
+                        m, rot * new Vector3(0f, .045f * size, 0f) + new Vector3(0f, 0f, z), rot);
                 }
             }
             void Ring(float z, float radius, Material m, float thick = 0.02f)
             {
-                Mats.Prim(PrimitiveType.Cylinder, "Ring", r, new Vector3(0f, 0f, z), new Vector3(radius * 2f, thick, radius * 2f), m,
-                          Quaternion.Euler(90f, 0f, 0f));
+                EquipmentStyle.Ring(r, "Open collar", new Vector3(0, 0, z), radius, thick * .4f, m);
             }
             switch (stage)
             {
@@ -114,8 +114,8 @@ namespace SledSurfers
                 default:  // altın roket: altın gövde, kırmızı burun, parlayan turuncu halkalar, yıldız kanatlar
                 {
                     Part(body, new[] { Mat(Gold, 0.9f), Mat(Red, 0.6f) }, Vector3.zero, new Vector3(1.3f, 1.3f, 1.5f));
-                    Ring(-0.1f, 0.095f, Mat(Orange, 0.6f, true), 0.03f);
-                    Ring(0.08f, 0.095f, Mat(Orange, 0.6f, true), 0.03f);
+                    Ring(-0.1f, 0.095f, Mat(Gold, 0.8f), 0.03f);
+                    Ring(0.08f, 0.095f, Mat(Gold, 0.8f), 0.03f);
                     Fins(5, Mat(Gold, 0.9f), 1.4f, -0.2f, 90f);
                     return new Vector3(0f, 0f, -0.46f);
                 }
@@ -127,6 +127,11 @@ namespace SledSurfers
         {
             stage = Mathf.Clamp(stage, 0, 5);
             var metal = Mat(stage >= 5 ? Gold : Silver, 0.85f);
+            var leather = Mat(stage >= 3 ? Navy : new Color(.3f, .18f, .1f), .25f);
+            for (int j = 0; j < 3; j++)
+                Mats.Prim(PrimitiveType.Cylinder, "Binding", post, new Vector3(0, h - .56f - j * .065f, 0), new Vector3(.32f, .025f, .32f), leather);
+            for (int x = -1; x <= 1; x += 2) for (int z = -1; z <= 1; z += 2)
+                Mats.Prim(PrimitiveType.Cylinder, "Anchor bolt", post, new Vector3(x * .17f, .22f, z * .17f), new Vector3(.06f, .025f, .06f), metal);
             if (stage >= 1)
             {
                 // Metal taban plakası ve cıvatalar

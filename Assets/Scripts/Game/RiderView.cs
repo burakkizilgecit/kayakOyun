@@ -15,6 +15,7 @@ namespace SledSurfers
         readonly Transform hand, handBall, glassPivot, glassShell, liquidBody, liquidSurface;
         readonly Transform torso, glassArm, ropeArm;
         readonly Transform leftWing, rightWing, rope;
+        readonly GripRope gripRope;
         float wingFold;   // 0 açık, 1 katlı
         // Aşama görünümleri
         readonly SledModel.Parts sledParts;
@@ -96,7 +97,8 @@ namespace SledSurfers
             sledRoot.SetParent(root, false);
             sledParts = SledModel.Build(sledRoot, steel);
             addons = new PartAddons(root);
-            rope = Mats.Prim(PrimitiveType.Cylinder, "Rope", root, Vector3.zero, Vector3.one, Mats.Solid(new Color(1f, 0.76f, 0.2f), 0.2f));
+            gripRope = new GripRope(root);
+            rope = gripRope.Root;
 
             // Kanatlar: mesh Apply'da kanat boyuna göre üretilir; uçta turuncu dikey kanatçık.
             wingletMat = Mats.Solid(new Color(1f, 0.5f, 0.15f), 0.35f);
@@ -146,7 +148,8 @@ namespace SledSurfers
                 r.localPosition = new Vector3(x, 0.33f, -0.42f);
                 var look = new GameObject("Look").transform;   // seviyeye göre yeniden kurulur (PartVisuals.BuildRocket)
                 look.SetParent(r, false);
-                flames[s] = Mats.Prim(PrimitiveType.Sphere, "Flame", r, new Vector3(0f, 0f, -0.36f), new Vector3(0.1f, 0.1f, 0.3f), flameMat);
+                flames[s] = EquipmentStyle.Surface(r, "Flame", EquipmentStyle.PlumeMesh(), flameMat, new Vector3(0f, 0f, -.36f), Quaternion.identity);
+                flames[s].localScale = new Vector3(.1f, .1f, .3f);
                 rockets[s] = r;
                 rocketHome[s] = r.localPosition;
                 fire[s] = Trail(r, new Color(1f, 0.62f, 0.12f), true, 0.09f, 0.22f, 0.25f, 150);
@@ -368,6 +371,7 @@ namespace SledSurfers
             var tip = w.GetChild(0);
             tip.localPosition = new Vector3(span * s, 0.08f * span + 0.06f, -0.04f * chord);
             tip.localScale = new Vector3(0.025f, 0.14f, 0.42f * chord);
+            EquipmentStyle.WingDetails(w, span, chord, s, tip.GetComponent<Renderer>().sharedMaterial);
         }
 
         /// Kızaktaki karakteri değiştirir (AvatarLibrary model adı).
@@ -667,7 +671,7 @@ namespace SledSurfers
             for (int s = 0; s < 2; s++)
             {
                 var e1 = fire[s].emission;
-                e1.rateOverTime = firing ? 260f : 0f;
+                e1.rateOverTime = firing ? 140f : 0f;
                 var e2 = smoke[s].emission;
                 e2.rateOverTime = firing ? 70f : 0f;
             }
@@ -754,6 +758,22 @@ namespace SledSurfers
                     for (int i = look.childCount - 1; i >= 0; i--) Object.Destroy(look.GetChild(i).gameObject);
                     var tail = PartVisuals.BuildRocket(look, ks, rocketMesh);
                     r.Find("Flame").localPosition = tail - new Vector3(0f, 0f, 0.04f);
+                    r.Find("Fire Trail").localPosition = tail;
+                    r.Find("Smoke Trail").localPosition = tail;
+                }
+                Color exhaust = EquipmentStyle.Exhaust[ks];
+                for (int s = 0; s < flames.Length; s++)
+                {
+                    var material = flames[s].GetComponent<Renderer>().sharedMaterial;
+                    material.color = exhaust;
+                    material.SetColor("_EmissionColor", exhaust * 1.8f);
+                    var fireMaterial = fire[s].GetComponent<ParticleSystemRenderer>().sharedMaterial;
+                    fireMaterial.color = exhaust;
+                    fireMaterial.SetColor("_EmissionColor", exhaust * 1.4f);
+                    var gradient = new Gradient();
+                    gradient.SetKeys(new[] { new GradientColorKey(Color.Lerp(exhaust, Color.white, .65f), 0), new GradientColorKey(exhaust, .45f), new GradientColorKey(exhaust * .4f, 1) },
+                        new[] { new GradientAlphaKey(1, 0), new GradientAlphaKey(0, 1) });
+                    var color = fire[s].colorOverLifetime; color.color = gradient;
                 }
                 flameSize = 1f + 0.18f * ks;
             }
@@ -985,7 +1005,7 @@ namespace SledSurfers
                 avatar.Pose(torsoPitch, torsoRoll, side, glassPivot.TransformPoint(handBall.localPosition), root.TransformPoint(ropeHand), root);
                 ropeHand = root.InverseTransformPoint(avatar.RopeFist(side));
             }
-            Mats.PlaceBetween(rope, SledModel.NoseEye, ropeHand, 0.022f);
+            if (rope.gameObject.activeSelf) gripRope.Update(SledModel.NoseEye, ropeHand);
 
             PositionGlassCamera();
         }

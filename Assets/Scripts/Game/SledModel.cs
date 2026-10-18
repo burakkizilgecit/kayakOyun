@@ -93,6 +93,16 @@ namespace SledSurfers
             // Spoiler (2. aşamadan sonra): kuyrukta iki ayak üstünde, hafif geriye yatık kanatçık ve yan plakalar.
             parts.spoilerMat = Mats.Solid(Color.white, 0.6f);
             var dark = Mats.Solid(new Color(0.15f, 0.15f, 0.18f), 0.5f);
+            var hardware = Mats.Solid(new Color(.72f, .81f, .87f), .8f);
+            for (int side = -1; side <= 1; side += 2)
+            {
+                Mats.Prim(PrimitiveType.Capsule, "Deck traction pad", parent, new Vector3(side * .15f, .286f, -.06f),
+                    new Vector3(.14f, .24f, .016f), dark, Quaternion.Euler(90, 0, 0));
+                foreach (float z in new[] { -.55f, .55f })
+                    Mats.Prim(PrimitiveType.Sphere, "Deck rivet", parent, new Vector3(side * .23f, .282f, z), new Vector3(.03f, .012f, .03f), hardware);
+            }
+            var eye = EquipmentStyle.Ring(parent, "Tow eye", NoseEye, .035f, .012f, hardware);
+            eye.localRotation = Quaternion.Euler(65, 0, 0);
             parts.spoiler = new GameObject("Spoiler").transform;
             parts.spoiler.SetParent(parent, false);
             float tailY = CenterY + Rocker(0.06f) + HalfThick;
@@ -100,11 +110,13 @@ namespace SledSurfers
             for (int s = -1; s <= 1; s += 2)
                 Mats.Prim(PrimitiveType.Cube, "Spoiler Leg", parts.spoiler, new Vector3(0.16f * s, 0.13f, 0.02f),
                           new Vector3(0.035f, 0.26f, 0.08f), dark, Quaternion.Euler(-12f, 0f, 0f));
-            Mats.Prim(PrimitiveType.Cube, "Spoiler Wing", parts.spoiler, new Vector3(0f, 0.27f, -0.02f),
-                      new Vector3(0.66f, 0.035f, 0.2f), parts.spoilerMat, Quaternion.Euler(-10f, 0f, 0f));
             for (int s = -1; s <= 1; s += 2)
-                Mats.Prim(PrimitiveType.Cube, "Spoiler Plate", parts.spoiler, new Vector3(0.335f * s, 0.27f, -0.02f),
-                          new Vector3(0.02f, 0.12f, 0.24f), dark);
+            {
+                EquipmentStyle.Surface(parts.spoiler, "Airfoil spoiler", WingMesh(.33f, .2f, s), parts.spoilerMat,
+                    new Vector3(0, .27f, -.02f), Quaternion.Euler(-10, 0, 0));
+                EquipmentStyle.Surface(parts.spoiler, "Swept end plate", PartAddons.Fin(.24f, .13f, .12f, .035f, .02f), dark,
+                    new Vector3(.335f * s, .22f, -.02f), Quaternion.identity);
+            }
             parts.SetStage(0);
 
             // Raylar: düz alt kısım, önde yukarı ve geriye kıvrılan uç.

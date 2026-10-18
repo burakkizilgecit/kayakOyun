@@ -896,7 +896,6 @@ namespace SledSurfers
             bool attached = state == State.Aim || (state == State.Run && sled.launching);
             Vector3 pouch = sled.position + sled.Orientation * new Vector3(0f, 0.45f, -0.8f);
             world.UpdateSlingshot(pouch, sled.velocity, attached, dt);
-            world.SetPouchScale(state == State.Hub ? 0.5f : 1f);   // ana ekranda kese karakterin arkasında küçük dursun
             UpdateSound(dt);
             UpdateCamera(dt);
             // Düşme sahnesinde kameranın yanında yumuşak dolgu ışığı: güneş arkada kalsa da yüz aydınlık.
