@@ -252,6 +252,13 @@ namespace SledSurfers
         /// i. vadinin (su) başladığı z; yoksa -1.
         public float DebugRocketHillZ => track != null && track.rocketHills.Count > 0 ? track.rocketHills[0] : -1f;
         public float DebugForkZ(int i) => track != null && i < track.forks.Count ? track.forks[i].z0 : -1f;
+        /// i. kıvrımlı köprünün dere başı (yoksa -1).
+        public float DebugCurvedBridgeZ(int i)
+        {
+            if (track == null) return -1f;
+            foreach (var b in track.bridges) if (b.shape != 0 && i-- == 0) return b.r0;
+            return -1f;
+        }
         public float DebugGapZ(int i) => track != null && i < track.water.Count ? track.water[i].x : -1f;
 
         /// 300 m'den sonraki ilk verilen türde yüzey lekesinin başladığı z; yoksa -1.

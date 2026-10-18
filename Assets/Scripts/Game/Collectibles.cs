@@ -107,7 +107,7 @@ namespace SledSurfers
             {
                 int n = Mathf.Max(3, Mathf.RoundToInt((b.r1 - b.r0) / 2.2f));
                 float zz = Mathf.Lerp(b.r0, b.r1, (float)(n / 2) / n);
-                Add(new Vector3(b.x, TrackProfile.DeckHeight(b, zz) + 0.6f, zz), true);
+                Add(new Vector3(b.XAt(zz), TrackProfile.DeckHeight(b, zz) + 0.6f, zz), true);
                 items[items.Count - 1].small = true;
             }
 

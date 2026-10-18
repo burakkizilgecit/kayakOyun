@@ -967,7 +967,7 @@ namespace SledSurfers.EditorTools
             Debug.Log("[YAKLAŞIM] " + TrackLibrary.ApproachLog);
             var cfg = Upgrades.BuildConfig(lv);
             var sb = new StringBuilder("[SIM] Köprü düşmeleri " + t.name + " (" + SimPlayer.Name(kind) + ")\n");
-            foreach (var b in t.bridges) sb.AppendLine("  köprü " + b.r0.ToString("F0") + "-" + b.r1.ToString("F0") + " x " + b.x.ToString("F1"));
+            foreach (var b in t.bridges) sb.AppendLine("  köprü " + b.r0.ToString("F0") + "-" + b.r1.ToString("F0") + " x " + b.x.ToString("F1") + " şekil " + b.shape + " kıvrım " + b.bend.ToString("F1"));
             for (int seed = 1; seed <= 10; seed++)
             {
                 var sled = new SledPhysics(t, cfg);

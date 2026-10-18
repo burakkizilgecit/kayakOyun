@@ -297,7 +297,9 @@ namespace SledSurfers
             {
                 // Hafif oluk: hem tablanın yönüne hem ortasına doğru (en çok ~6°'lik açıyla) döner.
                 float h = Mathf.Atan2(v.x, v.z);
-                float want = Mathf.Clamp(0.5f * (deck.x - position.x) / Mathf.Max(speed * 0.5f, 1f), -0.1f, 0.1f);
+                // Kıvrımlı tablada hedef yön tablanın o noktadaki yönü (oluk dönemeci izler, kızağı içeri çekmez).
+                float want = Mathf.Atan(deck.SlopeAt(position.z))
+                             + Mathf.Clamp(0.5f * (deck.XAt(position.z) - position.x) / Mathf.Max(speed * 0.5f, 1f), -0.1f, 0.1f);
                 float turn = Mathf.Clamp(want - h, -DeckAlignRate * dt, DeckAlignRate * dt);
                 v = Quaternion.AngleAxis(turn * Mathf.Rad2Deg, n) * v;
             }

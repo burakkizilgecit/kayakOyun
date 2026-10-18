@@ -103,10 +103,30 @@ namespace SledSurfers
         /// dışına kayan kızak dereye düşer, koşu biter.
         /// hw: tablanın yarı genişliği (0: BridgeHalfWidth). Enine derelerin köprüsü daha geniş (oyuncu yerini bulmalı,
         /// ip cambazlığı yapmamalı).
+        /// shape/bend (kullanıcı 2026-10-18: köprüler hep dümdüzdü, bazıları dönemeçli ve zorlayıcı olmalı): tabla derenin
+        /// üstünde (r0..r1) yana kıvrılır. 0 düz, 1 yay (ortada bend kadar yana), 2 S (bir yana sonra öbür yana),
+        /// 3 çapraz (girişte -bend, çıkışta +bend; yumuşak geçiş). Kıyıdaki uçlar hep düz.
         public struct Bridge
         {
-            public float z0, z1, r0, r1, x, y0, y1, hw;
+            public float z0, z1, r0, r1, x, y0, y1, hw, bend;
+            public int shape;
             public float HalfWidth => hw > 0f ? hw : BridgeHalfWidth;
+
+            /// Tablanın z'deki orta çizgisi.
+            public float XAt(float z)
+            {
+                if (shape == 0 || bend == 0f) return x;
+                float u = Mathf.Clamp01((z - r0) / Mathf.Max(r1 - r0, 0.1f));
+                switch (shape)
+                {
+                    case 1: return x + bend * Mathf.Sin(Mathf.PI * u);
+                    case 2: return x + bend * Mathf.Sin(2f * Mathf.PI * u);
+                    default: return x + bend * (2f * Mathf.SmoothStep(0f, 1f, u) - 1f);
+                }
+            }
+
+            /// Tablanın z'deki yönü (dx/dz).
+            public float SlopeAt(float z) => (XAt(z + 0.25f) - XAt(z - 0.25f)) * 2f;
         }
         public readonly List<Bridge> bridges = new List<Bridge>();
         /// Tablanın yarı genişliği (kızağın ortası bu aralıkta kalmalı; kızak 0.76 m genişliğinde). 0.6'da simdeki
@@ -404,7 +424,7 @@ namespace SledSurfers
         public float Height(float x, float z)
         {
             foreach (var b in bridges)
-                if (z >= b.z0 && z <= b.z1 && Mathf.Abs(x - b.x) <= b.HalfWidth) return DeckHeight(b, z);
+                if (z >= b.z0 && z <= b.z1 && Mathf.Abs(x - b.XAt(z)) <= b.HalfWidth) return DeckHeight(b, z);
             return TerrainHeight(x, z);
         }
 
@@ -417,7 +437,7 @@ namespace SledSurfers
         public bool OnDeck(float x, float z)
         {
             foreach (var b in bridges)
-                if (z >= b.z0 && z <= b.z1 && Mathf.Abs(x - b.x) <= b.HalfWidth) return true;
+                if (z >= b.z0 && z <= b.z1 && Mathf.Abs(x - b.XAt(z)) <= b.HalfWidth) return true;
             return false;
         }
 
@@ -425,7 +445,7 @@ namespace SledSurfers
         public bool OverRavine(float x, float z)
         {
             foreach (var b in bridges)
-                if (z > b.r0 && z < b.r1 && Mathf.Abs(x - b.x) > b.HalfWidth) return true;
+                if (z > b.r0 && z < b.r1 && Mathf.Abs(x - b.XAt(z)) > b.HalfWidth) return true;
             return false;
         }
 

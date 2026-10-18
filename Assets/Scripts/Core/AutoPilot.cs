@@ -94,7 +94,7 @@ namespace SledSurfers
                 if (track.BridgeAt(sled.position.z + d, out var br))
                 {
                     aheadZ = sled.position.z + Mathf.Max(5f, sled.Speed * 0.35f);
-                    target = br.x;
+                    target = br.XAt(aheadZ);
                     break;
                 }
             // Önündeki havada asılı roket hakkına yönel (rampaya onun hizasında gir).
@@ -150,7 +150,7 @@ namespace SledSurfers
                     // İnce köprü: tablanın dışı dere; tablanın tam ortası en güvenli çizgi.
                     if (track.BridgeAt(zz, out var br))
                     {
-                        float bo = Mathf.Abs(x - br.x);
+                        float bo = Mathf.Abs(x - br.XAt(zz));
                         if (bo > br.HalfWidth - 0.15f) { score -= 60f; continue; }
                         score -= bo * 8f;
                     }

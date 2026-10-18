@@ -1046,33 +1046,46 @@ namespace SledSurfers
                 float hwB = b.HalfWidth;
                 var go = new GameObject("Bridge").transform;
                 go.SetParent(root, false);
-                float span = b.z1 - b.z0, len = span + 0.4f;
-                go.localPosition = new Vector3(b.x, (b.y0 + b.y1) * 0.5f, (b.z0 + b.z1) * 0.5f);
-                go.localRotation = Quaternion.Euler(Mathf.Atan2(b.y0 - b.y1, span) * Mathf.Rad2Deg, 0f, 0f);
+                // Tabla parça parça kurulur: kıvrımlı köprüde (Bridge.XAt) her tahta ve korkuluk parçası tablanın o
+                // noktadaki yönüne döner.
+                Vector3 At(float z) => new Vector3(b.XAt(z), TrackProfile.DeckHeight(b, z), z);
+                Quaternion Dir(float z) => Quaternion.LookRotation(At(z + 0.2f) - At(z - 0.2f));
+                Vector3 Side(float z) => Dir(z) * Vector3.right;
+                float z0 = b.z0 - 0.2f, len = b.z1 - b.z0 + 0.4f;
                 int n = Mathf.RoundToInt(len / 0.34f);
                 for (int k = 0; k < n; k++)
                 {
-                    float lz = -len * 0.5f + (k + 0.5f) * len / n;
-                    Mats.Prim(PrimitiveType.Cube, "Plank", go, new Vector3(R(-0.03f, 0.03f), -0.05f, lz),
+                    float z = z0 + (k + 0.5f) * len / n;
+                    Mats.Prim(PrimitiveType.Cube, "Plank", go, At(z) + Side(z) * R(-0.03f, 0.03f) + Vector3.down * 0.05f,
                               new Vector3(hwB * 2f + R(-0.04f, 0.1f), 0.07f, 0.29f), k % 2 == 0 ? plankA : plankB,
-                              Quaternion.Euler(0f, R(-2.5f, 2.5f), 0f));
+                              Dir(z) * Quaternion.Euler(0f, R(-2.5f, 2.5f), 0f));
                 }
+                int segs = Mathf.Max(1, Mathf.CeilToInt(len / 1.2f));
                 for (int s = -1; s <= 1; s += 2)
                 {
-                    Mats.Prim(PrimitiveType.Cube, "Beam", go, new Vector3(s * (hwB - 0.14f), -0.17f, 0f), new Vector3(0.14f, 0.16f, len), beam);
+                    float off = s * (hwB - 0.14f);
+                    for (int k = 0; k < segs; k++)
+                    {
+                        float za = z0 + len * k / segs, zb = z0 + len * (k + 1) / segs;
+                        Vector3 a = At(za) + Side(za) * off + Vector3.down * 0.17f, c = At(zb) + Side(zb) * off + Vector3.down * 0.17f;
+                        Mats.Prim(PrimitiveType.Cube, "Beam", go, (a + c) * 0.5f, new Vector3(0.14f, 0.16f, (c - a).magnitude + 0.04f), beam,
+                                  Quaternion.LookRotation(c - a));
+                    }
                     // Giriş ve çıkış direkleri
-                    foreach (float ez in new[] { -len * 0.5f + 0.1f, len * 0.5f - 0.1f })
-                        Mats.Prim(PrimitiveType.Cylinder, "EndPost", go, new Vector3(s * (hwB + 0.12f), 0.3f, ez), new Vector3(0.13f, 0.45f, 0.13f), beam);
+                    foreach (float ez in new[] { z0 + 0.1f, z0 + len - 0.1f })
+                        Mats.Prim(PrimitiveType.Cylinder, "EndPost", go, At(ez) + Side(ez) * (s * (hwB + 0.12f)) + Vector3.up * 0.3f,
+                                  new Vector3(0.13f, 0.45f, 0.13f), beam);
                 }
                 // Direkler: kıyı üstünde (tabla yuvarlanan dudağın üstünden geçer), derenin iki duvarında ve ortada
                 foreach (float z in new[] { b.z0 + 1f, b.r0 + 0.4f, (b.r0 + b.r1) * 0.5f, b.r1 - 0.4f, b.z1 - 1f })
                 {
-                    float top = TrackProfile.DeckHeight(b, z) - 0.2f, floor = track.TerrainHeight(b.x, z) - 0.3f;
+                    float top = TrackProfile.DeckHeight(b, z) - 0.2f, floor = track.TerrainHeight(b.XAt(z), z) - 0.3f;
                     if (top - floor < 0.3f) continue;
                     for (int s = -1; s <= 1; s += 2)
                     {
+                        Vector3 foot = At(z) + Side(z) * (s * (hwB - 0.14f));
                         var post = Mats.Prim(PrimitiveType.Cylinder, "Post", root, Vector3.zero, Vector3.one, beam);
-                        Mats.PlaceBetween(post, new Vector3(b.x + s * (hwB - 0.14f), floor, z), new Vector3(b.x + s * (hwB - 0.14f), top, z), 0.16f);
+                        Mats.PlaceBetween(post, new Vector3(foot.x, floor, z), new Vector3(foot.x, top, z), 0.16f);
                     }
                 }
             }

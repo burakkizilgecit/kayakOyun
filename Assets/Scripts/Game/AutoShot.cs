@@ -215,6 +215,32 @@ namespace SledSurfers
                 Application.Quit();
                 yield break;
             }
+            if (mode == "bridges")
+            {
+                // Kıvrımlı köprüler: her pistte ilk kıvrımlı köprüye 22 m kala ve üstündeyken.
+                game.DebugHideTutorial();
+                game.debugAutopilot = true;
+                foreach (int tr in new[] { 0, 1, 2, 4, 5 })
+                {
+                    game.DebugReset(new[] { 25, 25, 20, 25, 20 }, 0);
+                    game.DebugTrack(tr, tr);
+                    yield return new WaitForSeconds(1.5f);
+                    float cbz = game.DebugCurvedBridgeZ(0);
+                    if (cbz < 0f) continue;
+                    game.DebugAim();
+                    yield return new WaitForSeconds(0.5f);
+                    game.DebugLaunch(1f);
+                    float wt = 0f;
+                    while (!game.DebugInResult && game.DebugDistance < cbz - 22f && wt < 150f) { wt += Time.deltaTime; yield return null; }
+                    if (game.DebugInResult) continue;
+                    yield return Shot("b" + tr + "_ahead");
+                    while (!game.DebugInResult && game.DebugDistance < cbz + 5f && wt < 150f) { wt += Time.deltaTime; yield return null; }
+                    if (!game.DebugInResult) yield return Shot("b" + tr + "_on");
+                }
+                SaveData.ClearAll();   // yalnız test önekli kayıt (gerçek kayıt korunur)
+                Application.Quit();
+                yield break;
+            }
             if (mode == "woods" || mode == "drawn")
             {
                 yield return DrawnShots(1, new[] { 25, 25, 25, 25, 25 }, new (float, string)[]
