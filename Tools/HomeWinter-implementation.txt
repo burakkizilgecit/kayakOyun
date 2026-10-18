@@ -1,0 +1,92 @@
+FROSTPEAK HOME REDESIGN — IMPLEMENTATION AND VALIDATION
+14 October 2026
+
+AUDIT AND SCOPE
+Unity 6000.6.3f1. The home screen is built in GameUI.cs using UI Toolkit, not a prefab or uGUI Canvas.
+Existing PanelSettings uses a 1080x1920 reference. Existing Baloo 2 fonts, currency bindings, controller events,
+PartPreview equipment RenderTextures, avatar portraits, quest/reward state and upgrade calculations were reused.
+There are no existing leaderboard or stats destinations. The optional bottom navigation and See All were omitted.
+Daily login rewards and all existing overlays remain available through their existing flows.
+
+CHANGED / ADDED FILES FOR THIS REDESIGN
+Assets/Scripts/UI/GameUI.cs
+  Home layout, responsive design canvas inside the existing safe area, illustrated layers, existing event wiring,
+  explicit home-only font definitions, smooth progress, PLAY press/breathing, currency touch areas and display formatting.
+  Large wallet amounts use K/M/B; exact values remain in game state and label tooltips. Upgrade prices stay exact.
+Assets/Resources/UI/HomeWinter.uss (+ meta)
+  Home-scoped design system, glossy buttons, white rims, dark extrusions, card states, compact portrait layout.
+Assets/Scripts/UI/WinterHomeArt.cs (+ meta)
+  Cached atlas sprite rectangles, geometry-aware nine-slice scale, lightweight native plus symbol.
+Assets/Editor/WinterHomeAssets.cs (+ meta)
+  Import rules restricted to these new UI images: alpha, bilinear, clamp, no mipmaps, no Read/Write,
+  FullRect sprites, 2048px surfaces and 1024px navigation atlas maximum.
+Assets/Scripts/Game/AutoShot.cs
+  Isolated -shots home validation flow, screenshot/layout outputs, failure watchdog, actual UI Toolkit button submissions.
+Assets/Scripts/Game/GameController.cs
+  Guarded DebugHomeFixture / DebugHomeSafeArea and read-only test accessors. Production gameplay flow is unchanged.
+Tools/home-winter-art-prompts.txt
+  Exact prompts used with the built-in imagegen tool and the supplied reference image.
+
+CREATED ART
+Assets/Resources/UI/HomeWinter/track-plaque.png — snowy navy plaque and mountain decoration; no baked text.
+Assets/Resources/UI/HomeWinter/play-button.png — gold button, snowcap and racing flag; live text/triangle remain native.
+Assets/Resources/UI/HomeWinter/upgrade-panel.png — snowy navy nine-slice tray.
+Assets/Resources/UI/HomeWinter/navigation-icons.png — shared chest/map/clipboard/shop atlas, sliced with Unity Sprite rectangles.
+Image files retain their generated source pixels. Existing penguin, equipment and environment assets were not regenerated.
+
+PRESERVED FUNCTIONALITY
+PLAY enters aiming through the existing Play event. HERO, MAP, SHOP, QUESTS, settings and chest retain existing actions.
+Track plaque opens the existing map. Wallet plus buttons and wallet touch areas open the existing shop.
+Five upgrade cards reuse existing level/stage names, equipment previews, costs, gains and Buy callbacks.
+Coin purchase, existing gem fallback, insufficient-funds feedback and MAX behavior are retained.
+Notifications appear only for a ready chest or a claimable quest; no decorative fake notifications were added.
+Track title, target, percentage, launch balance/timer and currencies come from actual game state.
+No new progression, currency, purchase or save system was introduced.
+
+VISUAL VALIDATION
+Three actual rendered comparison iterations were performed against the supplied 590x1280 reference.
+Iteration 1 found thin Button-descendant typography, an incorrect nine-slice scale and under-emphasized icons.
+Iteration 2 fixed font definition inheritance, restored the navy tray and used an illustrated navigation atlas.
+Final iteration adjusted title proportions, PLAY height, wallet widths, rocket preview scale and upgrade price readability.
+Final captures: Tools/out/home-redesign-final/
+  home_540x1170.png — reference aspect ratio
+  home_540x960.png — shorter 16:9 portrait layout
+  home_540x1200.png — taller 20:9 portrait layout
+  home_safe_area.png — simulated top/bottom cutouts, screen-space safe area (0,28,540,1100)
+  home_large_wallet.png — 1,234,567 coins / 12,345 gems; underlying balances unchanged
+  home_coin_upgrade.png, home_gem_fallback.png, home_insufficient_funds.png, home_max_upgrades.png
+  home_nav_settings.png, home_nav_shop.png, home_nav_quests.png, home_nav_chest.png
+All requested resolutions were achieved. All named home controls remained inside the safe area.
+Screens were visually inspected for title/card clipping, icon sizing, border thickness, layout density and character visibility.
+The live penguin face, body and sled remain in the clear central scene area.
+
+AUTOMATED RESULTS
+Windows build: Tools/out/home-windows-v3b.log — Succeeded, 0 errors.
+Runtime: Tools/out/home-redesign-final.log — HOME TEST PASS; no runtime Error/Exception in the home test.
+Actual registered UI Toolkit callbacks passed for PLAY, map/title plaque, hero, shop, both wallet plus buttons,
+settings, quests, chest claim and upgrade coin/gem/MAX/insufficient-balance paths.
+No-touch gameplay or device input behavior is inferred from these callback tests.
+Test saves are guarded by AutoShot.Requested and the autotest. prefix; the real player save was not used.
+Protected baseline: Tools/out/home-protected-baseline.json — 400 core/character/equipment/environment/scene files,
+0 changed by this redesign at final Windows verification. Earlier authorized local changes were retained.
+git diff --check passed.
+
+PERFORMANCE AND LIMITATIONS
+No added real-time blur, particle system, 3D camera or equipment render lifecycle.
+Sprites/atlas and gradients are reused. Former nine-star orbit and continuous upgrade-button pulses were removed.
+Background art and card equipment pictures do not replace the animated central character.
+The reference's illustrated 3D scenery/character lighting is not copied: the existing scene and its lighting are preserved.
+This is a visually matched UI implementation, not a pixel-identical reproduction of the full reference image.
+Physical Android touch, cutouts and GPU/frame-time performance require a device test; Windows screenshots do not establish them.
+The APK is a Development/test build. Existing store-preview/advertising-test limitations were not changed by this UI task.
+
+PHONE CHECK
+Open the home screen on the target phone; check the top wallet against its cutout and the bottom card edges against the gesture area.
+Tap PLAY and return; open HERO/MAP/SHOP/QUESTS/settings/chest; buy one affordable upgrade and check the deducted balance/level.
+Confirm the character remains animated, the UI responds smoothly, and small prices are readable at normal viewing distance.
+ANDROID PACKAGE
+Builds/Android/SledSurfers-test.apk — rebuilt with the final UI, 69,825,422 bytes (about 70 MB).
+Tools/out/home-android-build.log — ANDROID BUILD Succeeded, errors=0.
+apksigner verify --verbose: Verifies; APK Signature Scheme v2=true; one signer.
+Application ID com.sledsurfers.sledrunner; version 1.0 / code 1; arm64-v8a; minimum Android API26, target API36.
+Protected file hashes were checked again after Android packaging: all 400 unchanged from the redesign baseline.

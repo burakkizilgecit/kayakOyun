@@ -1,0 +1,9 @@
+All six PNG assets below were copied unchanged from built-in imagegen output.
+Exact prompts: home-theme-art-mars-volcano.txt and home-theme-art-volcano-prompts.txt.
+
+mars/track-plaque.png: C:/Users/burak/.codex/generated_images/01a11d6f-13cd-7f23-a8a4-d7a67b0970af/exec-452462d6-9e1e-4485-9668-1142a5c64c1c.png
+mars/play-button.png: C:/Users/burak/.codex/generated_images/01a11d6f-13cd-7f23-a8a4-d7a67b0970af/exec-e3be9b75-15bf-41b5-bb0c-2979c424b353.png
+mars/upgrade-panel.png: C:/Users/burak/.codex/generated_images/01a11d6f-13cd-7f23-a8a4-d7a67b0970af/exec-1de8d223-acad-4453-982b-4f64cfdeaadb.png
+volcano/track-plaque.png: C:/Users/burak/.codex/generated_images/01a11d6f-13cd-7f23-a8a4-d7a67b0970af/exec-904f4aea-de34-4b38-98a6-fa4c0ac9f73f.png
+volcano/play-button.png: C:/Users/burak/.codex/generated_images/01a11d6f-13cd-7f23-a8a4-d7a67b0970af/exec-6be165b3-59f2-4acd-b05e-37d33194503b.png
+volcano/upgrade-panel.png: C:/Users/burak/.codex/generated_images/01a11d6f-13cd-7f23-a8a4-d7a67b0970af/exec-c1f34ba5-68d0-4d6e-8cb0-83585e3ccdd9.png

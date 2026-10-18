@@ -1,0 +1,77 @@
+PARKURA BAGLI MAGAZA VE MENU ARKA PLANLARI — 14 Ekim 2026
+
+Kapsam
+Mevcut kis magazasi manzarasi korunur. Cayir, orman, kanyon, col, volkan ve
+Mars icin ayni portre kompozisyonunda alti yeni manzara eklendi.
+Secilen parkur degistiginde acik ve kapali menu yuzeyleri birlikte guncellenir.
+
+Temali yuzeyler
+Magaza, parkur haritasi, sonuc, ayarlar, sandik, gunluk gorevler, gunluk odul,
+yeni parca, gunluk teklif, firlatma hakki, duraklatma ve test reklam katmani.
+Hero ekraninda sadece ust cubuk ve karakter listesinin zemini temalidir;
+ortadaki canli 3D karakter ve parkur sahnesi gorunmeye devam eder.
+Kucuk pencerelerde okunurluk icin hafif karartma kullanilir. Magaza bolum
+seritleri ve teklif kartinin zemini de parkur paletine uyum saglar.
+
+Dosyalar
+- Assets/Scripts/UI/MenuTrackTheme.cs (+meta): 14 sabit gorsel katmani,
+  ortak manzara dokusu, temaya gore renk/karartma ve iki tema onbellegi.
+- Assets/Scripts/UI/GameUI.cs: menu kaydi, secilen parkurla senkronizasyon,
+  eski sabit shop_bg yuklemesinin kaldirilmasi, kararlilik testi icin oge adlari.
+- Assets/Editor/MenuThemeAssets.cs (+meta): yalniz MenuThemes PNG'leri icin
+  1024 siniri, bilinear/clamp, mipmap ve Read/Write kapali texture importu.
+- Assets/Scripts/Game/AutoShot.cs: -shots menus gorsel ve gezinme kontrolleri.
+- Assets/Resources/UI/MenuThemes/{meadow,forest,canyon,desert,volcano,mars}/
+  background.png: alti yeni ozgun, opak 941x1672 PNG ve Unity meta dosyalari.
+- Tools/menu-backgrounds-meadow-forest-canyon.txt ve
+  Tools/menu-backgrounds-desert-volcano-mars.txt: imagegen istemleri/kaynaklari.
+- Tools/out/menu-themes-gallery.html: gercek ekran goruntusu galerisi.
+
+Korunanlar
+Mevcut buton callback'leri, oduller, satin alma durumlari, fiyat hesaplari,
+envanter, kayit ve parkur secimi davranislari korunur. Aktif oynanisin Hub,
+Aim ve Run katmanlarina bu manzara gorselleri eklenmez. 3D modeller, animasyon,
+fizik, cevre ve kamera kodlari degistirilmedi. Testler autotest. kaydini kullanir.
+
+Performans
+Tum menu katmanlari ayni doku nesnesini paylasir; her pencere icin ayri kopya
+yuklenmez. Yeni dokular GPU'ya en fazla 1024 boyutunda aktarilir. Kaynaklar
+yalniz parkur degisince guncellenir; kare basina gorsel yukleme yoktur.
+Karartma normal UI renklendirmesidir; blur veya ek 3D kamera eklenmemistir.
+
+Gorsel kontrol ve iyilestirme
+Ilk gercek Windows oyuncu turunda 54 ekran goruntusu alindi; yedi magazanin
+tamami ve Orman/Mars menu akislari dogrulandi. Hero basligindaki sikisik
+manzara kirpimi sakin gokyuzu ile degistirildi, Hero zeminlerine yuvarlak
+koseler eklendi, teklif kartinin kenarlari parkur rengine uyarlandi.
+Centiğe ve alt hareket alanina uzanan arka planlar, guvenli alan icinde kalan
+kontrollerden ayri boyutlanir. Hero ortasi ve canli oynanis acik kalir.
+Ilk tur: Tools/out/menu-themes-v1.log (PASS).
+
+Son dogrulama
+Tools/out/menu-themes-final.log: MENU THEME TEST PASS.
+54 gercek oyuncu ekran goruntusu, 54 yerlesim raporu, 57 tema raporu.
+14 katman her parkurda tek doku nesnesini paylasir; katmanlar cogalmaz ve
+tiklamalari engellemez. Tum ana geri/kapatma dugmeleri guvenli alan icindedir.
+Orman/Mars 540x960, 540x1170, 540x1200 ve simule safe area ile kontrol edildi.
+Hero -> Shop -> Hero, teklif/pencere kapatma, duraklat/devam, sonuc/devam,
+reklam test katmani ve kis -> orman -> Mars -> kis donusleri dogrulandi.
+Gercek satin alma test edilmedi; mevcut onizleme/satin alma kapali durumu
+korundu. Yeni oyun/ekonomi fonksiyonu eklenmedi.
+Son Windows derleme logu: Tools/out/menu-themes-windows-release.log (0 hata).
+
+Sinirlar
+Gorsel ve gezinme testleri Windows D3D11 oyuncusunda gerceklestirildi.
+Fiziksel Android telefonda FPS/bellek/dokunma olcumu yapilmadi.
+
+Teslim ve bagimsiz kontrol
+54 ekran, 54 yerlesim ve 57 tema raporundaki 798 arka plan baglantisi
+bagimsiz olarak tekrar incelendi; 52 ana kontrol guvenli alan icinde,
+galerideki 15/15 gorsel mevcut. Korunan 400 oyun/karakter/ortam dosyasi ve
+8 onceki kis UI dosyasinin SHA-256 ozetleri degismedi.
+Android derlemesi basarili, 0 hata; apksigner v2 imzasi dogrulandi.
+APK: Builds/Android/SledSurfers-test.apk
+Boyut: 82.072.126 bayt (78,3 MiB). ARM64, min API 26, hedef API 36.
+Paket: com.sledsurfers.sledrunner, surum 1.0 / kod 1, development test.
+SHA-256: E24E1677C0861F584A1FB0466772C1BFED109D8E3D894CC73BE9412634C9C9A5
+Android logu: Tools/out/menu-themes-android.log

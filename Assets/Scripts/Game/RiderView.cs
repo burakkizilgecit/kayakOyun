@@ -32,6 +32,7 @@ namespace SledSurfers
         readonly Transform lid, glassDeco;
         int builtGlass = -1;
         float builtSide;
+        MeshFilter[] glassFrameParts;
         readonly Material glassMat;
         readonly Transform[] rockets = new Transform[2], flames = new Transform[2];
         // Roket efektleri: alev ve duman izi; son yakıt bitince roketler kızaktan kopup düşer.
@@ -693,22 +694,96 @@ namespace SledSurfers
             {
                 builtGlass = cfg.glassModel;
                 builtSide = side;
-                for (int i = glassDeco.childCount - 1; i >= 0; i--) Object.Destroy(glassDeco.GetChild(i).gameObject);
+                for (int i = glassDeco.childCount - 1; i >= 0; i--)
+                {
+                    var old = glassDeco.GetChild(i);
+                    old.gameObject.SetActive(false);
+                    old.SetParent(null, false);
+                    Object.Destroy(old.gameObject);
+                }
                 var mf = glassShell.GetComponent<MeshFilter>();
                 if (mf.sharedMesh != null && mf.sharedMesh.name == "Lathe") Object.Destroy(mf.sharedMesh);
                 mf.sharedMesh = GlassModels.Build(cfg.glassModel, d, h, side, glassDeco, glassMat, Mats.GlassLayer);
                 glassShell.localScale = Vector3.one;
                 glassShell.localPosition = Vector3.zero;
+                var frame = new System.Collections.Generic.List<MeshFilter>
+                {
+                    glassShell.GetComponent<MeshFilter>(), handBall.GetComponent<MeshFilter>(), lid.GetComponent<MeshFilter>()
+                };
+                frame.AddRange(glassDeco.GetComponentsInChildren<MeshFilter>(true));
+                glassFrameParts = frame.ToArray();
             }
 
             // Yumruk bardağı gövdeye bakan yandan kavrar.
             handBall.localPosition = new Vector3(-side * (d * 0.5f + 0.04f), h * 0.4f, 0f);
 
-            float camSide = side;
-            // Uzun bardaklarda kamera geri çekilir, bardak köşe görüntüsüne sığar.
-            float camDist = Mathf.Max(1f, h / 0.33f);
-            glassCam.transform.localPosition = hand.localPosition + new Vector3(0.32f * camSide, 0.3f, -0.62f) * camDist;
             glassCam.rect = side > 0f ? new Rect(0.68f, 0.03f, 0.29f, 0.2f) : new Rect(0.03f, 0.03f, 0.29f, 0.2f);
+            PositionGlassCamera();
+        }
+
+        // Look down into the rim, including tall thermoses. Frame both width and height in the inset.
+        // The camera stays in the rider frame so the player's glass tilt remains visible.
+        void PositionGlassCamera()
+        {
+            float h = cfg.glassHeight * GlassScale;
+            Vector3 target = glassPivot.TransformPoint(Vector3.up * h * 0.5f);
+            Vector3 direction = root.TransformDirection(new Vector3(0.22f * side, 0.67f, -0.71f).normalized);
+            Quaternion rotation = Quaternion.LookRotation(-direction, root.up);
+            Quaternion inverse = Quaternion.Inverse(rotation);
+            Rect pixels = glassCam.pixelRect;
+            float aspect = Mathf.Max(0.1f, pixels.width / Mathf.Max(1f, pixels.height));
+            glassCam.aspect = aspect;
+            const float frameFill = 0.84f;   // leave 8% at each edge for the inset border and motion
+            float tanY = Mathf.Tan(glassCam.fieldOfView * Mathf.Deg2Rad * 0.5f) * frameFill;
+            float tanX = tanY * aspect;
+            float distance = glassCam.nearClipPlane + 0.1f;
+            if (glassFrameParts != null)
+                foreach (var part in glassFrameParts)
+                {
+                    if (!FramePartVisible(part)) continue;
+                    Bounds bounds = part.sharedMesh.bounds;
+                    for (int corner = 0; corner < 8; corner++)
+                    {
+                        Vector3 point = inverse * (part.transform.TransformPoint(BoundsCorner(bounds, corner)) - target);
+                        // Include the corner's depth: fitting only projected width/height clips a near rim.
+                        distance = Mathf.Max(distance, Mathf.Abs(point.x) / tanX - point.z);
+                        distance = Mathf.Max(distance, Mathf.Abs(point.y) / tanY - point.z);
+                        distance = Mathf.Max(distance, glassCam.nearClipPlane + 0.05f - point.z);
+                    }
+                }
+            glassCam.transform.SetPositionAndRotation(target + direction * distance, rotation);
+        }
+
+        bool FramePartVisible(MeshFilter part) => part != null && part.sharedMesh != null
+            && part.gameObject.activeInHierarchy && (part.transform != lid || lidClock < 0f);
+
+        static Vector3 BoundsCorner(Bounds bounds, int corner) => new Vector3(
+            (corner & 1) == 0 ? bounds.min.x : bounds.max.x,
+            (corner & 2) == 0 ? bounds.min.y : bounds.max.y,
+            (corner & 4) == 0 ? bounds.min.z : bounds.max.z);
+
+        /// Screenshot QA: checks the actual projection, including handles, straw, fist and the attached lid.
+        public bool DebugGlassFits(out string detail)
+        {
+            if (glassFrameParts == null) { detail = "Glass has not been built."; return false; }
+            Vector2 min = Vector2.one, max = Vector2.zero;
+            foreach (var part in glassFrameParts)
+            {
+                if (!FramePartVisible(part)) continue;
+                for (int corner = 0; corner < 8; corner++)
+                {
+                    Vector3 p = glassCam.WorldToViewportPoint(part.transform.TransformPoint(BoundsCorner(part.sharedMesh.bounds, corner)));
+                    min = Vector2.Min(min, new Vector2(p.x, p.y));
+                    max = Vector2.Max(max, new Vector2(p.x, p.y));
+                    if (p.z < glassCam.nearClipPlane || p.z > glassCam.farClipPlane || p.x < -0.02f || p.x > 1.02f || p.y < -0.02f || p.y > 1.02f)
+                    {
+                        detail = $"{part.name} corner {corner} outside frame: {p:F3}, aspect={glassCam.aspect:F3}";
+                        return false;
+                    }
+                }
+            }
+            detail = $"viewport {min:F3}..{max:F3}, aspect={glassCam.aspect:F3}";
+            return true;
         }
 
         /// torsoPitch: + = öne eğilme (derece), torsoRoll: + = sağa yatma, shake: gerilim titremesi (m)
@@ -811,7 +886,7 @@ namespace SledSurfers
             }
             Mats.PlaceBetween(rope, SledModel.NoseEye, ropeHand, 0.022f);
 
-            glassCam.transform.LookAt(glassPivot.position + glassPivot.up * cfg.glassHeight * GlassScale * 0.5f, root.up);
+            PositionGlassCamera();
         }
     }
 }

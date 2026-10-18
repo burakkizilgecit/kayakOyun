@@ -91,8 +91,8 @@ namespace SledSurfers.EditorTools
             Debug.Log(sb.ToString());
         }
 
-        /// Oyuncu benzetimi: her atıştan sonra kazancı hesaplar (oyundaki formülle, coin toplama tahmini
-        /// mesafeyle orantılı), parası yettikçe kademe sınırı içindeki en ucuz yükseltmeyi alır.
+        /// Oyuncu benzetimi: her atıştan sonra kazancı hesaplar (gerçek yerleşimden sonlu altın stoku,
+        /// tahmini toplama şansı), parası yettikçe kademe sınırı içindeki en ucuz yükseltmeyi alır.
         /// Her parkurun kaç atışta bittiğini ve mesafenin atış atış nasıl arttığını yazar.
         [MenuItem("Sled Surfers/İlerleme Testi")]
         public static void Progression()
@@ -120,6 +120,7 @@ namespace SledSurfers.EditorTools
             }
             var sb = new StringBuilder("[SIM] İlerleme (" + SimPlayer.Name(kind) + (gems ? ", elmasla alım" : "") +
                                        ") (atış: mesafe · süt · seviyeler sapan/kızak/bardak/gelir/roket · para · elmas)\n");
+            sb.AppendLine("Aynı gün, sonlu pist envanteri. Toplama rota yerine olasılıkla modellenir; görev/giriş ödülleri ve günlük yenilenme dahil değildir.");
             var eco = RunEconomy(kind, gems, sb);
             sb.AppendLine(eco.Summary());
             Debug.Log(sb.ToString());
@@ -151,10 +152,39 @@ namespace SledSurfers.EditorTools
             }
         }
 
-        /// Oyuncu benzetimi: her atıştan sonra kazancı oyundaki formülle hesaplar (coin toplama tahmini mesafeyle
-        /// orantılı), parası yettikçe en ucuz yükseltmeyi alır. useGems: coin yetmeyince elmasla da alır (oyundaki
-        /// gibi); elmas geliri pistteki elmaslardan (Collectibles.GemZs), oyuncu tipine göre toplama olasılığıyla.
+        /// One simulated day: runtime pickup positions, finite stock, approximate route/pickup probability.
+        /// Login rewards, quests and next-day respawns require a session policy and are excluded explicitly.
         static int ecoFirst = 0, ecoLast = TrackLibrary.Count - 1;
+
+        sealed class PickupStock
+        {
+            readonly System.Collections.Generic.IList<float> positions;
+            readonly bool[] taken, seen;
+            public int Taken { get; private set; }
+
+            public PickupStock(System.Collections.Generic.IList<float> positions)
+            {
+                this.positions = positions;
+                taken = new bool[positions.Count];
+                seen = new bool[positions.Count];
+            }
+
+            public int Collect(float distance, System.Random random, float firstChance, float repeatChance)
+            {
+                int count = 0;
+                for (int i = 0; i < positions.Count; i++)
+                {
+                    if (taken[i] || positions[i] > distance) continue;
+                    float chance = seen[i] ? repeatChance : firstChance;
+                    seen[i] = true;
+                    if (random.NextDouble() >= chance) continue;
+                    taken[i] = true;
+                    count++;
+                }
+                Taken += count;
+                return count;
+            }
+        }
 
         static EconomyResult RunEconomy(PlayerKind kind, bool useGems, StringBuilder log)
         {
@@ -168,9 +198,8 @@ namespace SledSurfers.EditorTools
                 var track = TrackLibrary.Get(t);   // yükseltme bağlamı bu pist
                 levels = new int[Upgrades.Count];   // yükseltmeler pist başına: yeni pistte sıfırdan
                 money = 0;                          // para da parkur başına (elmas ortak)
-                float coinFront = 0f;               // altınları toplanmış kısım: toplanan altın ve elmas pistte yeniden çıkmaz
-                var gemZs = Collectibles.GemZs(track);
-                var gemTaken = new bool[gemZs.Count];
+                var coins = new PickupStock(Collectibles.CoinZs(track));
+                var gemStock = new PickupStock(Collectibles.GemZs(track));
                 log?.AppendLine("Parkur " + (t + 1) + " — " + track.name + " (" + Upgrades.Max + " kademe)");
                 int runs = 0, streak = 0;
                 float best = 0f, milk = 0f;
@@ -186,17 +215,14 @@ namespace SledSurfers.EditorTools
                     milk += 1f - r.fill;
                     for (int i = 0; i < res.surfaceLoss.Length; i++) res.surfaceLoss[i] += r.stats.lostMeters[i];
                     for (int i = 0; i < res.milkByCause.Length; i++) res.milkByCause[i] += r.stats.milkLost[i];
-                    // Altınlar dağınık (~48 m'de bir), her biri 120 ve yalnızca bir kez toplanır: ilk kez geçilen kısımdakilerin
-                    // yarısı, eski kısımda kalanların %15'i alınır. Sabit değer: gelir çarpanı uygulanmaz.
-                    float coinCount = (0.5f * Mathf.Max(0f, r.distance - coinFront) + 0.15f * 0.5f * Mathf.Min(r.distance, coinFront)) / 48f;
-                    coinFront = Mathf.Max(coinFront, r.distance);
-                    int earned = Mathf.RoundToInt((r.distance * (0.4f + 0.6f * r.fill) + (finished ? 1000 * (t + 1) : 0))
+                    // Only uncollected items can pay again on a later attempt. The same runtime
+                    // layout includes forks, surface rewards and jump pickups as well as ordinary coins.
+                    int coinCount = coins.Collect(r.distance, rnd, 0.5f * pickChance, 0.15f * pickChance);
+                    int earned = Mathf.RoundToInt((Mathf.FloorToInt(r.distance) * (0.4f + 0.6f * Mathf.Clamp01(r.fill)) + (finished ? 1000 * (t + 1) : 0))
                                                   * Upgrades.IncomeMultiplier(levels[(int)UpgradeType.Income]) * TrackLibrary.PayFactors[t])
-                                 + Mathf.RoundToInt(coinCount * 120f);
+                                 + coinCount * Collectibles.CoinValue;
                     money += earned;
-                    int gotGems = 0;
-                    for (int gi = 0; gi < gemZs.Count; gi++)
-                        if (!gemTaken[gi] && gemZs[gi] <= r.distance && rnd.NextDouble() < pickChance) { gemTaken[gi] = true; gotGems++; }
+                    int gotGems = gemStock.Collect(r.distance, rnd, pickChance, pickChance);
                     gems += gotGems;
                     res.gemsEarned += gotGems;
                     // En ucuz alınabilir yükseltmeyi tekrar tekrar al; coin yetmezse (istenirse) elmasla.
@@ -605,6 +631,146 @@ namespace SledSurfers.EditorTools
             public RunStats stats;
         }
 
+        /// Bounded regression entry point for Editor or batch mode. No PlayerPrefs, scene loading or assets written.
+        [MenuItem("Sled Surfers/Quick Regression")]
+        public static void SmokeRegression()
+        {
+            int oldTrack = Upgrades.Track, oldParts = Upgrades.PartTier;
+            float oldGravity = SledPhysics.Gravity;
+            int checks = 0;
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            var log = new StringBuilder("[REGRESSION] Bounded smoke: 12 simulated seconds at start/mid/max, every track\n");
+            void Check(bool ok, string message)
+            {
+                if (!ok) throw new System.InvalidOperationException("[REGRESSION] " + message);
+                checks++;
+            }
+            void Budget()
+            {
+                if (watch.Elapsed.TotalSeconds > 90)
+                    throw new System.TimeoutException("[REGRESSION] 90 second budget exceeded; inspect the last reported track.");
+            }
+            bool Finite(float v) => !float.IsNaN(v) && !float.IsInfinity(v);
+            try
+            {
+                Upgrades.PartTier = -1;
+                var flat = new TrackProfile("Regression flat", new[] { new Vector2(-20f, 0f), new Vector2(1000f, 0f) }, 900f, 10f);
+                var cfg = new SledConfig();
+
+                // Exercise actual landing physics, then verify tip selection does not depend on display language.
+                var hard = new SledPhysics(flat, cfg);
+                hard.PlaceForAim(0f);
+                hard.position = new Vector3(0f, 0.001f, 30f);
+                hard.velocity = new Vector3(0f, -cfg.crashImpact - 5f, 10f);
+                hard.grounded = false;
+                hard.Step(0f, 0f, Dt);
+                Check(hard.end == RunEnd.Crashed && hard.crashCause == CrashCause.HardLanding, "hard landing must retain its typed cause");
+                string hardTip = RunTips.Tip(hard.stats, hard.end, hard.endReason, cfg, 30f, hard.crashCause);
+                Check(hardTip.Contains("nose") && hardTip == RunTips.Tip(hard.stats, hard.end, "Başka bir dil", cfg, 30f, hard.crashCause), "landing tip must be independent of translated text");
+
+                var flipCfg = new SledConfig { crashImpact = 50f };
+                var flip = new SledPhysics(flat, flipCfg);
+                flip.PlaceForAim(0f);
+                flip.position = new Vector3(0f, 0.001f, 30f);
+                flip.velocity = new Vector3(0f, -5f, 10f);
+                flip.pitch = 1.2f;
+                flip.grounded = false;
+                flip.Step(0f, 0f, Dt);
+                Check(flip.crashCause == CrashCause.Flip, "misaligned landing must be classified as a flip");
+                flip.ForceEnd(RunEnd.Stopped, "later reason");
+                Check(flip.crashCause == CrashCause.Flip && flip.end == RunEnd.Crashed, "first end reason must be preserved");
+                flip.pickupAwaitingLanding = true;
+                flip.PlaceForAim(1f);
+                Check(flip.crashCause == CrashCause.None && !flip.pickupAwaitingLanding, "new run must reset crash and pickup lock");
+
+                var offTrack = new SledPhysics(flat, cfg);
+                offTrack.PlaceForAim(0f);
+                offTrack.position = new Vector3(flat.halfWidth + TrackProfile.BankRim + 1f, 0f, 30f);
+                offTrack.Step(0f, 0f, Dt);
+                Check(offTrack.crashCause == CrashCause.OffTrack, "leaving the course must report the boundary");
+                string boundaryTip = RunTips.Tip(offTrack.stats, offTrack.end, "", cfg, 30f, offTrack.crashCause);
+                Check(boundaryTip.Contains("boundary") && !boundaryTip.Contains("rim"), "boundary tip must also apply to open forest");
+
+                float TurnOn(Surface surface)
+                {
+                    flat.surfaces.Clear();
+                    if (surface != Surface.Ground)
+                        flat.surfaces.Add(SurfaceZone.Blob(surface, 50f, 0f, 30f, 10f, 1f, false));
+                    var sled = new SledPhysics(flat, cfg);
+                    sled.PlaceForAim(0f);
+                    sled.position = new Vector3(0f, 0f, 50f);
+                    sled.velocity = new Vector3(0f, 0f, 20f);
+                    sled.Step(1f, 0f, Dt);
+                    return Mathf.Atan2(sled.velocity.x, sled.velocity.z);
+                }
+                float groundTurn = TurnOn(Surface.Ground);
+                float iceTurn = TurnOn(Surface.Ice);
+                float mudTurn = TurnOn(Surface.Mud);
+                Check(iceTurn > 0f && iceTurn < groundTurn * 0.9f, "ice must retain steering with a wider turn than ground");
+                Check(mudTurn > iceTurn && mudTurn < groundTurn, "mud steering must be heavier without becoming less controllable than ice");
+                flat.surfaces.Clear();
+                flat.surfaces.Add(SurfaceZone.Blob(Surface.Ice, 50f, 0f, 30f, 10f, 1f, false));
+                flat.bridges.Add(new TrackProfile.Bridge { z0 = 40f, z1 = 60f, r0 = 42f, r1 = 58f, x = 0f });
+                Check(Mathf.Approximately(flat.LateralGrip(50f, 0f), 1f), "bridge must preserve full lateral control");
+
+                var stockProbe = new PickupStock(new[] { 10f, 20f, 30f });
+                var random = new System.Random(719);
+                Check(stockProbe.Collect(20f, random, 0f, 0f) == 0, "missed pickups must remain available");
+                Check(stockProbe.Collect(20f, random, 0f, 1f) == 2, "retry can collect previously missed pickups");
+                Check(stockProbe.Collect(20f, random, 1f, 1f) == 0, "collected pickups must not pay twice");
+                Check(stockProbe.Collect(30f, random, 1f, 1f) == 1 && stockProbe.Taken == 3, "unreached pickups remain until reached");
+
+                for (int t = 0; t < TrackLibrary.Count; t++)
+                {
+                    Budget();
+                    var track = TrackLibrary.Get(t);
+                    var levels = new int[Upgrades.Count];
+                    SledConfig previous = null;
+                    for (int level = 0; level <= Upgrades.Max; level++)
+                    {
+                        levels[(int)UpgradeType.Glass] = level;
+                        var current = Upgrades.BuildConfig(levels);
+                        if (previous != null)
+                        {
+                            Check(current.sloshDamping + 1e-6f >= previous.sloshDamping, track.name + " cup damping regresses at " + level);
+                            Check(current.milkHeadroom + 1e-6f >= previous.milkHeadroom, track.name + " cup headroom regresses at " + level);
+                            Check(current.glassReflex > previous.glassReflex, track.name + " cup reflex must improve at " + level);
+                        }
+                        Check(current.milkHeadroom > 0f && current.milkHeadroom < current.glassHeight, track.name + " invalid cup fill height");
+                        previous = current;
+                    }
+                    var coinZs = Collectibles.CoinZs(track);
+                    var stock = new PickupStock(coinZs);
+                    int paid = 0;
+                    for (int attempt = 0; attempt < 250; attempt++) paid += stock.Collect(track.finishZ, random, 0.5f, 0.15f);
+                    Check(paid <= coinZs.Count, track.name + " paid more coins than its finite stock");
+                    paid += stock.Collect(float.MaxValue, random, 1f, 1f);
+                    Check(paid == coinZs.Count && stock.Collect(float.MaxValue, random, 1f, 1f) == 0, track.name + " inventory exhaustion mismatch");
+
+                    foreach (int level in new[] { 0, Upgrades.Max / 2, Upgrades.Max })
+                    {
+                        Budget();
+                        for (int i = 0; i < levels.Length; i++) levels[i] = level;
+                        var result = Simulate(track, Upgrades.BuildConfig(levels), PlayerKind.Usta, t * 31 + level,
+                            RocketPolicy.Varsayilan, 12f);
+                        Check(Finite(result.distance) && Finite(result.topSpeed) && Finite(result.fill), track.name + " non-finite simulation at " + level);
+                        Check(result.distance > 0f && result.fill >= 0f && result.fill <= 1.001f, track.name + " invalid launch/liquid at " + level);
+                        log.AppendFormat("  {0}, level {1}: {2:F1} m, milk {3:F2}, {4}\n", track.name, level, result.distance, result.fill, result.end);
+                    }
+                    Debug.Log("[REGRESSION] Checked " + track.name + " (finite stock " + coinZs.Count + " coins)");
+                }
+                Budget();
+                log.AppendFormat("PASS: {0} checks; {1:F1} seconds. Full course completion and human skill balance are separate tests.", checks, watch.Elapsed.TotalSeconds);
+                Debug.Log(log.ToString());
+            }
+            finally
+            {
+                Upgrades.Track = oldTrack;
+                Upgrades.PartTier = oldParts;
+                SledPhysics.Gravity = oldGravity;
+            }
+        }
+
         /// Başlangıç raporu (yol haritası aşama 0): oyuncu tipine göre ekonomi, süt kaybı matrisi, roket zamanlaması ve
         /// usta-ortalama mesafe farkı. parts=eco,milk,rocket,gap (varsayılan hepsi); out=<dosya.md> raporu dosyaya da yazar.
         public static void Baseline()
@@ -617,14 +783,25 @@ namespace SledSurfers.EditorTools
             }
             var md = new StringBuilder("# Başlangıç raporu\n\n");
             md.AppendLine("Sim tarihi: " + System.DateTime.Now.ToString("yyyy-MM-dd HH:mm") + ". Oyuncu tipleri: usta = otomatik pilot; ortalama = 0.25 s gecikmeli, hafif titrek direksiyon, bardağın eksik dengesinin yarısını gecikmeli düzeltir, roketi hız yarıya inince ateşler, atışların %40'ında mükemmel bırakış, elmasların %75'ini toplar; eğmeyen = ortalama gibi sürer, telefonu hiç eğmez.\n");
-            // Temsilî seviyeler (pist başına): o pistin ortası civarında bir oyuncunun seviyeleri.
-            int[][] mid = { new[] { 8, 8, 3, 7, 6 }, new[] { 15, 14, 7, 12, 10 }, new[] { 18, 17, 8, 15, 14 }, new[] { 19, 18, 9, 16, 16 } };
+            md.AppendLine("Ekonomi aynı günü ve sonlu gerçek yerleşimi kullanır. Toplama olasılığı tahminidir; görev/giriş ödülleri, hak bekleme süreleri ve ertesi gün yenilenme bu rapora dahil değildir.\n");
+            // Relative levels cover every track and stay valid if stage counts change.
+            int[][] mid = new int[TrackLibrary.Count][];
+            for (int t = 0; t < mid.Length; t++)
+            {
+                int max = Upgrades.MaxFor(t);
+                mid[t] = new[] { Mathf.RoundToInt(max * 0.6f), Mathf.RoundToInt(max * 0.6f), Mathf.RoundToInt(max * 0.4f),
+                                Mathf.RoundToInt(max * 0.5f), Mathf.RoundToInt(max * 0.5f) };
+            }
 
             if (parts.Contains("eco"))
             {
                 md.AppendLine("## 1. Ekonomi (pist başına atış)\n");
-                md.AppendLine("| Oyuncu | Çayır | Orman | Kanyon | Karlı Dağ | Toplam | İlerlemeyen atış | En uzun duraklama | Yeni piste ilk atış (O/K/KD) | Elmasla alınan kademe |");
-                md.AppendLine("|---|---|---|---|---|---|---|---|---|---|");
+                md.Append("| Oyuncu |");
+                foreach (string name in TrackLibrary.Names) md.Append(" " + name + " |");
+                md.AppendLine(" Toplam | İlerlemeyen atış | En uzun duraklama | Yeni pistlerde ilk atış | Elmasla alınan kademe |");
+                md.Append("|---|");
+                for (int i = 0; i < TrackLibrary.Count + 5; i++) md.Append("---|");
+                md.AppendLine();
                 var cases = new (PlayerKind, bool)[] { (PlayerKind.Usta, false), (PlayerKind.Usta, true), (PlayerKind.Ortalama, true), (PlayerKind.Egmeyen, true) };
                 EconomyResult avg = null;
                 foreach (var (kind, gems) in cases)
@@ -633,9 +810,12 @@ namespace SledSurfers.EditorTools
                     if (kind == PlayerKind.Ortalama) avg = e;
                     int longest = 0;
                     foreach (int l in e.longest) longest = Mathf.Max(longest, l);
-                    md.AppendLine(string.Format("| {0} | {1} | {2} | {3} | {4} | {5} | %{6:F0} | {7} | %{8:F0} / %{9:F0} / %{10:F0} | {11} |",
-                        e.label, R(e, 0), R(e, 1), R(e, 2), R(e, 3), e.Total, 100f * e.Stalled / Mathf.Max(e.Total, 1), longest,
-                        e.arrival[1] * 100f, e.arrival[2] * 100f, e.arrival[3] * 100f, e.gemBuys));
+                    md.Append("| " + e.label + " |");
+                    for (int t = 0; t < TrackLibrary.Count; t++) md.Append(" " + R(e, t) + " |");
+                    md.AppendFormat(" {0} | %{1:F0} | {2} | ", e.Total, 100f * e.Stalled / Mathf.Max(e.Total, 1), longest);
+                    for (int t = 1; t < TrackLibrary.Count; t++)
+                        md.Append((t > 1 ? " / " : "") + "%" + (e.arrival[t] * 100f).ToString("F0"));
+                    md.AppendLine(" | " + e.gemBuys + " |");
                     Debug.Log("[SIM] Başlangıç ekonomi " + e.label + "\n" + e.Summary());
                 }
                 if (avg != null)
@@ -651,17 +831,18 @@ namespace SledSurfers.EditorTools
             {
                 md.AppendLine("## 2. Süt kaybı (koşu başına ortalama, %)\n");
                 md.AppendLine("Seviyeler pistin ortasındaki bir oyuncununki, yalnız bardak değişir. Gürültülü oyuncular 5 tohumun ortalaması.\n");
-                md.AppendLine("| Pist | Oyuncu | Bardak 0 | 4 | 8 | 12 | 16 | 20 | Başlıca neden |");
+                md.AppendLine("| Pist | Oyuncu | Bardak %0 | %20 | %40 | %60 | %80 | %100 | Başlıca neden |");
                 md.AppendLine("|---|---|---|---|---|---|---|---|---|");
-                foreach (int t in new[] { 0, 1, 3 })
+                for (int t = 0; t < TrackLibrary.Count; t++)
                 {
                     var track = TrackLibrary.Get(t);
                     foreach (PlayerKind kind in new[] { PlayerKind.Usta, PlayerKind.Ortalama, PlayerKind.Egmeyen })
                     {
                         var row = new StringBuilder("| " + track.name + " | " + SimPlayer.Name(kind) + " |");
                         var causes = new float[(int)SpillCause.Count];
-                        foreach (int g in new[] { 0, 4, 8, 12, 16, 20 })
+                        for (int sample = 0; sample <= 5; sample++)
                         {
+                            int g = Mathf.RoundToInt(Upgrades.Max * sample / 5f);
                             var lv = (int[])mid[t].Clone();
                             lv[(int)UpgradeType.Glass] = g;
                             int seeds = kind == PlayerKind.Usta ? 1 : 5;
@@ -858,7 +1039,7 @@ namespace SledSurfers.EditorTools
         }
 
         static SimResult Simulate(TrackProfile track, SledConfig cfg, PlayerKind kind = PlayerKind.Usta, int seed = 0,
-                                  RocketPolicy rocket = RocketPolicy.Varsayilan)
+                                  RocketPolicy rocket = RocketPolicy.Varsayilan, float maxSeconds = 600f)
         {
             var sled = new SledPhysics(track, cfg);
             var liquid = new LiquidSim();
@@ -868,7 +1049,7 @@ namespace SledSurfers.EditorTools
             var player = new SimPlayer(kind, seed, rocket);
             if (player.PerfectLaunch()) { sled.launchBoost = SledPhysics.PerfectLaunchBoost; sled.stats.perfectLaunch = true; }
             float t = 0f;
-            while (sled.end == RunEnd.None && t < 600f)
+            while (sled.end == RunEnd.None && t < maxSeconds)
             {
                 Vector2 glass = player.Glass(sled, cfg, Dt);
                 if (player.Fire(track, sled, cfg)) sled.FireRocket();

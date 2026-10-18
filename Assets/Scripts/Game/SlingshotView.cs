@@ -27,7 +27,16 @@ namespace SledSurfers
             for (int s = 0; s < 2; s++)
             {
                 for (int i = decor[s].childCount - 1; i >= 0; i--) Object.Destroy(decor[s].GetChild(i).gameObject);
-                PartVisuals.BuildSlingDecor(decor[s], stage, postHeight, s == 0 ? -1f : 1f);
+                if (stage == 0) continue;
+                var look = new GameObject("Stage " + stage).transform;
+                look.SetParent(decor[s], false);
+                PartVisuals.BuildSlingDecor(look, stage, postHeight, s == 0 ? -1f : 1f);
+                // This builder creates fresh materials and one procedural spring; primitive meshes are shared.
+                var assets = RuntimeResources.For(look);
+                foreach (var renderer in look.GetComponentsInChildren<MeshRenderer>())
+                    foreach (var material in renderer.sharedMaterials) assets.Own(material);
+                var spring = look.Find("Spring");
+                if (spring != null) assets.Own(spring.GetComponent<MeshFilter>().sharedMesh);
             }
         }
         readonly Band left, right;
@@ -36,10 +45,11 @@ namespace SledSurfers
 
         public SlingshotView(Transform parent, float postX, float postZ, float groundY, float height)
         {
-            var wood = woodMat = Mats.Solid(new Color(0.6f, 0.38f, 0.2f), 0.2f);
-            var metal = metalMat = Mats.Solid(new Color(0.62f, 0.66f, 0.72f), 0.75f);
-            var stone = Mats.Solid(new Color(0.62f, 0.6f, 0.58f), 0.1f);
-            var postMesh = PostMesh(height);
+            var resources = RuntimeResources.For(parent);
+            var wood = woodMat = resources.Solid(new Color(0.6f, 0.38f, 0.2f), 0.2f);
+            var metal = metalMat = resources.Solid(new Color(0.62f, 0.66f, 0.72f), 0.75f);
+            var stone = resources.Solid(new Color(0.62f, 0.6f, 0.58f), 0.1f);
+            var postMesh = resources.Own(PostMesh(height));
             postHeight = height;
             for (int s = -1; s <= 1; s += 2)
             {
@@ -58,13 +68,13 @@ namespace SledSurfers
             leftTop = new Vector3(-postX + 0.1f, attachY, postZ);
             rightTop = new Vector3(postX - 0.1f, attachY, postZ);
 
-            bandMat = Mats.Solid(Color.white, 0.25f);
-            bandMat.mainTexture = RopeTexture();
+            bandMat = resources.Solid(Color.white, 0.25f);
+            bandMat.mainTexture = resources.Own(RopeTexture());
             left = new Band(parent, bandMat);
             right = new Band(parent, bandMat);
 
             pouch = Mats.Prim(PrimitiveType.Capsule, "Pouch", parent, Vector3.zero, new Vector3(0.2f, 0.3f, 0.12f),
-                              Mats.Solid(new Color(0.42f, 0.24f, 0.13f), 0.3f));
+                              resources.Solid(new Color(0.42f, 0.24f, 0.13f), 0.3f));
         }
 
         public Vector3 Rest => (leftTop + rightTop) * 0.5f;
@@ -163,7 +173,7 @@ namespace SledSurfers
             {
                 var go = new GameObject("Band");
                 go.transform.SetParent(parent, false);
-                mesh = new Mesh { name = "Band" };
+                mesh = RuntimeResources.For(parent).Own(new Mesh { name = "Band" });
                 mesh.MarkDynamic();
                 mesh.vertices = verts;
                 var tris = new int[Segments * Sides * 6];

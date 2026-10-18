@@ -3,6 +3,8 @@ using UnityEngine;
 namespace SledSurfers
 {
     public enum RunEnd { None, Stopped, Crashed, Spilled, Finished }
+    /// Stable gameplay reason; display text can change or be translated independently.
+    public enum CrashCause { None, HardLanding, Flip, OffTrack, Ravine, Valley, Wall, Obstacle, Birds }
 
     /// Kızağın fizik modeli.
     /// Zemindeyken kızak yüzeyi takip eder: yerçekimi bileşeni, kinetik sürtünme (μ·N)
@@ -50,6 +52,7 @@ namespace SledSurfers
         public bool launching;
         public RunEnd end;
         public string endReason = "";
+        public CrashCause crashCause;
         public float maxDistance;
         public float topSpeed;
         public int landings;             // her inişte artar (ses/efekt için)
@@ -115,6 +118,7 @@ namespace SledSurfers
             launching = false;
             end = RunEnd.None;
             endReason = "";
+            crashCause = CrashCause.None;
             stillTime = 0f;
             landHold = 0f;
             rocketTime = 0f;
@@ -122,6 +126,7 @@ namespace SledSurfers
             rocketThrust = cfg.rocketThrust;
             rocketBurn = cfg.rocketBurn;
             rocketPickupTaken = false;
+            pickupAwaitingLanding = false;
             maxDistance = 0f;
             topSpeed = 0f;
             clock = 0f;
@@ -143,9 +148,12 @@ namespace SledSurfers
             return true;
         }
 
-        public void ForceEnd(RunEnd reason, string text)
+        public void ForceEnd(RunEnd reason, string text, CrashCause cause = CrashCause.None)
         {
-            if (end == RunEnd.None) { end = reason; endReason = text; }
+            if (end != RunEnd.None) return;
+            end = reason;
+            endReason = text;
+            crashCause = reason == RunEnd.Crashed ? cause : CrashCause.None;
         }
 
         public void Step(float steer, float pitchInput, float dt)
@@ -276,7 +284,7 @@ namespace SledSurfers
             {
                 // Yanal tutuş yerçekiminden bağımsız (arcade): Mars'ta hover aracı iticilerle döner; tutuş yerçekimiyle
                 // azalınca ortalama oyuncu köprüye hizalanamıyordu.
-                float rate = Mathf.Min(MaxSideGrip / speed, MaxTurnRate);
+                float rate = Mathf.Min(MaxSideGrip * track.LateralGrip(position.z, position.x) / speed, MaxTurnRate);
                 float turn = steer * rate * dt;
                 float h = Mathf.Atan2(v.x, v.z);
                 if ((turn > 0f && h > MaxHeading) || (turn < 0f && h < -MaxHeading)) turn = 0f;
@@ -317,7 +325,8 @@ namespace SledSurfers
             if (v.z > 0f && slopeAhead > WallSlope)
             {
                 velocity = Vector3.zero;
-                ForceEnd(RunEnd.Crashed, InGap(position.z) ? "Fell into the valley!" : "Hit the wall!");
+                bool inGap = InGap(position.z);
+                ForceEnd(RunEnd.Crashed, inGap ? "Fell into the valley!" : "Hit the wall!", inGap ? CrashCause.Valley : CrashCause.Wall);
                 return;
             }
 
@@ -482,7 +491,7 @@ namespace SledSurfers
             {
                 velocity = Vector3.zero;
                 stats.fellInRavine = true;
-                ForceEnd(RunEnd.Crashed, track.fallText);
+                ForceEnd(RunEnd.Crashed, track.fallText, CrashCause.Ravine);
                 return;
             }
             if (position.y <= ground) Land(ground);
@@ -522,7 +531,9 @@ namespace SledSurfers
             if (impact > cfg.crashImpact)
             {
                 velocity = Vector3.zero;
-                ForceEnd(RunEnd.Crashed, InGap(position.z) ? "Fell into the valley!" : slope > WallSlope ? "Hit the wall!" : "Landed too hard!");
+                bool inGap = InGap(position.z);
+                ForceEnd(RunEnd.Crashed, inGap ? "Fell into the valley!" : slope > WallSlope ? "Hit the wall!" : "Landed too hard!",
+                    inGap ? CrashCause.Valley : slope > WallSlope ? CrashCause.Wall : CrashCause.HardLanding);
                 return;
             }
 
@@ -532,7 +543,7 @@ namespace SledSurfers
             if (mismatch > 1.0f && impact > 4f)
             {
                 velocity = Vector3.zero;
-                ForceEnd(RunEnd.Crashed, "You flipped!");
+                ForceEnd(RunEnd.Crashed, "You flipped!", CrashCause.Flip);
                 return;
             }
 
@@ -562,7 +573,7 @@ namespace SledSurfers
         void OffTrack()
         {
             float dx = Mathf.Abs(position.x - track.CenterX(position.z)) - track.halfWidth;
-            if (dx > TrackProfile.BankRim) ForceEnd(RunEnd.Crashed, WentOffTrack);
+            if (dx > TrackProfile.BankRim) ForceEnd(RunEnd.Crashed, WentOffTrack, CrashCause.OffTrack);
         }
 
         void CheckObstacles()
@@ -573,7 +584,7 @@ namespace SledSurfers
                     if (Mathf.Abs(position.z - f.z) > f.radius + HalfLength) continue;
                     if ((track.FlockCenter(f, clock) - position).sqrMagnitude > f.radius * f.radius) continue;
                     velocity = Vector3.zero;
-                    ForceEnd(RunEnd.Crashed, "Hit a flock of birds!");
+                    ForceEnd(RunEnd.Crashed, "Hit a flock of birds!", CrashCause.Birds);
                     return;
                 }
             foreach (var o in track.obstacles)
@@ -584,7 +595,7 @@ namespace SledSurfers
                 // (hızlı kızak havada yön değiştiremediği için her uçuş ağaçta bitiyordu).
                 if (position.y - track.Height(o.x, o.z) > (o.variant == 4 ? 1.5f : o.height)) continue;
                 velocity = Vector3.zero;
-                ForceEnd(RunEnd.Crashed, o.variant == 4 ? "Hit a tree!" : o.isRock ? "Hit a rock!" : "Hit a crate!");
+                ForceEnd(RunEnd.Crashed, o.variant == 4 ? "Hit a tree!" : o.isRock ? "Hit a rock!" : "Hit a crate!", CrashCause.Obstacle);
                 return;
             }
         }

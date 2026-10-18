@@ -13,6 +13,7 @@ namespace SledSurfers
         const int GuideDots = 14;
 
         readonly Transform root;
+        readonly RuntimeResources resources;
         readonly SlingshotView sling;
         readonly Transform[] guide = new Transform[GuideDots];
         Vector3 pouchPos, pouchVel;
@@ -34,6 +35,7 @@ namespace SledSurfers
             this.track = track;
             this.theme = theme;
             root = new GameObject("World").transform;
+            resources = RuntimeResources.For(root);
 
             Scenery.Build(root, track, theme);
 
@@ -41,7 +43,7 @@ namespace SledSurfers
             sling = new SlingshotView(root, SlingPostX, SlingPostZ, track.Height(SlingPostZ), SlingTop);
             pouchPos = sling.Rest;
 
-            var dotMat = Mats.Solid(Color.white, 0.6f);
+            var dotMat = resources.Solid(Color.white, 0.6f);
             dotMat.EnableKeyword("_EMISSION");
             dotMat.SetColor("_EmissionColor", new Color(0.6f, 0.6f, 0.6f));
             for (int i = 0; i < GuideDots; i++)
@@ -49,7 +51,7 @@ namespace SledSurfers
             ShowGuide(0f, 0f);
 
             // Kuş sürüleri: her biri ~10 kuş (gövde + iki kanat), sürünün merkezi fizikle aynı formülle salınır.
-            var birdMat = Mats.Solid(new Color(0.18f, 0.18f, 0.22f), 0.2f);
+            var birdMat = resources.Solid(new Color(0.18f, 0.18f, 0.22f), 0.2f);
             var rnd = new System.Random(5);
             foreach (var f in track.flocks)
             {
@@ -79,9 +81,9 @@ namespace SledSurfers
             // Rekor bayrağı
             bestFlag = new GameObject("Best Flag").transform;
             bestFlag.SetParent(root, false);
-            var gold = Mats.Solid(new Color(1f, 0.78f, 0.1f), 0.5f);
+            var gold = resources.Solid(new Color(1f, 0.78f, 0.1f), 0.5f);
             // Rekor işareti de küçük ve rakamsız (mesafe bayrağıyla aynı karar): altın bayrak; rekor ilerleme çubuğunda yazar.
-            Mats.Prim(PrimitiveType.Cylinder, "Pole", bestFlag, new Vector3(0f, 0.85f, 0f), new Vector3(0.06f, 0.85f, 0.06f), Mats.Solid(Color.white));
+            Mats.Prim(PrimitiveType.Cylinder, "Pole", bestFlag, new Vector3(0f, 0.85f, 0f), new Vector3(0.06f, 0.85f, 0.06f), resources.Solid(Color.white));
             Mats.Prim(PrimitiveType.Cube, "Flag", bestFlag, new Vector3(0.28f, 1.5f, 0f), new Vector3(0.5f, 0.32f, 0.04f), gold);
             bestText = MakeText(bestFlag, new Vector3(0f, 1.9f, 0f), "BEST", 0.06f, new Color(1f, 0.85f, 0.2f));
             bestText.gameObject.SetActive(false);
@@ -90,11 +92,11 @@ namespace SledSurfers
             // Atışın bittiği noktaya dikilen mesafe bayrağı
             stopFlag = new GameObject("Stop Flag").transform;
             stopFlag.SetParent(root, false);
-            var red = Mats.Solid(new Color(0.95f, 0.3f, 0.2f), 0.4f);
+            var red = resources.Solid(new Color(0.95f, 0.3f, 0.2f), 0.4f);
             // Küçük işaret bayrağı (kullanıcı 2026-10-10): üstünde rakam yok (bazen tam okunmuyordu); mesafe ekranda yazar.
-            Mats.Prim(PrimitiveType.Cylinder, "Pole", stopFlag, new Vector3(0f, 0.75f, 0f), new Vector3(0.06f, 0.75f, 0.06f), Mats.Solid(Color.white));
+            Mats.Prim(PrimitiveType.Cylinder, "Pole", stopFlag, new Vector3(0f, 0.75f, 0f), new Vector3(0.06f, 0.75f, 0.06f), resources.Solid(Color.white));
             Mats.Prim(PrimitiveType.Cube, "Flag", stopFlag, new Vector3(0.28f, 1.3f, 0f), new Vector3(0.5f, 0.32f, 0.04f), red);
-            Mats.Prim(PrimitiveType.Sphere, "Knob", stopFlag, new Vector3(0f, 1.54f, 0f), Vector3.one * 0.12f, Mats.Solid(new Color(1f, 0.8f, 0.2f), 0.6f));
+            Mats.Prim(PrimitiveType.Sphere, "Knob", stopFlag, new Vector3(0f, 1.54f, 0f), Vector3.one * 0.12f, resources.Solid(new Color(1f, 0.8f, 0.2f), 0.6f));
             stopText = MakeText(stopFlag, new Vector3(0.28f, 1.3f, -0.04f), "", 0.05f, Color.white);
             stopText.gameObject.SetActive(false);
             stopFlag.gameObject.SetActive(false);

@@ -4,9 +4,13 @@ namespace SledSurfers
 {
     /// Gerçek parayla satılan ürünlerin fiyatları ve günlük fırsatlar. Fiyatlar mağazadan gelir: ödeme sistemi (Unity IAP /
     /// Google Play) bağlanınca SetPrice ile mağazanın yerel fiyat metni (ör. "₺264,99") yazılır; o zamana kadar aşağıdaki
-    /// yer tutucular gösterilir. Arayüz fiyatı hiçbir yerde elle yazmaz, hep Store.Price(id) sorar.
+    /// katalog yalnızca önizlemedir; satın alma düğmeleri kapalıdır. Arayüz fiyatı hep Store.Price(id) üzerinden alır.
     public static class Store
     {
+        /// Remains false in test builds. An actual purchase integration must explicitly enable it after initialization.
+        public static bool PurchasesAvailable { get; private set; }
+        public static void SetPurchasesAvailable(bool available) => PurchasesAvailable = available;
+
         static readonly Dictionary<string, string> prices = new Dictionary<string, string>
         {
             { "noads_pack", "$4.99" }, { "noads", "$3.49" }, { "double_rocket", "$5.99" }, { "auto_x3", "$2.49" },

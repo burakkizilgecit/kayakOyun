@@ -6,17 +6,23 @@ namespace SledSurfers
     /// Yol haritası aşama 3: başarısızlığın nedeni görünsün, oyuncu "daha iyi oynayabilirim" hissetsin.
     public static class RunTips
     {
-        public static string Tip(RunStats s, RunEnd end, string reason, SledConfig cfg, float distance)
+        public static string Tip(RunStats s, RunEnd end, string reason, SledConfig cfg, float distance, CrashCause cause = CrashCause.None)
         {
             if (end == RunEnd.Finished) return "";
-            if (s.fellInRavine)
+            if (s.fellInRavine || cause == CrashCause.Ravine)
                 return "Line up with the middle of the bridge early and go straight.";
-            if (reason == SledPhysics.WentOffTrack)
-                return "Go over the rim and you leave the track: don't climb the side so hard.";
+            if (cause == CrashCause.OffTrack)
+                return "Stay inside the track boundary: turn back toward the course before reaching the edge.";
             if (end == RunEnd.Crashed)
             {
-                if (reason.Contains("sert") || reason.Contains("Takla"))
+                if (cause == CrashCause.HardLanding || cause == CrashCause.Flip)
                     return "Keep the nose level in the air: drag your finger up and down.";
+                if (cause == CrashCause.Valley)
+                    return "Approach the jump straight and keep your speed for the far side.";
+                if (cause == CrashCause.Wall)
+                    return "Aim for the landing slope and keep the nose aligned with it.";
+                if (cause == CrashCause.Birds)
+                    return "Watch the flock ahead and adjust your flight before you reach it.";
                 return "Spot obstacles early and steer around them.";
             }
             if (end == RunEnd.Spilled) return MilkTip(TopCause(s));

@@ -1,0 +1,38 @@
+ASSET: Assets/Resources/UI/MenuThemes/desert/background.png
+MODE: Built-in image_gen; transparent_background=false
+REFERENCE: Assets/Resources/UI/Shop/shop_bg.jpg
+PROMPT:
+Use case: style-transfer.
+Asset type: full-screen portrait background for a casual mobile game's menus.
+Reference image: use the attached snowy shop background only for its premium painted cartoon style, large calm sky, soft dimensional forms and broad winding path composition. Transform the landscape completely to the requested theme. Preserve approximately 1080x1920 portrait composition, full bleed and fully opaque.
+Composition: upper 45 percent is calm open sky with low detail and broad smooth gradients, readable behind native menu text. Landscape details stay mostly at the side edges. A broad gently winding path fills the lower half and recedes toward the central distant horizon. Keep the central lower path uncluttered for native menu panels. Clean premium stylized painted cartoon rendering, smooth rounded faceted forms, friendly casual-game look, crisp polished shapes, softly lit, beautiful color harmony.
+Constraints: absolutely no text, letters, numbers, logos, watermarks, UI, buttons, borders, frames, characters, animals, vehicles, equipment, buildings, products or merchandise. No snow or ice. No transparent regions.
+Theme: Golden Dunes desert. Warm honey-gold sand dunes on both sides, flowing dune ridges, a turquoise palm oasis tucked beside the path at a side edge, sparse lush green palms only at the oasis edges. Broad soft sandy winding path. Clear warm blue sky with a restrained soft pastel haze and a few simple wispy clouds near outer edges. Cheerful sunlit adventurous mood; rich warm golden terrain contrasted with cool turquoise oasis water. Do not import the snowy reference's pine trees, cabins, flags or slingshots.
+GENERATED SOURCE: C:/Users/burak/.codex/generated_images/01a138b1-c16c-78c1-a777-c279dcbaa431/exec-2adeb31c-7605-45e7-9c5f-8ddc56f61bda.png
+COPY: unchanged original PNG; original retained
+
+ASSET: Assets/Resources/UI/MenuThemes/volcano/background.png
+MODE: Built-in image_gen; transparent_background=false
+REFERENCE: Assets/Resources/UI/Shop/shop_bg.jpg
+PROMPT:
+Use case: style-transfer.
+Asset type: full-screen portrait background for a casual mobile game's menus.
+Reference image: use the attached snowy shop background only for its premium painted cartoon style, large calm sky, soft dimensional forms and broad winding path composition. Transform the landscape completely to the requested theme. Preserve approximately 1080x1920 portrait composition, full bleed and fully opaque.
+Composition: upper 45 percent is calm open sky with low detail and broad smooth gradients, readable behind native menu text. Landscape details stay mostly at the side edges. A broad gently winding path fills the lower half and recedes toward the central distant horizon. Keep the central lower path uncluttered for native menu panels. Clean premium stylized painted cartoon rendering, smooth rounded faceted forms, friendly casual-game look, crisp polished shapes, softly lit, beautiful color harmony.
+Constraints: absolutely no text, letters, numbers, logos, watermarks, UI, buttons, borders, frames, characters, animals, vehicles, equipment, buildings, products or merchandise. No snow or ice. No transparent regions.
+Theme: a friendly volcanic world at warm dusk. Rounded dark basalt terrain and rock formations frame the sides, narrow glowing orange lava fissures confined to the terrain edges, and a distant low volcano with a subtle ember glow near the horizon. The broad winding central path is stable smooth dark charcoal rock, clear and uncluttered, not a lava river. Upper sky is a calm smooth dark-plum-to-warm-purple dusk gradient with soft peach glow near the horizon. Soft warm edge light and a few sparse ember specks near rock edges, no smoke obscuring the sky. Appealing readable premium cartoon game landscape; friendly and adventurous, never scary, violent or apocalyptic. No trees.
+GENERATED SOURCE: C:/Users/burak/.codex/generated_images/01a138b1-c16c-78c1-a777-c279dcbaa431/exec-25e419e9-e690-4332-b300-c77a025e7eb4.png
+COPY: unchanged original PNG; original retained
+
+ASSET: Assets/Resources/UI/MenuThemes/mars/background.png
+MODE: Built-in image_gen; transparent_background=false
+REFERENCE: Assets/Resources/UI/Shop/shop_bg.jpg
+PROMPT:
+Use case: style-transfer.
+Asset type: full-screen portrait background for a casual mobile game's menus.
+Reference image: use the attached snowy shop background only for its premium painted cartoon style, large calm sky, soft dimensional forms and broad winding path composition. Transform the landscape completely to the requested theme. Preserve approximately 1080x1920 portrait composition, full bleed and fully opaque.
+Composition: upper 45 percent is calm open sky with low detail and broad smooth gradients, readable behind native menu text. Landscape details stay mostly at the side edges. A broad gently winding path fills the lower half and recedes toward the central distant horizon. Keep the central lower path uncluttered for native menu panels. Clean premium stylized painted cartoon rendering, smooth rounded faceted forms, friendly casual-game look, crisp polished shapes, softly lit, beautiful color harmony.
+Constraints: absolutely no text, letters, numbers, logos, watermarks, UI, buttons, borders, frames, characters, animals, vehicles, equipment, buildings, products or merchandise. No snow or ice. No transparent regions.
+Theme: a stylized Mars world. Warm rust-red rounded rocks, layered red sandstone mesas and gentle crater terrain arranged along the sides, a broad smooth dusty terracotta winding path in the lower half. Calm violet-purple cosmic sky above, a small distant planet or moon and a subtle orbital arc restricted to one upper side edge, sparse tiny stars leaving most sky clean. Lavender horizon haze and soft warm highlights on red rocks, friendly premium cartoon space adventure palette. No snow, ice, water, plants, trees or buildings. No spacecraft, astronauts, equipment or vehicles.
+GENERATED SOURCE: C:/Users/burak/.codex/generated_images/01a138b1-c16c-78c1-a777-c279dcbaa431/exec-90a54910-7a90-4c6e-9d16-e163ef6c4542.png
+COPY: unchanged original PNG; original retained

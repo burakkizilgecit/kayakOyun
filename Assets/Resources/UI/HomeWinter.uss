@@ -1,0 +1,332 @@
+/* Home-only presentation. Major regions use the safe-area height; small measures
+   use the existing 1080 x 1920 UI reference space. Other pages keep Game.uss. */
+
+.winter-home {
+    padding: 0;
+    color: #123B5B;
+    -unity-font: url("Fonts/Baloo2-ExtraBold.ttf");
+}
+
+/* Fast compression on contact, a gentle spring on release. PLAY's scale also
+   has a controller-driven confirmation spring; its translation remains native. */
+.winter-home .btn, .winter-home .home-plus, .winter-home .hub-title {
+    transition-property: scale, translate;
+    transition-duration: 0.18s, 0.18s;
+    transition-timing-function: ease-out-back, ease-out-back;
+}
+.winter-home .btn:active, .winter-home .home-plus:active, .winter-home .hub-title:active {
+    scale: 0.96 0.96; translate: 0 5px;
+    transition-duration: 0.06s, 0.06s;
+    transition-timing-function: ease-out, ease-out;
+}
+
+.winter-home .hub-shade-top { top: -100px; height: 540px; opacity: 0.35; }
+.winter-home .hub-shade-bottom { bottom: -100px; height: 650px; opacity: 0.3; }
+
+/* Compact navy wallets, large white values and separate green add buttons. */
+.winter-home .home-topbar {
+    position: absolute; left: 4%; right: 4%; top: 3.2%; height: 104px;
+    flex-direction: row; align-items: center; justify-content: space-between;
+}
+.winter-home .home-wallet {
+    flex-direction: row; align-items: center; flex-grow: 1; flex-shrink: 1;
+    margin-right: 28px;
+}
+.winter-home .home-wallet .pill {
+    height: 88px; border-radius: 46px; padding: 0 12px 0 8px;
+    background-color: rgba(8, 54, 94, 0.94);
+    border-top-width: 3px; border-top-color: rgba(154, 225, 255, 0.65);
+    border-bottom-width: 5px; border-bottom-color: rgba(5, 36, 76, 0.75);
+    flex-shrink: 1; margin-left: 12px;
+}
+.winter-home .home-wallet .home-first { margin-left: 0; min-width: 270px; }
+.winter-home .home-wallet .pill > Label {
+    font-size: 42px; margin: 3px 8px 0 5px; color: #FFFFFF;
+    -unity-font: url("Fonts/Baloo2-ExtraBold.ttf");
+    -unity-text-outline-width: 2px; -unity-text-outline-color: #143A60;
+}
+.winter-home .home-currency { min-width: 220px; flex-direction: row; align-items: center; justify-content: space-between; }
+.winter-home .home-plus {
+    width: 48px; height: 50px; min-width: 48px;
+    margin: 0 0 0 2px; padding: 0; border-radius: 16px;
+    background-color: #3BD53F; border-width: 2px; border-bottom-width: 6px;
+    border-color: #A8FF90; border-bottom-color: #159337;
+    color: #FFFFFF; font-size: 44px;
+    -unity-font: url("Fonts/Baloo2-ExtraBold.ttf");
+    -unity-text-align: middle-center; -unity-text-outline-width: 0;
+}
+.winter-home .home-wallet .pill-launch {
+    min-width: 220px; padding-left: 10px; padding-right: 18px; justify-content: center;
+}
+.winter-home .home-wallet .launch-count {
+    font-size: 37px; margin: 0 0 -5px 4px; color: #FFFFFF;
+}
+.winter-home .home-wallet .launch-timer {
+    font-size: 25px; margin: -12px 0 0 4px; color: #E3F6FF;
+}
+.winter-home .home-gear {
+    width: 106px; height: 106px; min-width: 106px; padding: 0;
+    background-color: #2779D9; border-radius: 30px;
+    border-width: 4px; border-bottom-width: 12px;
+    border-color: #8BEBFF; border-bottom-color: #1C4DAE;
+    -unity-background-scale-mode: stretch-to-fill;
+}
+
+/* The snowy track sign is a single clear hierarchy: name, target, progress. */
+.winter-home .hub-title {
+    position: absolute; left: 7%; right: 7%; top: 8%; height: 15%;
+    margin: 0; padding: 0;
+    border-radius: 38px; background-color: #0C4770;
+    border-width: 5px; border-bottom-width: 14px;
+    border-color: #8CDDFB; border-bottom-color: #073659;
+    flex-direction: column; align-items: stretch; justify-content: flex-end;
+    overflow: visible;
+}
+.winter-home .hub-ribbon {
+    position: absolute; left: 3%; right: 3%; top: 32%; height: 28%;
+    align-items: center; justify-content: center; padding: 0;
+    flex-grow: 1; flex-shrink: 1;
+}
+.winter-home .hub-ribbon-text {
+    color: #F5FEFF; font-size: 80px; white-space: nowrap;
+    margin: -10px -12px -14px -12px; padding: 0;
+    -unity-text-align: middle-center;
+    -unity-font: url("Fonts/Baloo2-ExtraBold.ttf");
+    -unity-text-outline-width: 5px; -unity-text-outline-color: #06375B;
+    text-shadow: 0 7px 0 #032D50;
+    scale: 1 1.4;
+}
+.winter-home .hub-sub {
+    position: absolute; left: 3%; right: 3%; top: 61%; height: 13%;
+    color: #C3ECFF; font-size: 32px; margin: 0;
+    -unity-text-align: middle-center;
+    -unity-text-outline-width: 0;
+}
+.winter-home .hub-bar {
+    position: absolute; left: 10%; right: 10%; top: 79%; width: auto; height: 14%; min-height: 46px;
+    margin: 0; border-radius: 29px; background-color: #112E52;
+    border-width: 4px; border-color: #E6FAFF; overflow: hidden;
+}
+.winter-home .hub-bar-fill { border-radius: 21px; }
+.winter-home .hub-bar-shine { top: 5px; height: 13px; background-color: rgba(255, 252, 184, 0.5); }
+.winter-home .hub-bar-pct {
+    font-size: 31px; margin-top: 2px;
+    -unity-text-outline-width: 2px; -unity-text-outline-color: #122C4A;
+}
+.winter-home .hub-bar-flag { right: 10px; top: 2px; }
+.winter-home .home-mountains {
+    position: absolute; left: 30%; right: 30%; top: -72px; height: 96px;
+    -unity-background-scale-mode: scale-to-fit;
+}
+.winter-home .home-snow-cap {
+    position: absolute; left: -9px; right: -9px; top: -22px; height: 48px;
+    background-color: #F4FEFF; border-radius: 28px;
+    border-bottom-width: 10px; border-bottom-color: #AADDF7;
+}
+.winter-home .home-snow-left {
+    position: absolute; left: -10px; top: -16px; width: 90px; height: 58px;
+    background-color: #F4FEFF; border-radius: 30px;
+    border-bottom-width: 8px; border-bottom-color: #B3E5FF; rotate: -12deg;
+}
+.winter-home .home-snow-right {
+    position: absolute; right: -10px; top: -15px; width: 112px; height: 52px;
+    background-color: #F4FEFF; border-radius: 28px;
+    border-bottom-width: 8px; border-bottom-color: #B3E5FF; rotate: 11deg;
+}
+
+/* Keep the centre open for the actual character and vehicle. */
+.winter-home .home-stage {
+    position: absolute; left: 3%; right: 3%; top: 25%; bottom: 33%;
+    flex-direction: row; justify-content: space-between; align-items: flex-start;
+    margin: 0; padding: 0;
+}
+.winter-home .home-left, .winter-home .home-right {
+    width: 22%; flex-direction: column; align-items: stretch; margin: 0; padding: 0;
+}
+.winter-home .side-card {
+    width: 100%; height: 224px; min-height: 224px; margin: 0 0 24px 0;
+    align-self: stretch; padding: 8px 4px 4px 4px;
+    border-width: 7px; border-bottom-width: 13px;
+    border-color: #F0FDFF; border-bottom-color: #81D3F3; border-radius: 44px;
+    flex-direction: column; align-items: center; justify-content: flex-end;
+    overflow: visible;
+}
+.winter-home .side-glow { left: 8px; right: 8px; top: 4px; height: 92px; opacity: 0.7; }
+.winter-home .side-label {
+    font-size: 42px; color: #FFFFFF; margin: -4px -6px -2px -6px;
+    -unity-text-outline-width: 3px; -unity-text-outline-color: rgba(10, 39, 77, 0.7);
+    text-shadow: 0 3px 0 rgba(13, 42, 76, 0.45);
+}
+.winter-home .home-side-art {
+    width: 146px; height: 138px; flex-shrink: 1;
+    -unity-background-scale-mode: scale-to-fit;
+}
+.winter-home .home-hero { background-color: #258BF1; border-bottom-color: #135BD3; }
+.winter-home .home-chest { background-color: #FFBF26; border-bottom-color: #D98206; }
+.winter-home .home-quests { background-color: #8950EB; border-bottom-color: #5A2DC4; }
+.winter-home .home-map { background-color: #21B9D9; border-bottom-color: #0A8BAC; }
+.winter-home .home-shop { background-color: #EF46A6; border-bottom-color: #BA2281; }
+.winter-home .home-attention {
+    position: absolute; right: -8px; top: -14px; width: 48px; height: 48px;
+    border-width: 3px; border-bottom-width: 5px; border-color: #FFFFFF;
+    border-bottom-color: #B72D39; border-radius: 24px; background-color: #FF4B4B;
+    color: #FFFFFF; font-size: 36px; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf");
+    -unity-text-align: middle-center; -unity-text-outline-width: 0;
+}
+
+/* Rocket stays a normal upgrade card, with no separate scale transform. */
+.winter-home .home-rocket {
+    width: 100%; min-height: 396px; margin: 0; padding-bottom: 9px;
+    border-radius: 32px; flex-grow: 0; flex-shrink: 0;
+}
+.winter-home .home-rocket .pcard-top { height: 202px; min-height: 202px; }
+.winter-home .home-rocket .pcard-preview { top: 44px; bottom: 44px; scale: 1.6 1.6; }
+.winter-home .home-rocket .pcard-stage { font-size: 25px; }
+.winter-home .home-rocket .pcard-btn { height: 96px; min-height: 96px; }
+
+/* Strong yellow call to action with a snow rim; glow stays behind its text. */
+.winter-home .home-play {
+    position: absolute; left: 23%; right: 23%; top: 62%; height: 7.5%;
+    width: auto; margin: 0; padding: 0;
+    align-items: stretch; justify-content: center;
+}
+.winter-home .play-btn {
+    width: 100%; height: 100%; min-height: 132px;
+    border-radius: 72px; border-width: 7px; border-bottom-width: 16px;
+    border-color: #FFF4AB; border-bottom-color: #DA8500;
+    padding: 0 20px; overflow: visible;
+    flex-direction: row; align-items: center; justify-content: center;
+}
+.winter-home .play-text {
+    font-size: 94px; color: #FFFFFF; margin: 2px 0 -6px 6px;
+    -unity-text-outline-width: 5px; -unity-text-outline-color: #C87805;
+    text-shadow: 0 5px 0 rgba(157, 79, 2, 0.35);
+}
+.winter-home .play-gloss {
+    left: 18px; right: 18px; top: 6px; height: 44px; border-radius: 40px;
+    background-color: rgba(255, 255, 210, 0.45);
+}
+.winter-home .home-play-icon { width: 74px; height: 82px; margin-right: 8px; }
+.winter-home .home-play-flag {
+    position: absolute; right: -20px; top: -54px; width: 82px; height: 100px;
+    rotate: 12deg;
+}
+.winter-home .home-play .home-snow-cap { top: -13px; height: 28px; left: 14px; right: 30px; border-bottom-width: 5px; }
+
+/* Navy equipment tray; four even cards retain their real previews and states. */
+.winter-home .home-upgrades {
+    position: absolute; left: 2.5%; right: 2.5%; top: 70.5%; bottom: 5%;
+    margin: 0; padding: 20px 16px 18px 16px;
+    background-color: rgba(9, 67, 113, 0.96);
+    border-width: 5px; border-bottom-width: 11px;
+    border-color: #6ACBEC; border-bottom-color: #083854;
+    border-radius: 42px; overflow: visible;
+    justify-content: center;
+}
+.winter-home .home-upgrades .upg-head {
+    height: 58px; min-height: 58px; margin: 0 0 10px 0;
+    flex-direction: row; align-items: center; justify-content: center;
+}
+.winter-home .upg-title {
+    color: #F4FCFF; font-size: 42px; margin: -5px 18px -7px 18px;
+    -unity-text-outline-width: 2px; -unity-text-outline-color: #0B3153;
+}
+.winter-home .upg-line { height: 3px; margin-top: 0; background-color: rgba(137, 209, 247, 0.3); }
+.winter-home .home-upgrade-row {
+    flex-direction: row; align-items: stretch; flex-grow: 0; flex-shrink: 1;
+    height: 420px; max-height: 420px; min-height: 0;
+}
+.winter-home .home-upgrade-row > .pcard {
+    flex-grow: 1; flex-shrink: 1; flex-basis: 0; min-width: 0;
+    margin-left: 10px;
+}
+.winter-home .home-upgrade-row > .home-first { margin-left: 0; }
+.winter-home .pcard {
+    background-color: #FBFAF4; border-width: 5px; border-bottom-width: 11px;
+    border-radius: 28px; padding-bottom: 8px; overflow: hidden;
+}
+.winter-home .pcard-top {
+    height: 188px; min-height: 148px; flex-grow: 1; flex-shrink: 1;
+    border-top-left-radius: 22px; border-top-right-radius: 22px;
+}
+.winter-home .pcard-preview { left: 0; right: 0; top: 26px; bottom: 36px; }
+.winter-home .pcard-glow { top: 10px; height: 142px; }
+.winter-home .pcard-gloss { left: 5px; right: 5px; top: 3px; height: 27px; opacity: 0.8; }
+.winter-home .pcard-lvl { left: 7px; top: 7px; width: 47px; height: 62px; border-radius: 13px; border-width: 3px; }
+.winter-home .pcard-lvl-cap { font-size: 15px; margin: -7px 0 -13px 0; }
+.winter-home .pcard-lvl-num { font-size: 36px; margin-bottom: -6px; }
+.winter-home .pcard-count { right: 7px; top: 8px; font-size: 23px; height: 34px; padding: 1px 8px 0 8px; }
+.winter-home .pcard-gain { right: 7px; top: 48px; height: 32px; font-size: 23px; padding: 0 8px; }
+.winter-home .pcard-name { height: 37px; background-color: rgba(9, 44, 75, 0.62); }
+.winter-home .pcard-name > Label { font-size: 28px; margin-top: -2px; -unity-text-outline-width: 1px; }
+.winter-home .pcard-stage {
+    font-size: 22px; color: #17354B; height: 38px; min-height: 38px;
+    margin: 0 4px; padding: 0; -unity-text-align: middle-center;
+    white-space: nowrap; overflow: hidden;
+}
+.winter-home .pcard-pips { height: 15px; min-height: 15px; margin: 0 12px 6px 12px; }
+.winter-home .pcard-pip { height: 14px; margin: 0 2px; border-radius: 7px; border-bottom-width: 3px; }
+.winter-home .pcard-btn {
+    height: 92px; min-height: 92px; margin: 0 6px; padding: 0 3px;
+    border-width: 3px; border-bottom-width: 8px; border-radius: 23px;
+}
+.winter-home .pcard-btn Label { font-size: 31px; }
+.winter-home .pcard-btn > .pcard-btn-cap {
+    font-size: 32px; height: 30px; min-height: 30px; margin: 0;
+    -unity-text-align: middle-center; -unity-text-outline-width: 1px;
+}
+.winter-home .pcard-btn > .row { height: 48px; min-height: 48px; flex-shrink: 0; }
+.winter-home .pcard-shine { opacity: 0.65; }
+
+/* Illustrated frame layers contain no labels or values; every control remains native. */
+.winter-home .home-banner-art {
+    position: absolute; left: 0; right: 0; top: 0; bottom: 0;
+    -unity-background-scale-mode: stretch-to-fill;
+}
+.winter-home .home-upgrades-art {
+    position: absolute; left: -18px; right: -18px; top: -18%; bottom: -14%;
+    -unity-background-scale-mode: stretch-to-fill;
+}
+.winter-home .home-play-art {
+    position: absolute; left: -22px; right: -22px; top: -44px; bottom: -50px;
+    -unity-background-scale-mode: stretch-to-fill;
+}
+.winter-home .home-has-art {
+    background-color: rgba(0, 0, 0, 0); border-color: rgba(0, 0, 0, 0);
+}
+.winter-home .home-upgrades.home-has-art {
+    background-color: #0B4776;
+    border-color: #78D5F4; border-bottom-color: #073858;
+}
+.winter-home .home-has-art > .home-snow-cap,
+.winter-home .home-has-art > .home-snow-left,
+.winter-home .home-has-art > .home-snow-right,
+.winter-home .home-has-art > .home-mountains { display: none; }
+
+/* At 16:9 the central scene keeps its opening, while the surrounding cards compact. */
+.winter-home.home-compact .home-topbar { top: 2.2%; height: 92px; }
+.winter-home.home-compact .home-wallet .pill { height: 80px; }
+.winter-home.home-compact .home-gear { width: 96px; height: 96px; min-width: 96px; }
+.winter-home.home-compact .hub-title { top: 7.5%; height: 15%; }
+.winter-home.home-compact .hub-ribbon-text { font-size: 74px; margin-top: -12px; margin-bottom: -13px; }
+.winter-home.home-compact .hub-sub { font-size: 30px; }
+.winter-home.home-compact .hub-bar { height: 14%; min-height: 42px; }
+.winter-home.home-compact .hub-bar-pct { font-size: 28px; margin-top: 0; }
+.winter-home.home-compact .hub-bar-flag { top: 0; }
+.winter-home.home-compact .home-stage { top: 24.3%; }
+.winter-home.home-compact .side-card { height: 190px; min-height: 190px; margin-bottom: 18px; border-radius: 38px; }
+.winter-home.home-compact .home-side-art { width: 126px; height: 115px; }
+.winter-home.home-compact .side-label { font-size: 38px; margin-top: -5px; }
+.winter-home.home-compact .home-rocket { min-height: 338px; }
+.winter-home.home-compact .home-rocket .pcard-top { height: 155px; min-height: 155px; }
+.winter-home.home-compact .home-rocket .pcard-stage { font-size: 23px; height: 32px; min-height: 32px; }
+.winter-home.home-compact .home-rocket .pcard-btn { height: 86px; min-height: 86px; }
+.winter-home.home-compact .home-play { top: 62%; height: 7.4%; }
+.winter-home.home-compact .play-text { font-size: 86px; }
+.winter-home.home-compact .home-upgrades { bottom: 3%; padding-top: 14px; padding-bottom: 12px; }
+.winter-home.home-compact .home-upgrades .upg-head { height: 48px; min-height: 48px; margin-bottom: 6px; }
+.winter-home.home-compact .upg-title { font-size: 38px; }
+.winter-home.home-compact .home-upgrade-row .pcard-top { height: 160px; min-height: 136px; }
+.winter-home.home-compact .home-upgrade-row .pcard-stage { font-size: 21px; height: 32px; min-height: 32px; }
+.winter-home.home-compact .home-upgrade-row .pcard-btn { height: 86px; min-height: 86px; }
+.winter-home.home-compact .pcard-btn > .pcard-btn-cap { font-size: 30px; }

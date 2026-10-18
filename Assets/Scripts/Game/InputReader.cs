@@ -28,6 +28,17 @@ namespace SledSurfers
         bool gravityReady;
 
         public bool TiltMode => tiltMode;
+        public bool TouchMode => touchMode;
+
+        // Require a fresh touch after a pause; recalibrate to the resumed phone pose.
+        public void ResetInput()
+        {
+            finger = -1;
+            mouseActive = false;
+            pointerDown = pointerHeld = pointerUp = spaceHeld = spaceUp = false;
+            steer = pitch = glassPitch = glassRoll = 0f;
+            gravityReady = false;
+        }
 
         /// Telefonun o anki duruşunu "düz bardak" kabul eder.
         public void Calibrate()

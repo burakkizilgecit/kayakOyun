@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -15,6 +16,8 @@ namespace SledSurfers
         public bool perfectWindow;  // sapan tam gerildi: şimdi bırakırsa mükemmel atış
         public float progress, bestProgress, speedKmh, fill, pull, runTime;
         public bool airborne, canGlide, dragging, tiltMode, sound;
+        public bool mobileControls, hasWings, rocketNeedsLanding;
+        public float wingSecondsLeft;
         public Rect glassRect;   // bardak kamerasının ekran oranı cinsinden alanı (alt-sol orijinli)
         public float lidLeft;    // kapağın açılmasına kalan mesafe (m); 0 = açık
         public int trackIndex;
@@ -55,6 +58,7 @@ namespace SledSurfers
         public event Action OpenQuests, ClaimLogin;
         public event Action<int> ClaimQuest;
         public event Action OpenHub, OpenMap, NextTrack, Retry, FireRocket, OpenChest, OpenAvatars;
+        public event Action PauseRequested, ResumeRequested;
         public event Action<int> BrowseAvatar, AvatarAction;
         public event Action<int> ClaimChest;   // çarpan: 1 ya da 3 (reklamla)
         public event Action<int> Buy, SetHand, SelectTrack;
@@ -98,6 +102,7 @@ namespace SledSurfers
             { IconKind.Slingshot, IconKind.Runners, IconKind.Glass, IconKind.Income, IconKind.Rocket };
 
         readonly VisualElement root, safe;
+        readonly MenuTrackTheme menuTheme = new MenuTrackTheme();
         readonly Dictionary<Page, VisualElement> pages = new Dictionary<Page, VisualElement>();
         readonly Action click;
         Page page = Page.Hub;
@@ -131,7 +136,7 @@ namespace SledSurfers
         Label launchModalTimer, launchModalCount;
         readonly List<Label> launchLabels = new List<Label>(), launchTimers = new List<Label>();
         int shownLaunches = -1, shownLaunchSeconds = -1;
-        Icon chestIcon;
+        VisualElement chestIcon;
         Label chestCoins, chestGems, adCount;
         Button chestTriple, resTriple;
         int coinFrom;
@@ -192,43 +197,21 @@ namespace SledSurfers
 
         // Ana ekran
         Label playHint, hubTrackName, hubTrackSub, hubTrackPct;
+        Label homeCoinValue, homeGemValue;
         VisualElement hubRibbon, playPill;
-        Icon playHand;
         Button playButton;
-        VisualElement hubTitlePanel, hubUpgPanel;
+        VisualElement homeCanvas, homeChestDot;
+        VisualElement homeBannerArt, homePlayArt, homeTrayArt;
+        Rect? debugHomeSafeArea;
+        Vector2 lastSafeLayout;
+        float homeProgress, homeProgressTarget, homeRelease;
+        int homeTrack = -1;
+        bool homePlayHeld;
         /// Mağaza ve (test) karşılama teklifi.
         public event Action OpenShop, TestOffer;
-        readonly StarShape[] playStars = new StarShape[9];
-
-        /// Beş köşeli yıldız (görsel dosyasız): OYNA düğmesinin çevresindeki parıltılar.
-        class StarShape : VisualElement
-        {
-            public StarShape()
-            {
-                pickingMode = PickingMode.Ignore;
-                style.position = Position.Absolute;
-                style.width = style.height = 48;
-                generateVisualContent += ctx =>
-                {
-                    var p = ctx.painter2D;
-                    var c = new Vector2(24f, 24f);
-                    p.fillColor = new Color(1f, 0.93f, 0.45f, 1f);
-                    p.strokeColor = new Color(1f, 1f, 1f, 0.95f);
-                    p.lineWidth = 3f;
-                    p.BeginPath();
-                    for (int i = 0; i < 10; i++)
-                    {
-                        float a = (-90f + i * 36f) * Mathf.Deg2Rad, r = i % 2 == 0 ? 22f : 9.5f;
-                        var v = c + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * r;
-                        if (i == 0) p.MoveTo(v); else p.LineTo(v);
-                    }
-                    p.ClosePath();
-                    p.Fill();
-                    p.Stroke();
-                };
-            }
-        }
         VisualElement hubTrackFill, settings, settingsCard;
+        VisualElement pauseModal, pauseCard;
+        bool paused;
         Button handLeft, handRight, soundOn, soundOff;
         readonly Button[] sensButtons = new Button[3];
         float hintTime;
@@ -247,7 +230,7 @@ namespace SledSurfers
         VisualElement gaugeBox;
         SpeedGauge gauge;
         VisualElement rocketFill;
-        Label rocketCount;
+        Label rocketCount, rocketLabel;
 
         // Nişan
         VisualElement hint, hintHand, power;
@@ -257,7 +240,7 @@ namespace SledSurfers
 
         // Koşu
         ProgressColumn runColumn;
-        Label distLabel, speedLabel, airLabel;
+        Label distLabel, speedLabel, airLabel, wingLabel;
         VisualElement tutorial;
         public bool debugHideTutorial;   // otomatik ekran görüntüsü testleri için
         bool wasAirborne;
@@ -278,7 +261,7 @@ namespace SledSurfers
 
         // Sonuç
         VisualElement resultCard, resRecord, resRibbon, unlockBox, confetti;
-        Label unlockTitle, unlockName, goLabel;
+        Label unlockTitle, unlockName, unlockProgression, goLabel;
         Icon goIcon;
         bool goNext;
         readonly List<Confetti> bits = new List<Confetti>();
@@ -303,7 +286,7 @@ namespace SledSurfers
         {
             public Button root;
             public VisualElement badge, fill;
-            public Label number, status;
+            public Label number, status, wallet;
             public Icon lockIcon;
         }
 
@@ -445,11 +428,15 @@ namespace SledSurfers
             root = doc.rootVisualElement;
             root.style.position = Position.Absolute;
             root.style.left = root.style.top = root.style.right = root.style.bottom = 0;
+            var winterStyles = Resources.Load<StyleSheet>("UI/HomeWinter");
+            if (winterStyles != null) root.styleSheets.Add(winterStyles);
 
             glassHud = BuildGlassHud();
             root.Add(glassHud);
 
             safe = E("fill");
+            safe.name = "home-safe";
+            safe.RegisterCallback<GeometryChangedEvent>(_ => ResizeHomeCanvas());
             root.Add(safe);
 
             BuildHub();
@@ -466,6 +453,8 @@ namespace SledSurfers
             BuildShop();
             BuildOffer();
             BuildNoLaunches();
+            BuildPause();
+            ConfigureMenuBackgrounds();
 
             root.Query<VisualElement>().ForEach(e =>
             {
@@ -482,14 +471,27 @@ namespace SledSurfers
 
         public Page Current => page;
 
+        /// The controller freezes gameplay; the modal only blocks input and offers an explicit resume.
+        public void SetPaused(bool value)
+        {
+            paused = value;
+            pauseModal.style.display = value ? DisplayStyle.Flex : DisplayStyle.None;
+            if (value)
+            {
+                pauseModal.BringToFront();
+                pauseCard.RemoveFromClassList("off");
+            }
+        }
+
         /// Ekran noktası bir düğmenin ya da modal pencerenin üstünde mi? (Sapan sürüklemesi başlamasın diye.)
         /// Ekran noktası (alt-sol orijinli) roket düğmesinin üstünde mi? Düğme arayüz tıklamasını beklemeden, her yeni
         /// dokunuşla kontrol edilir: arayüz yalnızca ilk parmağı tıklama sayar, direksiyonu tutarken ikinci parmakla
         /// basılan roket ateşlenmiyordu (kullanıcı testi 2026-10-10).
         public bool OnRocketButton(Vector2 screenPos)
         {
+            if (paused) return false;
             var panel = root.panel;
-            if (panel == null || rocketBtn == null || rocketBtn.resolvedStyle.display == DisplayStyle.None) return false;
+            if (panel == null || rocketBtn == null || !rocketBtn.enabledSelf || rocketBtn.resolvedStyle.display == DisplayStyle.None) return false;
             var pos = RuntimePanelUtils.ScreenToPanel(panel, new Vector2(screenPos.x, Screen.height - screenPos.y));
             var r = rocketBtn.worldBound;
             float pad = r.width * 0.2f;   // parmak için biraz pay
@@ -498,6 +500,7 @@ namespace SledSurfers
 
         public bool BlocksPointer(Vector2 screenPos)
         {
+            if (paused) return true;
             var panel = root.panel;
             if (panel == null) return false;
             var pos = RuntimePanelUtils.ScreenToPanel(panel, new Vector2(screenPos.x, Screen.height - screenPos.y));
@@ -562,6 +565,7 @@ namespace SledSurfers
                 unlockTitle.text = "ALL TRACKS COMPLETE!";
                 unlockName.text = "You're the champion!";
             }
+            unlockProgression.style.display = goNext ? DisplayStyle.Flex : DisplayStyle.None;
             resultCard.AddToClassList("off");
             resultCard.schedule.Execute(() => resultCard.RemoveFromClassList("off")).StartingIn(140);
             SetPage(Page.Result);
@@ -586,6 +590,11 @@ namespace SledSurfers
 
         public void Tick(float dt, in HudInfo h)
         {
+            if (paused)
+            {
+                UpdateSafeArea();
+                return;
+            }
             time += dt;
             UpdateSafeArea();
             TickOverlays(dt);
@@ -604,7 +613,7 @@ namespace SledSurfers
             bool glass = (page == Page.Aim || page == Page.Run) && !h.crashScene;
             if (gaugeBox != null) gaugeBox.style.display = h.crashScene ? DisplayStyle.None : DisplayStyle.Flex;
             glassHud.style.display = glass ? DisplayStyle.Flex : DisplayStyle.None;
-            if (glass) UpdateGlass(h);
+            if (glass) UpdateGlass(dt, h);
 
             switch (page)
             {
@@ -621,6 +630,7 @@ namespace SledSurfers
 
         void SetPage(Page p)
         {
+            SetPaused(false);
             page = p;
             foreach (var kv in pages)
             {
@@ -647,6 +657,7 @@ namespace SledSurfers
         VisualElement NewPage(Page p)
         {
             var e = E("page");
+            e.name = "menu-" + p.ToString().ToLowerInvariant();
             pages[p] = e;
             safe.Add(e);
             return e;
@@ -654,16 +665,20 @@ namespace SledSurfers
 
         void UpdateSafeArea()
         {
-            var sa = Screen.safeArea;
+            var sa = debugHomeSafeArea ?? Screen.safeArea;
             float w = root.layout.width, h = root.layout.height;
             // İlk yerleşimden önce boyut NaN olur; o karede güvenli alan hesaplanmaz.
-            if (sa == lastSafe || float.IsNaN(w) || float.IsNaN(h) || w <= 0f || Screen.width <= 0) return;
+            if (float.IsNaN(w) || float.IsNaN(h) || w <= 0f || h <= 0f || Screen.width <= 0 || Screen.height <= 0) return;
+            if (sa == lastSafe && lastSafeLayout == new Vector2(w, h)) return;
+            lastSafeLayout = new Vector2(w, h);
             lastSafe = sa;
             float sx = w / Screen.width, sy = h / Screen.height;
             safe.style.left = sa.xMin * sx;
             safe.style.right = (Screen.width - sa.xMax) * sx;
             safe.style.top = (Screen.height - sa.yMax) * sy;
             safe.style.bottom = sa.yMin * sy;
+            menuTheme.SetSafeInsets(sa.xMin * sx, (Screen.height - sa.yMax) * sy,
+                (Screen.width - sa.xMax) * sx, sa.yMin * sy);
         }
 
         void UpdateCoins(float dt, in HudInfo h)
@@ -673,6 +688,8 @@ namespace SledSurfers
                 if (shownMoney >= 0) coinBump = 1f;
                 shownMoney = h.money;
                 foreach (var l in coinLabels) l.text = h.money.ToString();
+                homeCoinValue.text = ShortWallet(h.money);
+                homeCoinValue.tooltip = h.money.ToString();
             }
             if (h.best != shownBest)
             {
@@ -688,6 +705,8 @@ namespace SledSurfers
                 if (shownGems >= 0) gemBump = 1f;
                 shownGems = h.gems;
                 foreach (var l in gemLabels) l.text = h.gems.ToString();
+                homeGemValue.text = ShortWallet(h.gems);
+                homeGemValue.tooltip = h.gems.ToString();
             }
             gemBump = Mathf.MoveTowards(gemBump, 0f, dt * 3f);
             float g = 1f + 0.2f * Mathf.Sin(gemBump * Mathf.PI) * gemBump;
@@ -698,33 +717,33 @@ namespace SledSurfers
 
         void BuildHub()
         {
-            var p = NewPage(Page.Hub);
+            var pageRoot = NewPage(Page.Hub);
+            pageRoot.style.paddingLeft = pageRoot.style.paddingRight = pageRoot.style.paddingTop = pageRoot.style.paddingBottom = 0;
+            var p = homeCanvas = E("winter-home");
+            p.name = "home-canvas";
+            p.style.position = Position.Absolute;
+            p.style.left = p.style.top = 0;
+            p.style.transformOrigin = new TransformOrigin(0, 0);
+            pageRoot.Add(p);
 
-            // Ekranın üstünde ve altında yumuşak karartma: arayüz sahnenin önünde çerçeveli ve okunaklı durur.
-            var shadeTop = E("hub-shade-top");
-            shadeTop.style.backgroundImage = new StyleBackground(VGrad(new Color(0.12f, 0.09f, 0.2f, 0.55f), new Color(0.12f, 0.09f, 0.2f, 0f)));
-            shadeTop.pickingMode = PickingMode.Ignore;
-            p.Add(shadeTop);
-            var shadeBottom = E("hub-shade-bottom");
-            shadeBottom.style.backgroundImage = new StyleBackground(VGrad(new Color(0.12f, 0.09f, 0.2f, 0f), new Color(0.12f, 0.09f, 0.2f, 0.6f)));
-            shadeBottom.pickingMode = PickingMode.Ignore;
-            p.Add(shadeBottom);
-
-            var top = E("topbar");
-            var wallet = E("row");
-            wallet.Add(CoinPill());
-            wallet.Add(Sp(GemPill(), 16));
-            wallet.Add(Sp(LaunchPill(), 16));
+            var top = E("home-topbar");
+            var wallet = E("home-wallet");
+            var coins = HomeCurrency(CoinPill(), "home-coins-plus");
+            coins.AddToClassList("home-first");
+            wallet.Add(coins);
+            wallet.Add(HomeCurrency(GemPill(), "home-gems-plus"));
+            wallet.Add(LaunchPill());
             top.Add(wallet);
-            var gear = B(() => ShowSettings(true), "btn", "btn-blue", "btn-round");
+            var gear = B(() => ShowSettings(true), "btn", "home-gear");
+            gear.name = "home-settings";
+            gear.style.backgroundImage = new StyleBackground(VGrad(new Color32(69, 181, 251, 255), new Color32(28, 101, 219, 255)));
             gear.Add(new Icon(IconKind.Gear, 64));
             top.Add(gear);
             p.Add(top);
 
-            // Parkur başlığı: dokununca harita açılır.
             var title = B(() => OpenMap?.Invoke(), "hub-title");
-            hubTitlePanel = title;
-            // Pist adı, pist renginde degrade bir kurdelenin üstünde
+            title.name = "home-track";
+            homeBannerArt = CreateHomeArt(title, "home-banner-art", "home-art-banner");
             hubRibbon = E("hub-ribbon");
             hubTrackName = L("", "hub-ribbon-text");
             hubRibbon.Add(hubTrackName);
@@ -734,9 +753,7 @@ namespace SledSurfers
             var slim = E("hub-bar");
             hubTrackFill = E("hub-bar-fill");
             slim.Add(hubTrackFill);
-            var shine = E("hub-bar-shine");
-            shine.pickingMode = PickingMode.Ignore;
-            slim.Add(shine);
+            slim.Add(E("hub-bar-shine"));
             hubTrackPct = L("0%", "hub-bar-pct");
             slim.Add(hubTrackPct);
             var flag = new Icon(IconKind.Finish, 46);
@@ -745,119 +762,252 @@ namespace SledSurfers
             title.Add(slim);
             p.Add(title);
 
-            // Orta alan: karakter görünür; sağda harita ve roket kartı.
-            var mid = E("row", "grow");
-            mid.style.alignItems = Align.FlexStart;
-            mid.style.justifyContent = Justify.SpaceBetween;
-            mid.style.marginTop = 30;
-            var leftSide = E("col");
-            var avatarBtn = SideCard(() => OpenAvatars?.Invoke(), new Color32(0x6C, 0x8C, 0xFF, 0xFF), new Color32(0x3B, 0x55, 0xD0, 0xFF));
-            avatarBtn.style.alignSelf = Align.FlexStart;
-            hubAvatarPortrait = E("avatar-portrait");
-            hubAvatarPortrait.style.width = 128;
-            hubAvatarPortrait.style.height = 128;
-            avatarBtn.Add(hubAvatarPortrait);
-            avatarBtn.Add(L("HERO", "side-label"));
-            leftSide.Add(avatarBtn);
-            chestBtn = SideCard(() => OpenChest?.Invoke(), new Color32(0xFF, 0xB0, 0x3A, 0xFF), new Color32(0xD8, 0x6C, 0x0A, 0xFF));
-            chestBtn.style.alignSelf = Align.FlexStart;
-            chestIcon = new Icon(IconKind.Chest, 118);
+            var mid = E("home-stage");
+            var left = E("home-left");
+            var avatar = SideCard(() => OpenAvatars?.Invoke(), new Color32(38, 139, 246, 255), new Color32(23, 86, 197, 255));
+            avatar.name = "home-hero";
+            avatar.AddToClassList("home-hero");
+            hubAvatarPortrait = E("avatar-portrait", "home-side-art");
+            avatar.Add(hubAvatarPortrait);
+            avatar.Add(L("HERO", "side-label"));
+            left.Add(avatar);
+            chestBtn = SideCard(() => OpenChest?.Invoke(), new Color32(255, 185, 31, 255), new Color32(221, 123, 9, 255));
+            chestBtn.name = "home-chest";
+            chestBtn.AddToClassList("home-chest");
+            chestIcon = WinterHomeArt.Chest(144);
+            chestIcon.AddToClassList("home-side-art");
+            chestIcon.style.width = StyleKeyword.Null;
+            chestIcon.style.height = StyleKeyword.Null;
+            chestIcon.style.flexShrink = StyleKeyword.Null;
             chestBtn.Add(chestIcon);
             chestLabel = L("OPEN!", "side-label");
             chestBtn.Add(chestLabel);
-            leftSide.Add(chestBtn);
-            var questBtn = SideCard(() => OpenQuests?.Invoke(), new Color32(0x9B, 0x6B, 0xFF, 0xFF), new Color32(0x6A, 0x3D, 0xD0, 0xFF));
-            questBtn.style.alignSelf = Align.FlexStart;
-            questBtn.Add(new Icon(IconKind.Check, 104, Color.white));
-            questBtn.Add(L("QUESTS", "side-label"));
-            questDot = E();
-            questDot.style.position = Position.Absolute;
-            questDot.style.right = -6;
-            questDot.style.top = -6;
-            questDot.style.width = questDot.style.height = 34;
-            questDot.style.borderTopLeftRadius = questDot.style.borderTopRightRadius = 17;
-            questDot.style.borderBottomLeftRadius = questDot.style.borderBottomRightRadius = 17;
-            questDot.style.backgroundColor = (Color)new Color32(0xFF, 0x3D, 0x3D, 0xFF);
+            homeChestDot = L("!", "home-attention");
+            homeChestDot.style.display = DisplayStyle.None;
+            chestBtn.Add(homeChestDot);
+            left.Add(chestBtn);
+            var quests = SideCard(() => OpenQuests?.Invoke(), new Color32(141, 78, 236, 255), new Color32(86, 43, 186, 255));
+            quests.name = "home-quests";
+            quests.AddToClassList("home-quests");
+            var clipboard = WinterHomeArt.Clipboard(142);
+            clipboard.AddToClassList("home-side-art");
+            clipboard.style.width = StyleKeyword.Null;
+            clipboard.style.height = StyleKeyword.Null;
+            clipboard.style.flexShrink = StyleKeyword.Null;
+            quests.Add(clipboard);
+            quests.Add(L("QUESTS", "side-label"));
+            questDot = L("!", "home-attention");
             questDot.style.display = DisplayStyle.None;
-            questDot.pickingMode = PickingMode.Ignore;
-            questBtn.Add(questDot);
-            leftSide.Add(questBtn);
-            mid.Add(leftSide);
-            var side = E("col");
-            var map = SideCard(() => OpenMap?.Invoke(), new Color32(0x3B, 0xD0, 0xB8, 0xFF), new Color32(0x1A, 0x93, 0x80, 0xFF));
-            map.Add(new Icon(IconKind.Map, 108, Color.white));
+            quests.Add(questDot);
+            left.Add(quests);
+            mid.Add(left);
+
+            var right = E("home-right");
+            var map = SideCard(() => OpenMap?.Invoke(), new Color32(29, 189, 213, 255), new Color32(9, 133, 174, 255));
+            map.name = "home-map";
+            map.AddToClassList("home-map");
+            var mapArt = WinterHomeArt.Map(142);
+            mapArt.AddToClassList("home-side-art");
+            mapArt.style.width = StyleKeyword.Null;
+            mapArt.style.height = StyleKeyword.Null;
+            mapArt.style.flexShrink = StyleKeyword.Null;
+            map.Add(mapArt);
             map.Add(L("MAP", "side-label"));
-            side.Add(map);
-            var shop = SideCard(() => OpenShop?.Invoke(), new Color32(0xFF, 0x7A, 0xB8, 0xFF), new Color32(0xD8, 0x3F, 0x86, 0xFF));
-            shop.Add(new Icon(IconKind.Gem, 104));
+            right.Add(map);
+            var shop = SideCard(() => OpenShop?.Invoke(), new Color32(242, 68, 167, 255), new Color32(184, 34, 126, 255));
+            shop.name = "home-shop";
+            shop.AddToClassList("home-shop");
+            var storeArt = WinterHomeArt.Shop(144);
+            storeArt.AddToClassList("home-side-art");
+            storeArt.style.width = StyleKeyword.Null;
+            storeArt.style.height = StyleKeyword.Null;
+            storeArt.style.flexShrink = StyleKeyword.Null;
+            shop.Add(storeArt);
             shop.Add(L("SHOP", "side-label"));
-            side.Add(shop);
+            right.Add(shop);
             var rocket = BuildUpgradeCard((int)UpgradeType.Rocket);
-            rocket.root.style.width = 214;
-            // Roket kartı sağda kalır ama küçülür (kullanıcı kararı 2026-10-11): sağ üst köşesinden %80.
-            rocket.root.style.transformOrigin = new TransformOrigin(Length.Percent(100), Length.Percent(0));
-            rocket.root.style.scale = new Scale(new Vector2(0.8f, 0.8f));
-            rocket.root.style.marginBottom = -70;
-            side.Add(rocket.root);
+            rocket.root.AddToClassList("home-rocket");
+            right.Add(rocket.root);
             cards[(int)UpgradeType.Rocket] = rocket;
-            mid.Add(side);
+            mid.Add(right);
             p.Add(mid);
 
-            // Aşama bitince: kutlama yazısı
             stageLabel = L("", "outlined");
             stageLabel.style.position = Position.Absolute;
             stageLabel.style.left = 0;
             stageLabel.style.right = 0;
-            stageLabel.style.top = 560;
-            stageLabel.style.fontSize = 74;
+            stageLabel.style.top = Length.Percent(54);
+            stageLabel.style.fontSize = 60;
             stageLabel.style.color = Gold;
             stageLabel.style.unityTextAlign = TextAnchor.MiddleCenter;
             stageLabel.style.display = DisplayStyle.None;
-            stageLabel.pickingMode = PickingMode.Ignore;
             p.Add(stageLabel);
 
-            // Oynamak için dokun: koyu hap içinde, yanında zıplayan dokunma eli
-            // OYNA düğmesi (kullanıcı kararı 2026-10-11): büyük sarı düğme, çevresinde parlayıp sönen yıldızlar.
-            playPill = E("play-wrap");
-            playPill.pickingMode = PickingMode.Ignore;
-            for (int k = 0; k < playStars.Length; k++)
-            {
-                playStars[k] = new StarShape();
-                playPill.Add(playStars[k]);
-            }
+            playPill = E("play-wrap", "home-play");
             var play = B(() => Play?.Invoke(), "btn", "play-btn");
-            play.style.backgroundImage = new StyleBackground(VGrad(new Color32(0xFF, 0xE0, 0x5A, 0xFF), new Color32(0xFF, 0xA8, 0x1A, 0xFF)));
-            var playGloss = E("play-gloss");
-            playGloss.pickingMode = PickingMode.Ignore;
-            play.Add(playGloss);
+            play.name = "home-play";
+            homePlayArt = CreateHomeArt(play, "home-play-art", "home-art-play");
+            var triangle = new Icon(IconKind.Play, 74, Color.white);
+            triangle.AddToClassList("home-play-icon");
+            play.Add(triangle);
             playHint = L("PLAY", "play-text");
             play.Add(playHint);
+            play.RegisterCallback<PointerDownEvent>(_ => homePlayHeld = true);
+            play.RegisterCallback<PointerUpEvent>(_ => { homePlayHeld = false; homeRelease = 1f; });
+            play.RegisterCallback<PointerCaptureOutEvent>(_ => homePlayHeld = false);
+            play.RegisterCallback<PointerCancelEvent>(_ => homePlayHeld = false);
             playButton = play;
             playPill.Add(play);
             p.Add(playPill);
 
-            // UPGRADES paneli: kartların arkasında koyu, yuvarlak köşeli zemin ve başlık.
-            var panel = E("upg-panel");
-            hubUpgPanel = panel;
+            var panel = E("upg-panel", "home-upgrades");
+            homeTrayArt = CreateHomeArt(panel, "home-upgrades-art", "home-art-tray");
             var head = E("row", "upg-head");
             head.Add(E("upg-line"));
             head.Add(L("UPGRADES", "upg-title"));
             head.Add(E("upg-line"));
             panel.Add(head);
-            var row = E("row");
-            row.style.alignItems = Align.Stretch;
+            var row = E("home-upgrade-row");
             panel.Add(row);
             p.Add(panel);
             for (int i = 0; i < (int)UpgradeType.Rocket; i++)
             {
                 var c = BuildUpgradeCard(i);
-                c.root.style.flexGrow = 1;
-                c.root.style.flexBasis = 0;
-                if (i > 0) c.root.style.marginLeft = 12;
+                if (i == 0) c.root.AddToClassList("home-first");
                 cards[i] = c;
                 row.Add(c.root);
             }
+            // Built-in Button themes can override an inherited Font with their FontDefinition.
+            // Assign the existing game font directly to home labels so headings stay consistently bold.
+            var homeFont = Resources.Load<Font>("UI/Fonts/Baloo2-ExtraBold");
+            if (homeFont != null) p.Query<Label>().ForEach(label =>
+            {
+                label.style.unityFontDefinition = FontDefinition.FromFont(homeFont);
+                label.style.unityFontStyleAndWeight = FontStyle.Bold;
+            });
         }
+
+        VisualElement HomeCurrency(VisualElement pill, string buttonName)
+        {
+            if (buttonName == "home-coins-plus") homeCoinValue = pill.Q<Label>();
+            else homeGemValue = pill.Q<Label>();
+            pill.AddToClassList("home-currency");
+            pill.AddToClassList("pick");
+            // The entire wallet is a touch target; the smaller plus remains keyboard-accessible.
+            pill.RegisterCallback<ClickEvent>(evt =>
+            {
+                if (evt.target != pill) return;
+                click?.Invoke();
+                OpenShop?.Invoke();
+            });
+            var plus = B(() => OpenShop?.Invoke(), "home-plus");
+            plus.name = buttonName;
+            plus.Add(WinterHomeArt.Plus(42));
+            pill.Add(plus);
+            return pill;
+        }
+
+        static string ShortWallet(int value)
+        {
+            if (value >= 1000000000) return (value / 1000000000f).ToString("0.#", CultureInfo.InvariantCulture) + "B";
+            if (value >= 1000000) return (value / 1000000f).ToString("0.#", CultureInfo.InvariantCulture) + "M";
+            if (value >= 10000) return (value / 1000f).ToString("0.#", CultureInfo.InvariantCulture) + "K";
+            return value.ToString();
+        }
+
+        static VisualElement CreateHomeArt(VisualElement parent, string css, string name)
+        {
+            var art = E(css);
+            art.name = name;
+            art.pickingMode = PickingMode.Ignore;
+            parent.AddToClassList("home-has-art");
+            parent.Add(art);
+            return art;
+        }
+
+        void ApplyHomeTheme(int track)
+        {
+            HomeTrackTheme.Apply(track, homeBannerArt, homePlayArt, homeTrayArt, homeCanvas);
+            menuTheme.Apply(track);
+            var palette = HomeTrackTheme.Get(track);
+            // The offer's opaque blue card used to hide most of the surrounding landscape.
+            offerCard.style.backgroundImage = new StyleBackground(VGrad(Color.Lerp(palette.panel, palette.edge, 0.38f), palette.panel));
+            offerCard.style.borderTopColor = offerCard.style.borderLeftColor = offerCard.style.borderRightColor = Color.Lerp(palette.edge, Color.white, 0.45f);
+            offerCard.style.borderBottomColor = Color.Lerp(palette.panel, Color.black, 0.3f);
+            shopBody.Query<Label>(className: "shop-section").ForEach(section =>
+            {
+                Color color = palette.panel;
+                color.a = 0.88f;
+                section.style.backgroundColor = color;
+                section.style.borderBottomColor = Color.Lerp(palette.panel, Color.black, 0.3f);
+            });
+            bool winter = track == 3;
+            // Keep category colors recognizable; only the rim and surrounding surfaces follow the track.
+            Color rim = winter ? (Color)new Color32(239, 250, 255, 255) : Color.Lerp(palette.edge, Color.white, 0.72f);
+            for (int i = 0; i < cards.Length; i++)
+            {
+                var card = cards[i];
+                card.root.style.borderTopColor = card.root.style.borderLeftColor = card.root.style.borderRightColor = rim;
+                card.sub.style.color = winter ? new StyleColor(StyleKeyword.Null) : new StyleColor(palette.panel);
+                var strip = card.top.Q<VisualElement>(className: "pcard-name");
+                strip.style.backgroundColor = winter ? new StyleColor(StyleKeyword.Null)
+                    : new StyleColor(Color.Lerp(UpgradeDark[i], palette.panel, 0.4f));
+            }
+            hubTrackName.style.unityTextOutlineColor = winter ? new StyleColor(StyleKeyword.Null) : new StyleColor(palette.panel);
+            hubTrackSub.style.color = winter ? new StyleColor(StyleKeyword.Null) : new StyleColor(Color.Lerp(palette.edge, Color.white, 0.7f));
+            var bar = hubTrackFill.parent;
+            bar.style.backgroundColor = winter ? new StyleColor(StyleKeyword.Null) : new StyleColor(Color.Lerp(palette.panel, Color.black, 0.35f));
+            StyleColor barEdge = winter ? new StyleColor(StyleKeyword.Null) : new StyleColor(rim);
+            bar.style.borderTopColor = bar.style.borderRightColor = bar.style.borderBottomColor = bar.style.borderLeftColor = barEdge;
+        }
+
+        void ConfigureMenuBackgrounds()
+        {
+            menuTheme.Register(pages[Page.Map], "map", 0.10f);
+            menuTheme.Register(pages[Page.Result], "result", 0.42f);
+            menuTheme.Register(settings, "settings", 0.40f);
+            menuTheme.Register(chestModal, "chest", 0.38f);
+            menuTheme.Register(questModal, "quests", 0.38f);
+            menuTheme.Register(loginModal, "login", 0.38f);
+            menuTheme.Register(partModal, "part", 0.40f);
+            menuTheme.Register(shopModal, "shop", 0.06f);
+            menuTheme.Register(offerModal, "offer", 0.38f);
+            menuTheme.Register(launchModal, "launches", 0.40f);
+            menuTheme.Register(pauseModal, "pause", 0.48f);
+            menuTheme.Register(adOverlay, "ad", 0.78f);
+            // Only decorate the hero menu's header and grid: the middle is the live 3D preview.
+            menuTheme.Register(pages[Page.Avatars].Q<VisualElement>(className: "topbar"), "heroes-top", 0.12f);
+            menuTheme.Register(avScroll.contentViewport, "heroes-grid", 0.18f);
+            loginModal.name = "menu-login";
+            offerModal.name = "menu-offer";
+            partModal.name = "menu-part";
+            launchModal.name = "menu-launches";
+            pauseModal.name = "menu-pause";
+            adOverlay.name = "menu-ad";
+        }
+
+        void ResizeHomeCanvas()
+        {
+            if (homeCanvas == null) return;
+            float width = safe.layout.width, height = safe.layout.height;
+            if (float.IsNaN(width) || float.IsNaN(height) || width <= 0 || height <= 0) return;
+            const float designWidth = 1080f;
+            float designHeight = designWidth * height / width;
+            homeCanvas.style.width = designWidth;
+            homeCanvas.style.height = designHeight;
+            homeCanvas.style.scale = new Scale(new Vector2(width / designWidth, width / designWidth));
+            homeCanvas.EnableInClassList("home-compact", designHeight < 2050f);
+        }
+
+        // Available only to the isolated screenshot harness, never to production save/UI flows.
+        public void DebugSetSafeArea(Rect? value)
+        {
+            if (!AutoShot.Requested) return;
+            debugHomeSafeArea = value;
+            lastSafe = default;
+            UpdateSafeArea();
+        }
+
 
         /// Dairesel hız göstergesi: altı açık (270°) gri iz, hızla dolan camgöbeği yay; uçta parlak nokta.
         class SpeedGauge : VisualElement
@@ -912,8 +1062,8 @@ namespace SledSurfers
             Color main = UpgradeColors[i], dark = UpgradeDark[i];
             var c = new UpgradeCard { root = E("pcard", "pick") };
             c.root.style.borderBottomColor = dark;
-            // Çerçeve kartın kendi renginde (beyaz çerçeve dört kartı birbirine benzetiyordu), üstte cam parlaması.
-            var frame = Color.Lerp(main, Color.white, 0.25f);
+            // Icy white rim and coloured lower extrusion match the home design system.
+            Color frame = new Color32(239, 250, 255, 255);
             c.root.style.borderTopColor = c.root.style.borderLeftColor = c.root.style.borderRightColor = frame;
 
             var top = c.top = E("pcard-top");
@@ -942,8 +1092,7 @@ namespace SledSurfers
             top.Add(c.gain);
 
             var ribbon = E("pcard-name");
-            var name = c.title = L(Upgrades.Names[i].ToUpper(Tr), "outlined");
-            name.style.fontSize = 30;
+            var name = c.title = L(Upgrades.Names[i].ToUpperInvariant(), "outlined");
             ribbon.Add(name);
             top.Add(ribbon);
             c.root.Add(top);
@@ -966,6 +1115,7 @@ namespace SledSurfers
             c.root.Add(c.bar);
 
             c.buy = B(() => Buy?.Invoke(i), "btn", "pcard-btn");
+            c.buy.name = "home-upgrade-" + i;
             c.shine = E("pcard-shine");
             c.shine.pickingMode = PickingMode.Ignore;
             c.buy.Add(c.shine);
@@ -973,7 +1123,9 @@ namespace SledSurfers
             c.buy.Add(L("UPGRADE", "pcard-btn-cap"));
             var priceRow = E("row");
             priceRow.pickingMode = PickingMode.Ignore;
-            priceRow.style.marginTop = -12;
+            priceRow.style.marginTop = -6;
+            priceRow.style.height = 48;
+            priceRow.style.flexShrink = 0;
             c.coin = new Icon(IconKind.Coin, 38);
             priceRow.Add(c.coin);
             c.gem = new Icon(IconKind.Gem, 36);
@@ -981,6 +1133,8 @@ namespace SledSurfers
             c.lockIcon = new Icon(IconKind.Lock, 30, Color.white);
             priceRow.Add(c.lockIcon);
             c.cost = Sp(L(""), 6);
+            c.cost.style.height = 48;
+            c.cost.style.unityTextAlign = TextAnchor.MiddleCenter;
             priceRow.Add(c.cost);
             c.buy.Add(priceRow);
             c.root.Add(c.buy);
@@ -1063,7 +1217,7 @@ namespace SledSurfers
                 var c = cards[i];
                 // Yükseltmeler pist başına: kademe sınırı ve kartın adı (Kızak kartı pistin aracı) geçerli pistin.
                 int lvl = save.levels[i], max = Upgrades.MaxLevel(i), cap = max;
-                c.title.text = Upgrades.Name(i).ToUpper(Tr);
+                c.title.text = Upgrades.Name(i).ToUpperInvariant();
                 c.badge.text = lvl + "/" + max;
                 c.level.text = Mathf.Min(lvl / Upgrades.StageSize + 1, Upgrades.Stages).ToString();
                 var preview = PartPreview.Instance;
@@ -1103,7 +1257,7 @@ namespace SledSurfers
                 if (maxed) c.cost.text = "MAX";
                 else if (tierLocked) c.cost.text = "MAX";
                 else c.cost.text = gemPay ? gemCost.ToString() : cost.ToString();
-                c.cost.style.fontSize = tierLocked ? 26 : 34;
+                c.cost.style.fontSize = c.cost.text.Length <= 4 ? 48 : c.cost.text.Length == 5 ? 44 : 38;
 
                 // Buton: alınabilirse yeşil (parıltılı), elmasla pembe, tamamlandıysa altın, yetmiyorsa gri.
                 Color green = new Color32(0x3F, 0xD1, 0x5B, 0xFF), greenDark = new Color32(0x22, 0xA0, 0x3C, 0xFF);
@@ -1122,16 +1276,17 @@ namespace SledSurfers
 
             int t = save.track;
             float progress = Mathf.Clamp01(save.bests[t] / TrackLibrary.Lengths[t]);
-            hubTrackName.text = TrackLibrary.Names[t].ToUpper(Tr);
+            hubTrackName.text = TrackLibrary.Names[t].ToUpperInvariant();
             hubTrackSub.text = "Track " + (t + 1) + "  ·  Target: " + TrackLibrary.Show(TrackLibrary.Lengths[t]) + " m";
             hubTrackPct.text = Mathf.FloorToInt(progress * 100f) + "%";
-            hubTrackFill.style.width = Length.Percent(Mathf.Max(progress * 100f, 4f));
-            var tc = TrackColors[Mathf.Clamp(t, 0, TrackColors.Length - 1)];
-            // Başlık ve yükseltme panelleri parkurun koyu tonunda (ormanda koyu yeşil, çölde koyu kum...).
-            var dark = Color.Lerp(tc, new Color(0.05f, 0.1f, 0.12f), 0.62f);
-            hubTitlePanel.style.backgroundColor = new Color(dark.r, dark.g, dark.b, 0.9f);
-            hubTitlePanel.style.borderBottomColor = Color.Lerp(dark, Color.black, 0.35f);
-            hubUpgPanel.style.backgroundColor = new Color(dark.r, dark.g, dark.b, 0.9f);
+            homeProgressTarget = progress;
+            if (homeTrack != t)
+            {
+                ApplyHomeTheme(t);
+                homeTrack = t;
+                homeProgress = progress;
+                hubTrackFill.style.width = Length.Percent(progress * 100f);
+            }
             var fillCol = save.Finished(t) ? (Color)new Color32(0x3F, 0xD1, 0x5B, 0xFF) : (Color)new Color32(0xFF, 0xB0, 0x20, 0xFF);
             hubTrackFill.style.backgroundImage = new StyleBackground(VGrad(Color.Lerp(fillCol, Color.white, 0.4f), fillCol));
         }
@@ -1158,28 +1313,22 @@ namespace SledSurfers
                     stageLabel.style.display = DisplayStyle.None;
                 }
             }
-            float s = 1f + 0.035f * Mathf.Sin(time * 4f);
+            homeRelease = Mathf.MoveTowards(homeRelease, 0f, dt * 3.5f);
+            float spring = Mathf.Sin((1f - homeRelease) * Mathf.PI * 3f) * homeRelease * 0.04f;
+            float s = homePlayHeld ? 0.96f : 1f + 0.01f * Mathf.Sin(time * 2.2f) + spring;
             playButton.style.scale = new Scale(new Vector2(s, s));
-            // Yıldızlar: düğmenin çevresinde sabit noktalarda sırayla büyüyüp söner, hafifçe döner.
-            for (int k = 0; k < playStars.Length; k++)
+            if (Mathf.Abs(homeProgress - homeProgressTarget) > 0.0001f)
             {
-                float ph = time * 1.6f + k * 0.83f;
-                float tw = Mathf.Pow(Mathf.Max(0f, Mathf.Sin(ph)), 2f);
-                float ang = k * (360f / playStars.Length) + 20f * Mathf.Sin(time * 0.7f + k);
-                float rx = 300f + 26f * Mathf.Sin(k * 2.1f), ry = 118f + 18f * Mathf.Cos(k * 1.7f);
-                var st = playStars[k];
-                st.style.left = 330f + Mathf.Cos(ang * Mathf.Deg2Rad) * rx - 24f;
-                st.style.top = 100f + Mathf.Sin(ang * Mathf.Deg2Rad) * ry - 24f;
-                st.style.scale = new Scale(new Vector2(0.35f + 0.85f * tw, 0.35f + 0.85f * tw));
-                st.style.opacity = 0.25f + 0.75f * tw;
-                st.style.rotate = new Rotate(time * 40f + k * 50f);
+                homeProgress = Mathf.MoveTowards(homeProgress, homeProgressTarget, dt * 0.8f);
+                hubTrackFill.style.width = Length.Percent(homeProgress * 100f);
             }
 
             bool chestReady = h.chestSeconds <= 0;
             string chestText = chestReady ? "OPEN!" : (h.chestSeconds / 60) + ":" + (h.chestSeconds % 60).ToString("00");
             if (chestLabel.text != chestText) chestLabel.text = chestText;
             chestLabel.style.color = Color.white;
-            float wiggle = chestReady ? 8f * Mathf.Sin(time * 9f) * Mathf.Max(0f, Mathf.Sin(time * 1.6f)) : 0f;
+            homeChestDot.style.display = chestReady ? DisplayStyle.Flex : DisplayStyle.None;
+            float wiggle = chestReady ? 3f * Mathf.Sin(time * 5f) * Mathf.Max(0f, Mathf.Sin(time * 0.8f)) : 0f;
             chestIcon.style.rotate = new Rotate(Angle.Degrees(wiggle));
 
             for (int ci = 0; ci < cards.Length; ci++)
@@ -1190,12 +1339,9 @@ namespace SledSurfers
                 float k = 1f + 0.12f * Mathf.Sin(c.bump * Mathf.PI);
                 c.root.style.scale = new Scale(new Vector2(k, k));
                 c.root.style.translate = new Translate(Mathf.Sin(time * 60f) * 14f * c.shake, 0f);
-                // Alınabilir kart: butonun üstünden parıltı geçer, buton hafifçe nabız atar.
-                float phase = Mathf.Repeat(time * 0.55f + ci * 0.19f, 1f);
-                c.shine.style.display = c.canBuy && phase < 0.45f ? DisplayStyle.Flex : DisplayStyle.None;
-                c.shine.style.left = Length.Percent(Mathf.Lerp(-30f, 120f, phase / 0.45f));
-                float pulse = c.canBuy ? 1f + 0.035f * Mathf.Sin(time * 5f + ci) : 1f;
-                c.buy.style.scale = new Scale(new Vector2(pulse, pulse));
+                // A short confirmation glint only after a purchase; press states stay under USS control.
+                c.shine.style.display = c.bump > 0f ? DisplayStyle.Flex : DisplayStyle.None;
+                if (c.bump > 0f) c.shine.style.left = Length.Percent(Mathf.Lerp(-30f, 120f, 1f - c.bump));
             }
 
             handLeft.EnableInClassList("on", h.hand < 0);
@@ -1208,6 +1354,7 @@ namespace SledSurfers
         void BuildSettings()
         {
             settings = E("fill", "dim", "center", "pick");
+            settings.name = "home-settings-modal";
             settings.style.display = DisplayStyle.None;
 
             settingsCard = E("card", "card-cream", "pop", "off");
@@ -1274,6 +1421,7 @@ namespace SledSurfers
             }
 
             var ok = B(() => ShowSettings(false), "btn", "btn-green", "btn-mid");
+            ok.name = "home-settings-close";
             ok.text = "OK";
             ok.style.marginTop = 46;
             settingsCard.Add(ok);
@@ -1322,6 +1470,7 @@ namespace SledSurfers
         void BuildChest()
         {
             chestModal = E("fill", "dim", "center", "pick");
+            chestModal.name = "home-chest-modal";
             chestModal.style.display = DisplayStyle.None;
 
             chestCard = E("card", "card-cream", "col", "pop", "off");
@@ -1375,6 +1524,7 @@ namespace SledSurfers
                 chestCard.AddToClassList("off");
                 chestModal.schedule.Execute(() => chestModal.style.display = DisplayStyle.None).StartingIn(180);
             }, "btn", "btn-green", "btn-mid");
+            go.name = "home-chest-claim";
             go.text = "CONTINUE";
             go.style.alignSelf = Align.Stretch;
             go.style.marginTop = 22;
@@ -1421,7 +1571,8 @@ namespace SledSurfers
         public event Action<string> ShopPurchase;
 
         VisualElement shopModal, shopBody, offerModal, offerCard;
-        Label shopNote, shopGems;
+        Label shopNote, shopGems, shopPreview;
+        readonly Dictionary<Button, string> purchaseButtons = new Dictionary<Button, string>();
         readonly Label[] shopCoinAmounts = new Label[6];
         float shopNoteClock = -1f;
 
@@ -1439,21 +1590,19 @@ namespace SledSurfers
             return l;
         }
 
-        Button PriceButton(string price, Action onClick)
+        Button PriceButton(string productId)
         {
-            var b = B(onClick, "btn", "btn-green", "shop-price");
-            b.text = price;
+            var b = B(() => { if (Store.PurchasesAvailable) ShopPurchase?.Invoke(productId); }, "btn", "btn-green", "shop-price");
+            purchaseButtons[b] = productId;
             return b;
         }
 
         void BuildShop()
         {
             shopModal = E("fill", "pick", "shop-page");
+            shopModal.name = "home-shop-modal";
             shopModal.style.display = DisplayStyle.None;
-            // Arka plan: kullanıcının verdiği karlı manzara (Resources/UI/Shop/shop_bg); yoksa mor-mavi geçiş.
-            var shopBg = Resources.Load<Texture2D>("UI/Shop/shop_bg");
-            shopModal.style.backgroundImage = new StyleBackground(shopBg != null ? shopBg : VGrad(new Color32(0x5C, 0x7C, 0xF0, 0xFF), new Color32(0x8A, 0x70, 0xE8, 0xFF)));
-            if (shopBg != null) shopModal.style.unityBackgroundScaleMode = ScaleMode.ScaleAndCrop;
+            // The shared track landscape is attached after all menu surfaces have been built.
 
             var top = E("topbar");
             var wallet = E("row");
@@ -1468,9 +1617,13 @@ namespace SledSurfers
             title.style.fontSize = 84;
             top.Add(title);
             var close = B(() => shopModal.style.display = DisplayStyle.None, "btn", "btn-round", "shop-close");
+            close.name = "home-shop-close";
             close.text = "X";
             top.Add(close);
             shopModal.Add(top);
+
+            shopPreview = L("STORE PREVIEW · Purchases are unavailable in this build.", "preview-note");
+            shopModal.Add(shopPreview);
 
             shopNote = L("", "shop-note");
             shopNote.style.display = DisplayStyle.None;
@@ -1532,7 +1685,7 @@ namespace SledSurfers
                 cell.Add(ShopArt("coins_" + (k + 1), IconKind.Coin, 96 + 14 * k));
                 // Coin paketleri gerçek parayla satılır (kullanıcı kararı 2026-10-11); fiyat mağazadan.
                 string coinId = "coins_" + CoinPackCoins[k];
-                cell.Add(PriceButton(Store.Price(coinId), () => ShopPurchase?.Invoke(coinId)));
+                cell.Add(PriceButton(coinId));
                 coinRow.Add(cell);
             }
 
@@ -1575,8 +1728,8 @@ namespace SledSurfers
                 amount.style.fontSize = 60;
                 cell.Add(amount);
                 cell.Add(ShopArt(id, icon, 84 + Mathf.Min(40, 8 * k)));
-                cell.Add(PriceButton(Store.Price(id), () => ShopPurchase?.Invoke(id)));
-                if (tagAt != null && System.Array.IndexOf(tagAt, k) >= 0 && tagIndex < tags.Length) cell.Add(L(tags[tagIndex++], "shop-tag"));
+                cell.Add(PriceButton(id));
+                if (Store.PurchasesAvailable && tagAt != null && System.Array.IndexOf(tagAt, k) >= 0 && tagIndex < tags.Length) cell.Add(L(tags[tagIndex++], "shop-tag"));
                 line.Add(cell);
             }
             return grid;
@@ -1597,6 +1750,14 @@ namespace SledSurfers
 
         public void RefreshShop(int gems, int[] coinAmounts, int freeGemsLeft)
         {
+            bool available = Store.PurchasesAvailable;
+            shopPreview.style.display = available ? DisplayStyle.None : DisplayStyle.Flex;
+            foreach (var pair in purchaseButtons)
+            {
+                pair.Key.text = available ? Store.Price(pair.Value) : "UNAVAILABLE";
+                pair.Key.SetEnabled(available);
+                pair.Key.EnableInClassList("purchase-unavailable", !available);
+            }
             shopFreeLeft = freeGemsLeft;
             shopFreeLabel.text = freeGemsLeft > 0 ? "FREE " + freeGemsLeft + "/" + SaveData.FreeGemsPerDay : "TOMORROW";
             shopFreeBtn.style.opacity = freeGemsLeft > 0 ? 1f : 0.5f;
@@ -1636,6 +1797,7 @@ namespace SledSurfers
             offerCard.Add(DealRibbon(out dealTitle));
             // 3) Kapatma düğmesi
             dealClose = DealCloseButton(() => { Close(offerModal, offerCard); DealClosed?.Invoke(); });
+            dealClose.name = "menu-offer-close";
             offerCard.Add(dealClose);
             // 4) Büyük metin (vurgulu kelime ayrı renkte)
             dealHeadline = E("deal-headline");
@@ -1665,7 +1827,10 @@ namespace SledSurfers
             meta.Add(dealOldPrice);
             offerCard.Add(meta);
             // 8) Satın alma düğmesi: üstte açıklama satırı, altında mağaza fiyatı
-            dealBuy = DealBuyButton(out dealCaption, out dealPriceLabel, () => ShopPurchase?.Invoke(currentDeal.productId));
+            dealBuy = DealBuyButton(out dealCaption, out dealPriceLabel, () =>
+            {
+                if (Store.PurchasesAvailable) ShopPurchase?.Invoke(currentDeal.productId);
+            });
             offerCard.Add(dealBuy);
 
             offerModal.Add(offerCard);
@@ -1784,12 +1949,15 @@ namespace SledSurfers
         {
             currentDeal = deal;
             dealEndTicks = endTicks;
-            dealTitle.text = deal.title;
+            bool available = Store.PurchasesAvailable;
+            dealTitle.text = available ? deal.title : "PACK PREVIEW";
             SetHeadline(deal.headline);
-            dealInfo.text = deal.info;
-            dealCaption.text = deal.buttonCaption;
-            dealPriceLabel.text = Store.Price(deal.productId);   // fiyat mağazadan
-            bool hasOld = !string.IsNullOrEmpty(deal.regularId);
+            dealInfo.text = available ? deal.info : "Purchases are unavailable in this build.";
+            dealCaption.text = available ? deal.buttonCaption : "PREVIEW ONLY";
+            dealPriceLabel.text = available ? Store.Price(deal.productId) : "UNAVAILABLE";
+            dealBuy.SetEnabled(available);
+            dealBuy.EnableInClassList("purchase-unavailable", !available);
+            bool hasOld = available && !string.IsNullOrEmpty(deal.regularId);
             dealOldPrice.text = hasOld ? "Was " + Store.Price(deal.regularId) : "";
             dealOldPrice.style.display = hasOld ? DisplayStyle.Flex : DisplayStyle.None;
             var tex = Resources.Load<Texture2D>("UI/Offers/" + deal.art);
@@ -1803,6 +1971,13 @@ namespace SledSurfers
 
         void UpdateDealTimer()
         {
+            if (!Store.PurchasesAvailable)
+            {
+                dealTimer.text = "";
+                dealTimer.style.display = DisplayStyle.None;
+                return;
+            }
+            dealTimer.style.display = DisplayStyle.Flex;
             long left = System.Math.Max(0L, (dealEndTicks - System.DateTime.UtcNow.Ticks) / System.TimeSpan.TicksPerSecond);
             dealTimer.text = "Ends in " + (left / 3600).ToString("00") + ":" + (left / 60 % 60).ToString("00") + ":" + (left % 60).ToString("00");
             if (left <= 0 && offerModal.style.display.value == DisplayStyle.Flex) Close(offerModal, offerCard);
@@ -1820,7 +1995,7 @@ namespace SledSurfers
             {
                 UpdateDealTimer();
                 dealRays.style.rotate = new Rotate(time * 18f);
-                float s2 = 1f + 0.03f * Mathf.Sin(time * 5f);
+                float s2 = Store.PurchasesAvailable ? 1f + 0.03f * Mathf.Sin(time * 5f) : 1f;
                 dealBuy.style.scale = new Scale(new Vector2(s2, s2));
             }
         }
@@ -1878,6 +2053,7 @@ namespace SledSurfers
         void BuildQuests()
         {
             questModal = Modal(out questCard, "DAILY QUESTS", new Color32(0x9B, 0x6B, 0xFF, 0xFF), new Color32(0x6A, 0x3D, 0xD0, 0xFF));
+            questModal.name = "home-quests-modal";
             questTimer = L("", "heavy");
             questTimer.style.fontSize = 32;
             questTimer.style.color = Muted;
@@ -1925,6 +2101,7 @@ namespace SledSurfers
                 questCard.Add(row);
             }
             var close = B(() => Close(questModal, questCard), "btn", "btn-white", "btn-mid");
+            close.name = "home-quests-close";
             close.text = "CLOSE";
             close.style.alignSelf = Align.Stretch;
             close.style.marginTop = 26;
@@ -2006,6 +2183,7 @@ namespace SledSurfers
             }
             loginCard.Add(grid);
             var claim = B(() => { ClaimLogin?.Invoke(); Close(loginModal, loginCard); }, "btn", "btn-green", "btn-big");
+            claim.name = "menu-login-close";
             claim.text = "CLAIM REWARD";
             claim.style.alignSelf = Align.Stretch;
             claim.style.marginTop = 28;
@@ -2092,6 +2270,7 @@ namespace SledSurfers
             go.text = "CONTINUE";
             go.style.alignSelf = Align.Stretch;
             go.style.marginTop = 30;
+            go.name = "menu-part-close";
             partCard.Add(go);
 
             partModal.Add(partCard);
@@ -2203,6 +2382,7 @@ namespace SledSurfers
 
             var top = E("topbar");
             var back = B(() => OpenHub?.Invoke(), "btn", "btn-white", "btn-round");
+            back.name = "avatar-back";
             back.Add(new Icon(IconKind.Back, 58, Ink));
             top.Add(back);
             var title = L("HEROES", "outlined");
@@ -2241,6 +2421,7 @@ namespace SledSurfers
             p.Add(E("grow"));
 
             avAction = B(() => AvatarAction?.Invoke(avBrowse), "btn", "btn-green", "btn-big");
+            avAction.name = "avatar-action";
             avAction.style.alignSelf = Align.Center;
             avAction.style.width = Length.Percent(70);
             avAction.style.marginBottom = 26;
@@ -2281,6 +2462,7 @@ namespace SledSurfers
                     var info = AvatarLibrary.All[i];
                     var rc = RarityColors[Rarity(info.price)];
                     var c = new AvatarCard { root = B(() => BrowseAvatar?.Invoke(i), "btn", "av-card") };
+                    c.root.name = "avatar-card-" + i;
                     if (k > 0) c.root.style.marginLeft = 14;
                     c.root.style.borderBottomColor = Color.Lerp(rc, Color.black, 0.25f);
                     var cardTop = E("av-top");
@@ -2397,6 +2579,7 @@ namespace SledSurfers
 
             var top = E("topbar");
             var back = B(() => OpenHub?.Invoke(), "btn", "btn-white", "btn-round");
+            back.name = "map-back";
             back.Add(new Icon(IconKind.Back, 58, Ink));
             top.Add(back);
             var title = L("TRACKS", "outlined");
@@ -2404,6 +2587,8 @@ namespace SledSurfers
             top.Add(title);
             top.Add(CoinPill());
             p.Add(top);
+
+            p.Add(L("Coins and upgrades stay with each track. Return here anytime.\nGems, heroes and unlocked parts carry across tracks.", "track-economy-note"));
 
             // 7 parkur ekrana sığmıyor: liste kaydırılır, açılışta güncel parkura gidilir.
             mapScroll = new ScrollView(ScrollViewMode.Vertical);
@@ -2444,8 +2629,10 @@ namespace SledSurfers
 
                 int index = i;
                 var c = new MapCard { root = B(() => SelectTrack?.Invoke(index), "btn", "btn-white", "map-card") };
+                c.root.name = "map-track-" + i;
                 c.root.style.flexShrink = 0;
                 c.badge = E("map-badge");
+                c.badge.style.flexShrink = 0;
                 c.badge.style.backgroundColor = TrackColors[i];
                 c.number = L((i + 1).ToString(), "outlined");
                 c.number.style.fontSize = 72;
@@ -2455,14 +2642,21 @@ namespace SledSurfers
                 c.root.Add(c.badge);
 
                 var info = E("grow");
+                info.style.flexBasis = 0;
+                info.style.flexShrink = 1;
+                info.style.minWidth = 0;
                 info.style.marginLeft = 24;
                 var name = L(TrackLibrary.Names[i] + "  ·  " + TrackLibrary.Show(TrackLibrary.Lengths[i]) + " m", "heavy");
-                name.style.fontSize = 50;
+                name.style.fontSize = 42;
+                name.style.whiteSpace = WhiteSpace.Normal;
                 name.style.marginBottom = -6;
                 info.Add(name);
                 c.status = L("", "heavy");
                 c.status.style.fontSize = 32;
                 info.Add(c.status);
+                c.wallet = L("", "muted");
+                c.wallet.style.fontSize = 28;
+                info.Add(c.wallet);
                 var slim = E("bar");
                 slim.style.height = 24;
                 slim.style.borderTopWidth = slim.style.borderBottomWidth = slim.style.borderLeftWidth = slim.style.borderRightWidth = 3;
@@ -2492,6 +2686,8 @@ namespace SledSurfers
                 c.badge.style.backgroundColor = open ? TrackColors[i] : (Color)new Color32(0xB8, 0xB0, 0xA6, 0xFF);
                 c.root.EnableInClassList("map-current", i == save.track);
                 c.root.style.opacity = open ? 1f : 0.75f;
+                c.wallet.text = open ? save.trackMoney[i].ToString("N0", Tr) + " coins saved here" : "";
+                c.wallet.style.display = open ? DisplayStyle.Flex : DisplayStyle.None;
                 c.fill.style.width = Length.Percent(progress * 100f);
                 c.fill.style.backgroundColor = Col(done, new Color32(0x3F, 0xD1, 0x5B, 0xFF));
                 if (done)
@@ -2518,12 +2714,34 @@ namespace SledSurfers
 
         // ================================================================ nişan
 
+        Button PauseButton()
+        {
+            var button = B(() => PauseRequested?.Invoke(), "btn", "btn-white", "pause-button");
+            button.text = "PAUSE";
+            return button;
+        }
+
+        void BuildPause()
+        {
+            pauseModal = Modal(out pauseCard, "PAUSED", new Color32(0x3F, 0xA4, 0xFF, 0xFF), new Color32(0x1E, 0x78, 0xD0, 0xFF));
+            var note = L("Take your time. Your run will continue\nfrom the same spot when you resume.", "pause-note");
+            pauseCard.Add(note);
+            var resume = B(() => ResumeRequested?.Invoke(), "btn", "btn-green", "btn-big");
+            resume.name = "menu-pause-resume";
+            resume.text = "RESUME";
+            resume.style.alignSelf = Align.Stretch;
+            resume.style.marginTop = 24;
+            pauseCard.Add(resume);
+            safe.Add(pauseModal);
+        }
+
         void BuildAim()
         {
             var p = NewPage(Page.Aim);
 
             var top = E("topbar");
             top.Add(BestPill());
+            top.Add(PauseButton());
             top.Add(CoinPill());
             p.Add(top);
 
@@ -2571,6 +2789,7 @@ namespace SledSurfers
         {
             string text = h.tiltMode
                 ? "Pull sideways to launch the other way.\nCup: tilt the phone to keep it level."
+                : h.mobileControls ? "Pull sideways to launch the other way.\nCup balance assist is on for this device."
                 : "Pull sideways to launch the other way.\nSpace + ←/→ also works · Cup: I J K L";
             if (hintSub.text != text) hintSub.text = text;
 
@@ -2677,6 +2896,12 @@ namespace SledSurfers
             runColumn = new ProgressColumn();
             p.Add(runColumn.root);
 
+            var pause = PauseButton();
+            pause.style.position = Position.Absolute;
+            pause.style.right = 36;
+            pause.style.top = 36;
+            p.Add(pause);
+
             // Sol üst köşe (kullanıcı isteği): toplanan coin ve elmas; gidilen mesafe onların altında, ortada.
             var runCorner = E("col");
             runCorner.style.position = Position.Absolute;
@@ -2713,11 +2938,15 @@ namespace SledSurfers
             p.Add(distLabel);
 
             airLabel = L("AIRBORNE!", "outlined");
-            airLabel.style.fontSize = 96;
+            airLabel.style.fontSize = 76;
             airLabel.style.color = Gold;
             airLabel.style.unityTextAlign = TextAnchor.MiddleCenter;
             airLabel.style.marginTop = 40;
             p.Add(airLabel);
+
+            wingLabel = L("", "outlined", "wing-status");
+            wingLabel.style.display = DisplayStyle.None;
+            p.Add(wingLabel);
 
             toastLabel = L("LID OFF!", "outlined");
             toastLabel.style.fontSize = 84;
@@ -2763,9 +2992,9 @@ namespace SledSurfers
             var rocketIcon = new Icon(IconKind.Rocket, 92);
             rocketIcon.style.marginTop = -22;
             rocketBtn.Add(rocketIcon);
-            var boost = L("BOOST", "rocket-label");
-            boost.pickingMode = PickingMode.Ignore;
-            rocketBtn.Add(boost);
+            rocketLabel = L("BOOST", "rocket-label");
+            rocketLabel.pickingMode = PickingMode.Ignore;
+            rocketBtn.Add(rocketLabel);
             rocketCount = L("", "rocket-count");
             rocketBtn.Add(rocketCount);
             gaugeBox.Add(rocketBtn);
@@ -2798,6 +3027,7 @@ namespace SledSurfers
             wasAirborne = h.airborne;
             if (h.airborne)
             {
+                airLabel.text = h.hasWings ? h.canGlide ? "GLIDING" : "DESCENDING" : "AIRBORNE!";
                 airClock += dt;
                 float t = Mathf.Clamp01(airClock / 0.35f);
                 float s = EaseOutBack(t) * (1f + 0.04f * Mathf.Sin(time * 9f));
@@ -2805,6 +3035,15 @@ namespace SledSurfers
                 airLabel.style.rotate = new Rotate(Angle.Degrees(-4f + 3f * Mathf.Sin(time * 5f)));
             }
             else airLabel.style.display = DisplayStyle.None;
+
+            wingLabel.style.display = h.airborne && h.hasWings ? DisplayStyle.Flex : DisplayStyle.None;
+            if (h.airborne && h.hasWings)
+            {
+                wingLabel.text = h.wingSecondsLeft > 0f
+                    ? "FULL LIFT  " + h.wingSecondsLeft.ToString("0.0", Tr) + " s"
+                    : "LIFT REDUCED · AIM FOR A SAFE LANDING";
+                wingLabel.style.color = h.wingSecondsLeft > 2f ? Color.white : Gold;
+            }
 
             if (toastClock >= 0f)
             {
@@ -2838,6 +3077,9 @@ namespace SledSurfers
             if (h.hasRocket)
             {
                 bool firing = h.rocketFuel > 0f;
+                rocketLabel.text = h.rocketNeedsLanding ? "LAND FIRST" : firing ? "BOOSTING" : h.rocketReady ? "BOOST" : h.rocketCharges > 0 ? "WAIT" : "EMPTY";
+                rocketLabel.style.fontSize = h.rocketNeedsLanding || firing ? 27 : 34;
+                rocketBtn.SetEnabled(h.rocketReady);
                 rocketFill.style.height = Length.Percent(firing ? h.rocketFuel * 100f : h.rocketReady ? 100f : 0f);
                 rocketBtn.style.opacity = h.rocketReady || firing ? 1f : 0.5f;
                 rocketGlow.style.opacity = h.rocketReady ? 0.55f + 0.35f * Mathf.Sin(time * 6f) : 0f;
@@ -2899,7 +3141,7 @@ namespace SledSurfers
             return hud;
         }
 
-        void UpdateGlass(in HudInfo h)
+        void UpdateGlass(float dt, in HudInfo h)
         {
             float W = root.layout.width, H = root.layout.height;
             if (!(W > 0f) || !(H > 0f)) return;
@@ -2932,7 +3174,12 @@ namespace SledSurfers
                                                : (Color)new Color32(0xFF, 0x9C, 0x8F, 0xFF);
             }
             // Süt ağza yaklaşınca gösterge büyür ve kızarır (dikkat bardağa); güvendeyken sade kalır.
-            milkDangerShown = Mathf.MoveTowards(milkDangerShown, Mathf.InverseLerp(0.55f, 0.95f, h.milkDanger), Time.deltaTime * 6f);
+            float risk = lid ? 0f : Mathf.Max(Mathf.InverseLerp(0.55f, 0.95f, h.milkDanger), fill < 0.3f ? 0.6f : 0f);
+            milkDangerShown = Mathf.MoveTowards(milkDangerShown, risk, dt * 6f);
+            milkPill.style.opacity = Mathf.Lerp(0.8f, 1f, milkDangerShown);
+            glassFrame.style.opacity = Mathf.Lerp(0.42f, 1f, milkDangerShown);
+            glassFrame.style.borderTopColor = glassFrame.style.borderBottomColor = glassFrame.style.borderLeftColor = glassFrame.style.borderRightColor
+                = Color.Lerp(Color.white, new Color(1f, 0.55f, 0.35f), milkDangerShown);
             float s = 1f + 0.12f * milkDangerShown + (fill < 0.3f ? 0.06f * Mathf.Abs(Mathf.Sin(time * 7f)) : 0f);
             milkPill.style.scale = new Scale(new Vector2(s, s));
             milkPill.style.backgroundColor = Color.Lerp(Color.white, new Color(1f, 0.45f, 0.35f), milkDangerShown);
@@ -3043,6 +3290,8 @@ namespace SledSurfers
             unlockBox.style.borderBottomColor = (Color)new Color32(0xFF, 0x8F, 0x1F, 0x88);
             unlockBox.Add(new Icon(IconKind.Map, 84, new Color32(0x3F, 0xA4, 0xFF, 0xFF)));
             var unlockCol = E();
+            unlockCol.style.flexShrink = 1;
+            unlockCol.style.flexGrow = 1;
             unlockCol.style.marginLeft = 18;
             unlockTitle = L("", "heavy");
             unlockTitle.style.fontSize = 34;
@@ -3050,10 +3299,13 @@ namespace SledSurfers
             unlockTitle.style.marginBottom = -8;
             unlockCol.Add(unlockTitle);
             unlockName = L("", "heavy");
-            unlockName.style.fontSize = 48;
+            unlockName.style.fontSize = 42;
+            unlockName.style.whiteSpace = WhiteSpace.Normal;
             unlockCol.Add(unlockName);
             unlockBox.Add(unlockCol);
             resultCard.Add(unlockBox);
+            unlockProgression = L("Prepare a new vehicle on the next track. Your parts and gems carry over.\nYour previous coins and upgrades are saved — revisit them from Tracks.", "progression-note");
+            resultCard.Add(unlockProgression);
 
             // Kullanıcı isteği: kazanç reklamla 3 katına çıkarılabilir (sandıktaki gibi test reklamı).
             resTriple = B(() => ShowAd(() =>
@@ -3080,6 +3332,7 @@ namespace SledSurfers
             goIcon = new Icon(IconKind.Play, 60);
             go.Add(goIcon);
             goLabel = Sp(L("CONTINUE"), 16);
+            go.name = "menu-result-continue";
             go.Add(goLabel);
             resultCard.Add(go);
 
@@ -3250,6 +3503,7 @@ namespace SledSurfers
             launchCard.Add(watch);
 
             var ok = B(HideNoLaunches, "btn", "btn-green", "btn-mid");
+            ok.name = "menu-launches-close";
             ok.text = "OK";
             ok.style.alignSelf = Align.Stretch;
             ok.style.marginTop = 22;

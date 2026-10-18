@@ -44,6 +44,9 @@ namespace SledSurfers
         GameUI ui;
 
         State state;
+        bool paused;
+        float resumeTimeScale = 1f;
+        bool resumeAudioPause;
         float accumulator;
         float pull, aim;
         bool aimArmed, aimDragging;
@@ -104,8 +107,50 @@ namespace SledSurfers
 
         // ---------------------------------------------------------------- otomatik test kancaları
 
+        public bool DebugPaused => paused;
+        public float DebugSimulationTime => sled.clock;
+        public void DebugPause(bool value) => SetPaused(value);
         public bool DebugInResult => state == State.Result;
         public void DebugHub() => EnterHub();
+        public GameUI.Page DebugUiPage => ui.Current;
+        public int DebugMoney => save.money;
+        public int DebugGemBalance => save.gems;
+        public int DebugUpgradeLevel(int index) => save.levels[index];
+
+        /// UI screenshot fixtures use the ordinary save/config path, only under the isolated test prefix.
+        public void DebugHomeFixture(int trackIndex, int avatarIndex, int[] levels, int money, int gems, float bestFraction, int launches)
+        {
+            if (!AutoShot.Requested || SaveData.Prefix != "autotest.")
+                throw new System.InvalidOperationException("Home fixtures require an isolated AutoShot session.");
+            if (trackIndex < 0 || trackIndex >= TrackLibrary.Count || avatarIndex < 0 || avatarIndex >= AvatarLibrary.Count
+                || levels == null || levels.Length != Upgrades.Count)
+                throw new System.ArgumentException("Invalid home fixture.");
+            save.track = save.unlocked = trackIndex;
+            for (int i = 0; i < levels.Length; i++) save.levels[i] = Mathf.Clamp(levels[i], 0, Upgrades.MaxFor(trackIndex));
+            for (int i = 0; i < save.bests.Length; i++)
+                save.bests[i] = i < trackIndex ? Mathf.CeilToInt(TrackLibrary.Lengths[i])
+                    : i == trackIndex ? Mathf.RoundToInt(TrackLibrary.Lengths[i] * Mathf.Clamp01(bestFraction)) : 0;
+            save.money = Mathf.Max(0, money);
+            save.gems = Mathf.Max(0, gems);
+            save.launches = Mathf.Clamp(launches, 0, SaveData.MaxLaunches);
+            save.launchTicks = System.DateTime.UtcNow.Ticks;
+            save.chestReadyTicks = 0;
+            save.avatar = avatarIndex;
+            save.avatarsOwned |= 1 << avatarIndex;
+            save.questDay = 0;
+            save.loginDay = DailyQuests.Today;
+            quests = null;
+            ui.debugHideTutorial = true;
+            LoadTrack(trackIndex);
+            EnterHub();
+        }
+
+        public void DebugHomeSafeArea(Rect? area)
+        {
+            if (!AutoShot.Requested || SaveData.Prefix != "autotest.")
+                throw new System.InvalidOperationException("Safe-area fixtures require an isolated AutoShot session.");
+            ui.DebugSetSafeArea(area);
+        }
         public void DebugAvatars(int browse)
         {
             ui.ShowAvatars(save, save.avatar);
@@ -116,6 +161,16 @@ namespace SledSurfers
         public void DebugSelectAvatar(int i) { save.avatarsOwned |= 1 << i; save.avatar = i; ShowAvatarModel(i); PrepareSled(); }
         /// Bardak modelini değiştirir ve bardak kamerasını tam ekran yapar (model < 0: normale döner).
         bool debugGlassFull;
+        float debugGlassPitch = float.NaN, debugGlassRoll = float.NaN;
+        public void DebugCupPose(int stage, int handChoice, float pitch, float roll)
+        {
+            save.levels[(int)UpgradeType.Glass] = stage * Upgrades.StageSize;
+            save.hand = handChoice;
+            EnterAim();
+            debugGlassPitch = pitch;
+            debugGlassRoll = roll;
+        }
+        public bool DebugCupFits(out string detail) => rider.DebugGlassFits(out detail);
         public void DebugGlass(int model)
         {
             if (model >= 0) save.levels[(int)UpgradeType.Glass] = model * Upgrades.StageSize;
@@ -220,6 +275,36 @@ namespace SledSurfers
         }
         public float DebugDistance => sled.maxDistance;
         public bool DebugRunning => state == State.Run && sled.end == RunEnd.None;
+
+        public struct SnowDebugState
+        {
+            public float z, height, speed, clearance, slope, curvature, fill, clock, airTime, totalAir, impact;
+            public int landings;
+            public bool running, grounded, launching;
+            public RunEnd end;
+            public CrashCause cause;
+        }
+
+        void RequireSnowShot()
+        {
+            if (!AutoShot.Requested || SaveData.Prefix != "autotest." || save.track != 3)
+                throw new System.InvalidOperationException("Snow inspection requires an isolated AutoShot session on track 3.");
+        }
+
+        /// Read-only telemetry for distance/event-driven Snow screenshots; no physics fixture or teleport.
+        public SnowDebugState DebugSnowState()
+        {
+            RequireSnowShot();
+            var p = sled.position;
+            return new SnowDebugState
+            {
+                z = p.z, height = p.y, speed = sled.Speed, clearance = p.y - track.Height(p.x, p.z),
+                slope = track.SlopeZ(p.x, p.z), curvature = track.CurvatureAt(p.x, p.z), fill = liquid.FillRatio,
+                clock = sled.clock, airTime = sled.airTime, totalAir = sled.stats.airTime, impact = sled.lastImpact,
+                landings = sled.landings, running = DebugRunning, grounded = sled.grounded, launching = sled.launching,
+                end = sled.end, cause = sled.crashCause
+            };
+        }
 
         public void DebugReset(int[] levels, int money)
         {
@@ -372,6 +457,7 @@ namespace SledSurfers
 
         void EnterHub()
         {
+            SetPaused(false);
             ShowAvatarModel(save.avatar);
             PrepareSled();
             // Ana ekranda kızak sapanın önünde durur (kullanıcı 2026-10-10): kamera önden baktığı için kese ve lastik
@@ -388,7 +474,7 @@ namespace SledSurfers
                 ShowLogin();
             }
             // Günün fırsatı: oyun açılınca (günde bir kez) kendiliğinden gösterilir; günlük ödülün üstünde açılır.
-            if (!AutoShot.Requested)
+            if (Store.PurchasesAvailable && !AutoShot.Requested)
             {
                 TodaysDeal();
                 if (!save.dealSeen && DealActive)
@@ -503,6 +589,7 @@ namespace SledSurfers
 
         void EnterAim()
         {
+            SetPaused(false);
             if (!debugUnlimitedLaunches && !save.LaunchesFree && save.launches <= 0)
             {
                 // Hak yok: ana ekranda bekleme/reklam penceresi.
@@ -540,7 +627,7 @@ namespace SledSurfers
             ui.ShowRun();
             if (perfect) ui.Toast("PERFECT LAUNCH!");
             hintedRocket = hintedNose = hintedBridge = hintedFork = false;
-            ShowHint(Hint.Steer, IconKind.Swap, input.TiltMode ? "Drag left-right: steer" : "A / D: steer", 3);
+            ShowHint(Hint.Steer, IconKind.Swap, input.TouchMode ? "Drag left-right: steer" : "A / D: steer", 3);
         }
 
         Color dustColor = Color.white;
@@ -668,12 +755,70 @@ namespace SledSurfers
                 fill = fill,
                 progress = Mathf.Clamp01(distance / track.finishZ),
                 bestProgress = Mathf.Clamp01(previousBest / track.finishZ),
-                tip = RunTips.Tip(sled.stats, sled.end, sled.endReason, cfg, sled.maxDistance),
+                tip = RunTips.Tip(sled.stats, sled.end, sled.endReason, cfg, sled.maxDistance, sled.crashCause),
             };
+        }
+
+        void SetPaused(bool value)
+        {
+            if (paused == value || (value && state != State.Aim && state != State.Run)) return;
+            paused = value;
+            input.ResetInput();
+            rocketRequested = false;
+            accumulator = 0f;
+            if (value)
+            {
+                resumeTimeScale = Time.timeScale;
+                resumeAudioPause = AudioListener.pause;
+                Time.timeScale = 0f;
+                AudioListener.pause = true;
+                // A released finger after an interruption must never launch the sled.
+                if (state == State.Aim)
+                {
+                    pull = aim = 0f;
+                    aimArmed = aimDragging = false;
+                    fullPullTime = -1f;
+                    sled.PlaceForAim(0f, 0f);
+                    world.ShowGuide(0f, 0f);
+                }
+            }
+            else
+            {
+                Time.timeScale = resumeTimeScale;
+                AudioListener.pause = resumeAudioPause;
+            }
+            ui.SetPaused(value);
+        }
+
+        void OnApplicationPause(bool suspended)
+        {
+            if (!suspended || ui == null || AutoShot.Requested) return;
+            SetPaused(true);
+            save.Save();
+        }
+
+        void OnApplicationFocus(bool focused)
+        {
+            if (!focused && ui != null && !AutoShot.Requested) SetPaused(true);
+        }
+
+        void OnDestroy()
+        {
+            if (!paused) return;
+            Time.timeScale = resumeTimeScale;
+            AudioListener.pause = resumeAudioPause;
         }
 
         void Update()
         {
+            // Android back and desktop Escape share the same explicit pause action.
+            if (Input.GetKeyDown(KeyCode.Escape) && (state == State.Aim || state == State.Run))
+                SetPaused(!paused);
+            if (paused)
+            {
+                ui.Tick(Mathf.Min(Time.unscaledDeltaTime, 0.1f), BuildHud());
+                return;
+            }
             // Kare süresi 0.1 s'ye kadar gerçek zamanla işlenir (10 kare/sn'ye kadar ağır çekim olmaz; fizik 240 Hz sabit
             // adımla arayı kapatır). Eski sınır 0.05 s'ydi: 20 kare/sn'nin altına düşen telefonda oyun ağır çekime giriyordu.
             float dt = Mathf.Min(Time.deltaTime, 0.1f);
@@ -892,7 +1037,7 @@ namespace SledSurfers
                     rider.PopLid();
                     sfx.Pop();
                     ui.LidOpened();
-                    ShowHint(Hint.Milk, IconKind.Glass, input.TiltMode ? "Tilt the phone: don't spill the milk" : "I J K L: tilt the cup, don't spill", 3);
+                    ShowHint(Hint.Milk, IconKind.Glass, input.TouchMode ? (input.TiltMode ? "Tilt the phone: don't spill the milk" : "Auto cup balance is on: steer gently") : "I J K L: tilt the cup, don't spill", 3);
                 }
                 float fillBefore = liquid.FillRatio;
                 liquid.Step(sled.acceleration, GlassRotation(), PhysicsStep);
@@ -945,13 +1090,13 @@ namespace SledSurfers
             if (!hintedRocket && cfg.rocketCharges > 0 && runTime > 1.5f && sled.CanFireRocket)
             {
                 hintedRocket = true;
-                ShowHint(Hint.Rocket, IconKind.Rocket, input.TiltMode ? "Rocket: tap while you're fast" : "R: fire the rocket while fast", 3);
+                ShowHint(Hint.Rocket, IconKind.Rocket, input.TouchMode ? "Rocket: tap while you're fast" : "R: fire the rocket while fast", 3);
             }
             if (!hintedNose && !sled.grounded && !sled.launching
                 && sled.position.y - track.Height(sled.position.x, sled.position.z) > 1.5f)
             {
                 hintedNose = true;
-                ShowHint(Hint.Nose, IconKind.Wing, input.TiltMode ? "In the air, drag up-down: nose" : "W / S: nose in the air", 2);
+                ShowHint(Hint.Nose, IconKind.Wing, input.TouchMode ? "In the air, drag up-down: nose" : "W / S: nose in the air", 2);
             }
             if (!hintedBridge && track.BridgeAt(sled.position.z + 30f, out _))
             {
@@ -999,8 +1144,8 @@ namespace SledSurfers
         }
 
         // Otomatik oyuncu tam dengeler; gerçek oyuncunun eğmesi karakterin refleksine eklenir.
-        float GlassPitch => debugAutopilot ? pilot.glassPitch : Mathf.Clamp(reflex.pitch + input.glassPitch, -50f, 50f);
-        float GlassRoll => debugAutopilot ? pilot.glassRoll : Mathf.Clamp(reflex.roll + input.glassRoll, -50f, 50f);
+        float GlassPitch => !float.IsNaN(debugGlassPitch) ? debugGlassPitch : debugAutopilot ? pilot.glassPitch : Mathf.Clamp(reflex.pitch + input.glassPitch, -50f, 50f);
+        float GlassRoll => !float.IsNaN(debugGlassRoll) ? debugGlassRoll : debugAutopilot ? pilot.glassRoll : Mathf.Clamp(reflex.roll + input.glassRoll, -50f, 50f);
         readonly GlassReflex reflex = new GlassReflex();
 
         Quaternion GlassRotation() => sled.Orientation * Quaternion.Euler(GlassPitch, 0f, -GlassRoll);
@@ -1009,6 +1154,24 @@ namespace SledSurfers
 
         /// Test: kamerayı bir noktaya sabitler (yüzey yakın çekimleri). null = normal kamera.
         Vector3? debugCamPos, debugCamLook;
+
+        /// Inspect roughly 140 m of terrain from above; null restores the ordinary camera and UI.
+        public void DebugSnowView(float? z)
+        {
+            RequireSnowShot();
+            debugCamPos = debugCamLook = null;
+            ui.DebugSetVisible(!z.HasValue);
+            if (z.HasValue)
+            {
+                float at = Mathf.Clamp(z.Value, 0f, track.finishZ - 70f);
+                float x = track.CenterX(at), y = track.Height(at), high = y;
+                for (float sample = at - 70f; sample <= at + 70f; sample += 5f)
+                    high = Mathf.Max(high, track.Height(sample));
+                debugCamLook = new Vector3(x, y + 1f, at);
+                debugCamPos = new Vector3(x + 24f, high + 58f, at - 85f);
+            }
+            SnapCamera();
+        }
 
         /// Verilen türdeki 300 m'den sonraki ilk lekeye 9 m geriden, 4,5 m yukarıdan bakar (false: kamerayı serbest bırakır).
         public bool DebugViewSurface(Surface type, bool on = true)
@@ -1148,6 +1311,8 @@ namespace SledSurfers
 
         void WireUi()
         {
+            ui.PauseRequested += () => SetPaused(true);
+            ui.ResumeRequested += () => SetPaused(false);
             ui.Retry += EnterAim;
             ui.OpenShop += () => ui.ShowShop(save.gems, CoinPackAmounts(), save.FreeGemsLeft);
             ui.ShopFreeGem += () =>
@@ -1394,6 +1559,10 @@ namespace SledSurfers
                 canGlide = sled.WingsOpen,
                 dragging = aimDragging,
                 tiltMode = input.TiltMode,
+                mobileControls = input.TouchMode,
+                hasWings = cfg.wingArea > 0f,
+                wingSecondsLeft = Mathf.Max(0f, cfg.glideTime - sled.airTime),
+                rocketNeedsLanding = sled.pickupAwaitingLanding && sled.rocketCharges <= 1,
                 glassRect = rider.glassCam.rect,
                 lidLeft = lidOpen ? 0f : cfg.lidDistance - (state == State.Run ? sled.position.z : 0f),
                 trackIndex = save.track,

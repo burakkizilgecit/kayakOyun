@@ -1,0 +1,85 @@
+PARKURA GORE ANA EKRAN TEMALARI — 14 Ekim 2026
+
+Uygulanan tasarim
+0 Clover Valley: yesil tepeler, yonca, cim ve papatya.
+1 Whispering Woods: agac taclari, yapraklar, yosun ve ahsap cerceve.
+2 Sunset Canyon: kizil kayalar, mesa ve kaktus.
+3 Frostpeak Summit: onaylanan karli tasarim korundu.
+4 Golden Dunes: altin kum tepeleri, palmiye ve turkuaz detaylar.
+5 Ember Peak: obsidyen, lav ve volkan taci.
+6 Red Planet Rush: kraterli gezegen, yorunge, mor metal ve bakir detaylar.
+
+Her yeni temanin parkur tabelasi, PLAY tusu ve yukseltme paneli icin uc adet
+ozgun alfa kanalli PNG'si bulunur. Toplam 18 yeni gorsel. Metinler, ilerleme,
+fiyatlar ve kartlar yerel UI Toolkit ogeleri olmaya devam eder.
+Kategori renkleri ve ekipman gorselleri korunur; kart cerceveleri, kategori
+seritleri, bilgi yazilari ve ilerleme cubugu secilen temanin paletine uyarlanir.
+
+Bu adimda degisen kod
+- Assets/Scripts/UI/GameUI.cs: uc kalici sanat katmani, secili parkur degisince
+  tema uygulama, kart/ilerleme/yazi renkleri ve kis stiline donus.
+- Assets/Scripts/UI/HomeTrackTheme.cs (+meta): parkur-tema eslemesi, kaynaklari
+  gerektiginde yukleme, en son iki temayi tutma, eski kaynaklari bosaltma,
+  tek geometri geri cagrisi ve panel icin nine-slice ayari.
+- Assets/Editor/HomeThemeAssets.cs (+meta): yalniz HomeThemes PNG'lerine ait
+  Sprite importer; 1024 ust sinir, alpha, bilinear, clamp, mipmap kapali,
+  Read/Write kapali, FullRect. Mevcut kis importer'i degismedi.
+- Assets/Scripts/Game/AutoShot.cs: -shots themes ile yalitilmis test kaydinda
+  yedi tema, farkli ekran oranlari, safe area ve tema donus kontrolleri.
+
+Yeni gorsel dizinleri
+Assets/Resources/UI/HomeThemes/{meadow,forest,canyon,desert,volcano,mars}/
+Her dizinde track-plaque.png, play-button.png, upgrade-panel.png ve Unity
+meta dosyalari bulunur. PNG'ler imagegen ciktisindan degistirilmeden kopyalandi.
+
+Uretim istemleri ve kaynaklar
+- Tools/home-theme-art-meadow-forest.txt
+- Tools/home-theme-art-canyon-desert.txt
+- Tools/home-theme-art-mars-volcano.txt
+- Tools/home-theme-art-volcano-prompts.txt
+- Tools/home-theme-art-root-sources.txt
+
+Korunan islevler
+Penguen, kizak/ekipman modelleri, materyaller, animasyonlar ve parkur ortamlari
+degistirilmedi. Oyun fizigi, ekonomi, parkur hedefleri, yukseltme hesaplari,
+enerji ve kayit sistemi degistirilmedi. Mevcut menuler, PLAY, oduller ve
+yukseltme dugmeleri ayni callback ve veri kaynaklarini kullanir.
+Ekran goruntulerindeki tutarlar/mesafeler oyun verisidir; referans gorselden
+kopyalanmis sabit degerler degildir. Test kayit on eki autotest. olarak ayridir.
+
+Gorsel ve teknik dogrulama
+- Windows oyuncu derlemesi: basarili, 0 derleme hatasi.
+- Yedi tema 540x1170 boyutunda gercek D3D11 oyuncusunda goruntulendi.
+- Orman ve Mars 540x960, 540x1200 ve simule safe area ile goruntulendi.
+- Tabelalar, PLAY, panel/kart kenarlari, metin okunurlugu ve karakterin acikta
+  kalmasi goruntuler uzerinde tek tek incelendi; belirgin UI kirpilmasi yok.
+- Tema dongusu: kis -> orman -> Mars -> kis. Kis gorselleri ve dilimleme geri
+  geldi; her adimda tek tema sinifi ve her sanat katmanindan bir adet var.
+- UI agaci 213 ogede sabit; sadece panelde tek yeniden boyutlandirma callback'i
+  var; tema varlik onbellegi en fazla iki set. Kaynak eksigi/exception yok.
+- Tema logu: Tools/out/home-themes-v1.log
+- Ekran ve yerlesim raporlari: Tools/out/home-themes-v1/
+- Karsilastirma galerisi: Tools/out/home-themes-gallery.html
+- Mevcut menu/odul/yukseltme/PLAY regresyonu: Tools/out/home-themes-functional.log
+- Islev regresyonu PASS: uc portre boyutu, safe area, coin/gem/MAX/yetersiz
+  bakiye yukseltme yollari, menu gecisleri ve PLAY; gercek oyuncu kaydi korunur.
+- Bagimsiz kontrol: 16 tema raporunda 48 gorsel denetimi; 13 yerlesim raporunda
+  195 dugme guvenli alan icinde. Galeride 13/13 dosya mevcut.
+- Korunan oyun/karakter/ekipman/ortam dosyalari: 400/400 SHA-256 ayni.
+- Onceki onayli HomeWinter dosyalari (PNG ve meta): 8/8 SHA-256 ayni.
+
+Sinirlar
+Gorsel ve fonksiyon testleri Windows D3D11 oyuncusunda yapildi. Safe area
+testi simule edildi. Fiziksel Android telefonda FPS, bellek ve dokunma hissi
+bu ortamda olculmedi; cihaz testi kullaniciya hazirlanan APK ile yapilabilir.
+
+Android teslimi
+Builds/Android/SledSurfers-test.apk
+Derleme: basarili, 0 hata. 73.918.086 bayt (70,5 MiB).
+ARM64, en az Android 8 / API 26; hedef API 36. Development test surumu.
+Paket: com.sledsurfers.sledrunner, versionName 1.0, versionCode 1.
+apksigner verify: basarili, APK Signature Scheme v2.
+SHA-256: 00D5B854583ADCF6D1AC2BC9C9C7B098295711AB652F87153EA156BA8831DC67
+Derleme logu: Tools/out/home-themes-android.log
+Android derlemesinden sonra korunan 400 dosya ve 8 kis dosyasi yeniden
+karsilastirildi; degisen dosya sayisi 0.

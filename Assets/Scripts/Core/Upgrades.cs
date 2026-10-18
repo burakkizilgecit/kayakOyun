@@ -5,7 +5,7 @@ namespace SledSurfers
     public enum UpgradeType { Slingshot, Runners, Glass, Income, Rocket }
 
     /// Yükseltmeler pist başınadır (kullanıcı kararı 2026-10-09): yeni piste geçince beş kart da en baştan başlar.
-    /// Her kart pistin aşama sayısı kadar ana seviyedir (Çayır ve Orman 5, zor pistler 6), her ana seviye 4 kademe.
+    /// Her kart pistin aşama sayısı kadar ana seviyedir (Çayır ve Orman 5, zor pistler 6), her ana seviye 5 kademe.
     /// Ana seviye bitince parça araçta görünür biçimde değişir (Stage). Kademenin gücü pistin güç aralığına eşlenir
     /// (TrackLibrary.PowerStart/PowerEnd): 0. kademe o pist için zayıf bir başlangıç, son kademe pisti rahat bitirir.
     public static class Upgrades
@@ -89,6 +89,17 @@ namespace SledSurfers
             return Mathf.Lerp(table[i], table[i + 1], p - i);
         }
 
+        // Keep existing within-stage bonuses. A new model must at least match the previous
+        // stage's last purchase; this also covers the crystal/gold stages with smaller table gaps.
+        static float CupValue(float[] table, int level, float perLevel)
+        {
+            int stage = Mathf.Clamp(Stage(level), 0, table.Length - 1);
+            float floor = table[0];
+            for (int i = 1; i <= stage; i++)
+                floor = Mathf.Max(table[i], floor + perLevel * (StageSize - 1));
+            return floor + perLevel * Mathf.Max(0, level - stage * StageSize);
+        }
+
         public static int Cost(int type, int level)
         {
             float price = baseCosts[type] * TrackLibrary.CostScale[Track] * Mathf.Pow(growth[type], Mathf.Min(level, Knee))
@@ -163,8 +174,8 @@ namespace SledSurfers
             c.glassRadius = glassRadius[g];
             c.glassHeight = glassHeight[g];
             // Aynı bardakta her kademe biraz daha sönümlü ve ağzına 1 mm daha boşluk.
-            c.sloshDamping = glassDamping[stage] + 0.02f * (gl - stage * StageSize);
-            c.milkHeadroom = (glassHeadroom[stage] + 0.001f * (gl - stage * StageSize)) * TrackLibrary.MilkHeadroomScale[Track];
+            c.sloshDamping = CupValue(glassDamping, gl, 0.02f);
+            c.milkHeadroom = CupValue(glassHeadroom, gl, 0.001f) * TrackLibrary.MilkHeadroomScale[Track];
             c.glassGold = gl >= Max;
             c.glassStage = stage;
             c.glassModel = g;

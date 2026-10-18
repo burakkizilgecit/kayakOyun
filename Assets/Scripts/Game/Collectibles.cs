@@ -18,10 +18,11 @@ namespace SledSurfers
             public bool gem, taken, small;   // small: köprü tablasında (görüşü kapatmasın)
             public bool gone;                // önceki denemelerde toplandı: pistte yok (kayıttan)
             public Transform tf;
+            public Vector3 baseScale;
             public float phase, popClock = -1f;
         }
 
-        readonly List<Item> items = new List<Item>();
+        readonly List<Item> items;
         readonly Transform root;
 
         public int coins, gems;   // bu atışta toplananlar
@@ -38,6 +39,16 @@ namespace SledSurfers
             root = new GameObject("Collectibles").transform;
             root.SetParent(parent, false);
             if (track.hasRocketPickup) BuildRocketPickup(track.rocketPickup);
+            items = CreateItems(track);
+            foreach (var it in items) { if (it.gem) GemCount++; else CoinCount++; }
+            Spawn();
+        }
+
+        // Runtime and economy checks share the same finite inventory and item order.
+        static List<Item> CreateItems(TrackProfile track)
+        {
+            var items = new List<Item>();
+            void Add(Vector3 pos, bool gem) => items.Add(new Item { pos = pos, gem = gem, phase = pos.z * 0.37f });
             var rng = new System.Random(track.name.GetHashCode() ^ 0x5eed);
             float R(float a, float b) => a + (b - a) * (float)rng.NextDouble();
 
@@ -127,49 +138,19 @@ namespace SledSurfers
                 Add(new Vector3(gx, track.Height(gx, z) + 1.1f, z), true);
             }
 
-            foreach (var it in items) { if (it.gem) GemCount++; else CoinCount++; }
-            Spawn();
+            return items;
         }
 
-        /// Pistteki elmasların z konumları, kurulumla aynı kural (köprü ortası, köprüsüz çukur yayının tepesi,
-        /// %45 ve %82). Simler elmas gelirini bununla hesaplar; kurulum kuralı değişirse bu da değişmeli.
-        public static List<float> GemZs(TrackProfile track)
+        /// Exact runtime positions; each item is available once until the daily reset.
+        public static List<float> CoinZs(TrackProfile track) => ItemZs(track, false);
+        public static List<float> GemZs(TrackProfile track) => ItemZs(track, true);
+
+        static List<float> ItemZs(TrackProfile track, bool gems)
         {
             var list = new List<float>();
-            foreach (var b in track.bridges)
-            {
-                int n = Mathf.Max(3, Mathf.RoundToInt((b.r1 - b.r0) / 2.2f));
-                list.Add(Mathf.Lerp(b.r0, b.r1, (float)(n / 2) / n));
-            }
-            foreach (var w in track.water)
-            {
-                if (track.BridgeAt((w.x + w.y) * 0.5f, out _)) continue;
-                float z0 = w.x - 2f, z1 = w.y + 2f;
-                int n = Mathf.Clamp(Mathf.RoundToInt((z1 - z0) / 3.2f), 4, 40);
-                list.Add(Mathf.Lerp(z0, z1, (float)(n / 2) / n));
-            }
-            foreach (float f in new[] { 0.45f, 0.82f })
-            {
-                float z = track.finishZ * f;
-                for (int k = 0; k < 20 && NearWaterZ(track, z, 8f); k++) z += 6f;
-                list.Add(z);
-            }
+            foreach (var it in CreateItems(track)) if (it.gem == gems) list.Add(it.pos.z);
             list.Sort();
             return list;
-        }
-
-        static bool NearWaterZ(TrackProfile track, float z, float margin)
-        {
-            foreach (var w in track.water)
-                if (z > w.x - margin && z < w.y + margin) return true;
-            return false;
-        }
-
-        static bool Blocked(TrackProfile track, float lane, float z0, float z1)
-        {
-            foreach (var o in track.obstacles)
-                if (o.z > z0 - 4f && o.z < z1 + 4f && Mathf.Abs(o.x - (track.PathX(o.z) + lane)) < o.halfWidth + 1.4f) return true;
-            return false;
         }
 
         /// Elmasların pistteki z konumları (ilerleme çubuğu için).
@@ -179,8 +160,6 @@ namespace SledSurfers
             foreach (var it in items) if (it.gem && !it.gone) list.Add(it.pos.z);
             return list;
         }
-
-        void Add(Vector3 pos, bool gem) => items.Add(new Item { pos = pos, gem = gem, phase = pos.z * 0.37f });
 
         void Spawn()
         {
@@ -228,6 +207,7 @@ namespace SledSurfers
                 foreach (var r in go.GetComponentsInChildren<Renderer>()) r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 go.transform.position = it.pos;
                 it.tf = go.transform;
+                it.baseScale = it.tf.localScale;
             }
         }
 
@@ -316,7 +296,7 @@ namespace SledSurfers
                 it.popClock = -1f;
                 it.tf.gameObject.SetActive(!it.gone);
                 it.tf.position = it.pos;
-                it.tf.localScale = Vector3.one;
+                it.tf.localScale = it.baseScale;
             }
         }
 
@@ -365,7 +345,7 @@ namespace SledSurfers
                     it.popClock += dt;
                     float t = it.popClock / 0.35f;
                     it.tf.position = it.pos + Vector3.up * (2.5f * t);
-                    it.tf.localScale = Vector3.one * Mathf.Max(0f, 1f + 0.4f * t - 1.4f * t * t);
+                    it.tf.localScale = it.baseScale * Mathf.Max(0f, 1f + 0.4f * t - 1.4f * t * t);
                     if (t >= 1f) it.tf.gameObject.SetActive(false);
                     continue;
                 }
@@ -373,8 +353,8 @@ namespace SledSurfers
                 it.tf.position = it.pos + Vector3.up * bob;
                 // Kızağın gerisinde kalan (toplanmamış) altın kameranın dibinde dev görünüyordu: geride kaldıkça küçülür.
                 float behind = sledZ - it.pos.z;
-                if (behind > 0.5f) it.tf.localScale = Vector3.one * Mathf.Clamp01(1f - (behind - 0.5f) / 3f);
-                else if (it.tf.localScale.x < 1f) it.tf.localScale = Vector3.one;
+                if (behind > 0.5f) it.tf.localScale = it.baseScale * Mathf.Clamp01(1f - (behind - 0.5f) / 3f);
+                else it.tf.localScale = it.baseScale;
                 it.tf.rotation = Quaternion.Euler(0f, time * (it.gem ? 90f : 180f) + it.phase * 40f, 0f);
             }
         }
