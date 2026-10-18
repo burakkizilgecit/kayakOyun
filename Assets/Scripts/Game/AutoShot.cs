@@ -215,12 +215,90 @@ namespace SledSurfers
                 Application.Quit();
                 yield break;
             }
+            if (mode == "gallery")
+            {
+                // İnceleme galerisi: her pistin aracı (kızak kartı, her kademe: kanatlar her kademede büyür), sapan, roket,
+                // bardak ve gelir kartları (her aşama), kalıcı parçalar. Kartlardaki 3D önizlemeyle aynı kurucular.
+                yield return new WaitForSeconds(1f);
+                var pv = PartPreview.Instance;
+                int savedTrack = Upgrades.Track, savedTier = Upgrades.PartTier;
+                var dir = Path.Combine(folder, "gallery");
+                Directory.CreateDirectory(dir);
+                var lines = new System.Text.StringBuilder();
+                void Card(int type, int level, string file, string label)
+                {
+                    pv.SaveCard(type, level, Path.Combine(dir, file));
+                    lines.AppendLine(file + "	" + label);
+                }
+                Upgrades.Track = 0;
+                Upgrades.PartTier = 0;
+                foreach (var type in new[] { UpgradeType.Slingshot, UpgradeType.Rocket, UpgradeType.Glass, UpgradeType.Income })
+                    for (int st = 0; st <= 5; st++)
+                    {
+                        int lv = Mathf.Min(st * Upgrades.StageSize, Upgrades.MaxFor(6));
+                        Upgrades.Track = st >= 5 ? 6 : 0;   // 6. aşama yalnız 30 kademeli pistlerde
+                        Card((int)type, lv, type.ToString().ToLowerInvariant() + "_" + st + ".png",
+                             type + "|" + (st + 1) + ". aşama · " + PartVisuals.StageName((int)type, st) + " (kademe " + lv + ")");
+                        yield return null;
+                    }
+                for (int tr = 0; tr < TrackLibrary.Count; tr++)
+                {
+                    Upgrades.Track = tr;
+                    Upgrades.PartTier = tr;   // o piste gelen oyuncunun kalıcı parçaları
+                    for (int lv = 0; lv <= Upgrades.MaxFor(tr); lv++)
+                    {
+                        Card((int)UpgradeType.Runners, lv, "vehicle_t" + tr + "_" + lv.ToString("00") + ".png",
+                             "Vehicle " + tr + "|" + TrackLibrary.Names[tr] + " · kademe " + lv + " · " + PartVisuals.StageName((int)UpgradeType.Runners, Upgrades.Stage(lv)));
+                        yield return null;
+                    }
+                }
+                for (int parts = 0; parts <= Upgrades.PartNames.Length; parts++)
+                {
+                    int tr = Mathf.Min(parts, TrackLibrary.Count - 1);
+                    Upgrades.Track = tr;
+                    pv.SaveUnlock(TrackLibrary.Vehicles[tr], parts, Path.Combine(dir, "parts_" + parts + ".png"));
+                    lines.AppendLine("parts_" + parts + ".png	Parts|" + (parts == 0 ? "Parçasız" : parts + " parça · son: " + Upgrades.PartNames[parts - 1]) + " (" + TrackLibrary.Names[tr] + " aracı)");
+                    yield return null;
+                }
+                Upgrades.Track = savedTrack;
+                Upgrades.PartTier = savedTier;
+                File.WriteAllText(Path.Combine(dir, "index.tsv"), lines.ToString());
+                Application.Quit();
+                yield break;
+            }
+            if (mode == "gems")
+            {
+                // Elmaslar: her elmasa 18 m kala (rotanın dışında mı, yamaçta mı, derenin üstünde mi).
+                game.DebugHideTutorial();
+                game.debugAutopilot = true;
+                foreach (int tr in new[] { 0, 1, 2 })
+                {
+                    game.DebugReset(new[] { 25, 25, 20, 25, 20 }, 0);
+                    game.DebugTrack(tr, tr);
+                    yield return new WaitForSeconds(1.5f);
+                    var gemZs = game.DebugGemZs();
+                    gemZs.Sort();
+                    game.DebugAim();
+                    yield return new WaitForSeconds(0.5f);
+                    game.DebugLaunch(1f);
+                    float wt = 0f;
+                    for (int g = 0; g < gemZs.Count && g < 5; g++)
+                    {
+                        while (!game.DebugInResult && game.DebugDistance < gemZs[g] - 18f && wt < 150f) { wt += Time.deltaTime; yield return null; }
+                        if (game.DebugInResult) break;
+                        yield return Shot("g" + tr + "_" + g);
+                    }
+                }
+                SaveData.ClearAll();   // yalnız test önekli kayıt (gerçek kayıt korunur)
+                Application.Quit();
+                yield break;
+            }
             if (mode == "bridges")
             {
                 // Kıvrımlı köprüler: her pistte ilk kıvrımlı köprüye 22 m kala ve üstündeyken.
                 game.DebugHideTutorial();
                 game.debugAutopilot = true;
-                foreach (int tr in new[] { 0, 1, 2, 4, 5 })
+                foreach (int tr in new[] { 2, 4, 5 })
                 {
                     game.DebugReset(new[] { 25, 25, 20, 25, 20 }, 0);
                     game.DebugTrack(tr, tr);
@@ -236,6 +314,8 @@ namespace SledSurfers
                     yield return Shot("b" + tr + "_ahead");
                     while (!game.DebugInResult && game.DebugDistance < cbz + 5f && wt < 150f) { wt += Time.deltaTime; yield return null; }
                     if (!game.DebugInResult) yield return Shot("b" + tr + "_on");
+                    while (!game.DebugInResult && game.DebugDistance < cbz + 16f && wt < 150f) { wt += Time.deltaTime; yield return null; }
+                    if (!game.DebugInResult) yield return Shot("b" + tr + "_mid");
                 }
                 SaveData.ClearAll();   // yalnız test önekli kayıt (gerçek kayıt korunur)
                 Application.Quit();

@@ -967,6 +967,7 @@ namespace SledSurfers.EditorTools
             Debug.Log("[YAKLAŞIM] " + TrackLibrary.ApproachLog);
             var cfg = Upgrades.BuildConfig(lv);
             var sb = new StringBuilder("[SIM] Köprü düşmeleri " + t.name + " (" + SimPlayer.Name(kind) + ")\n");
+            sb.AppendLine("  elmaslar z: " + string.Join(", ", Collectibles.GemZs(t).ConvertAll(z => z.ToString("F0"))));
             foreach (var b in t.bridges) sb.AppendLine("  köprü " + b.r0.ToString("F0") + "-" + b.r1.ToString("F0") + " x " + b.x.ToString("F1") + " şekil " + b.shape + " kıvrım " + b.bend.ToString("F1"));
             for (int seed = 1; seed <= 10; seed++)
             {

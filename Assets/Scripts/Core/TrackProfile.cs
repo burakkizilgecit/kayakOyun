@@ -105,7 +105,8 @@ namespace SledSurfers
         /// ip cambazlığı yapmamalı).
         /// shape/bend (kullanıcı 2026-10-18: köprüler hep dümdüzdü, bazıları dönemeçli ve zorlayıcı olmalı): tabla derenin
         /// üstünde (r0..r1) yana kıvrılır. 0 düz, 1 yay (ortada bend kadar yana), 2 S (bir yana sonra öbür yana),
-        /// 3 çapraz (girişte -bend, çıkışta +bend; yumuşak geçiş). Kıyıdaki uçlar hep düz.
+        /// 3 çapraz (girişte -bend, çıkışta +bend; yumuşak geçiş), 4 zikzak (çok zor: uzun tablada iki tam kıvrım, uçlarda
+        /// düz girer çıkar). Kıyıdaki uçlar hep düz.
         public struct Bridge
         {
             public float z0, z1, r0, r1, x, y0, y1, hw, bend;
@@ -121,6 +122,9 @@ namespace SledSurfers
                 {
                     case 1: return x + bend * Mathf.Sin(Mathf.PI * u);
                     case 2: return x + bend * Mathf.Sin(2f * Mathf.PI * u);
+                    // Zikzak: kıvrımlar ortada tam, uçlara doğru küçülür (çıkıştaki son keskin kıvrımda simde ortalama oyuncu
+                    // 10'da 9 düşüyordu).
+                    case 4: return x + bend * Mathf.Sin(4f * Mathf.PI * u) * Mathf.Sin(Mathf.PI * u);
                     default: return x + bend * (2f * Mathf.SmoothStep(0f, 1f, u) - 1f);
                 }
             }
@@ -433,6 +437,20 @@ namespace SledSurfers
 
         public static float DeckHeight(Bridge b, float z) => Mathf.Lerp(b.y0, b.y1, Mathf.InverseLerp(b.z0, b.z1, z));
 
+        /// (x, z) tablada ama z±d tablanın dışında mı (kıvrımlı tablada kenara yakın)?
+        bool DeckEdge(float x, float z, float d, out Bridge bridge)
+        {
+            foreach (var b in bridges)
+                if (z >= b.z0 && z <= b.z1 && Mathf.Abs(x - b.XAt(z)) <= b.HalfWidth)
+                {
+                    bridge = b;
+                    bool inside(float zz) => zz >= b.z0 && zz <= b.z1 && Mathf.Abs(x - b.XAt(zz)) <= b.HalfWidth;
+                    return (z + d <= b.z1 && !inside(z + d)) || (z - d >= b.z0 && !inside(z - d));
+                }
+            bridge = default;
+            return false;
+        }
+
         /// Köprü tablasının üstünde mi?
         public bool OnDeck(float x, float z)
         {
@@ -503,7 +521,14 @@ namespace SledSurfers
         public float SlopeX(float x, float z) => OnDeck(x, z) ? 0f : (Height(x + 0.1f, z) - Height(x - 0.1f, z)) / 0.2f;   // tabla enine düz
 
         /// Kızağın x konumunda ileri eğim dH/dz (kıvrımın yamaç etkisi dahil).
-        public float SlopeZ(float x, float z) => (Height(x, z + step) - Height(x, z - step)) / (2f * step);
+        /// Tablanın üstünde eğim tablanın kendisinden: kıvrımlı tablada z±step örneği tablanın dışına (5 m aşağıdaki dere
+        /// yatağına) düşüp sahte bir duvar eğimi veriyor, kızak tablanın ortasında bir anda duruyordu.
+        public float SlopeZ(float x, float z)
+        {
+            // Yalnız örneklerden biri tablanın dışına düşüyorsa (kıvrımlı tablanın kenarı): düz tablada eski hesap aynen.
+            if (DeckEdge(x, z, step, out var b)) return (b.y1 - b.y0) / (b.z1 - b.z0);
+            return (Height(x, z + step) - Height(x, z - step)) / (2f * step);
+        }
 
         /// Kuş sürüsünün t anındaki merkezi (atışın kendi saatine göre: fizik ve görüntü aynı yeri kullanır).
         public Vector3 FlockCenter(Flock f, float t) =>
@@ -514,6 +539,7 @@ namespace SledSurfers
 
         public float CurvatureAt(float x, float z)
         {
+            if (DeckEdge(x, z, 0.5f, out _)) return 0f;   // tabla düz (bkz. SlopeZ)
             const float d = 0.5f;
             float second = (Height(x, z + d) - 2f * Height(x, z) + Height(x, z - d)) / (d * d);
             float first = SlopeZ(x, z);

@@ -117,6 +117,36 @@ namespace SledSurfers
             Shoot(root, view, targets[type]);
         }
 
+        /// Galeri (inceleme dosyası): bir kartın verilen seviyedeki görünümünü büyük boyutta PNG'ye yazar.
+        public void SaveCard(int type, int level, string path, int width = 900, int height = 700)
+        {
+            var rt = new RenderTexture(width, height, 16, RenderTextureFormat.ARGB32) { antiAliasing = 4, name = "Gallery" };
+            rt.Create();
+            var saved = targets[type];
+            targets[type] = rt;
+            Render(type, Mathf.Clamp(Upgrades.Stage(level), 0, 5), level);
+            targets[type] = saved;
+            shown[type] = -1;
+            WritePng(rt, path);
+            rt.Release();
+            Object.Destroy(rt);
+        }
+
+        /// Galeri: aracın kalıcı parçalarıyla görünüşü.
+        public void SaveUnlock(VehicleKind kind, int parts, string path) => WritePng((RenderTexture)RenderUnlock(kind, parts), path);
+
+        static void WritePng(RenderTexture rt, string path)
+        {
+            var prev = RenderTexture.active;
+            RenderTexture.active = rt;
+            var tex = new Texture2D(rt.width, rt.height, TextureFormat.RGBA32, false);
+            tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
+            tex.Apply();
+            RenderTexture.active = prev;
+            System.IO.File.WriteAllBytes(path, tex.EncodeToPNG());
+            Object.Destroy(tex);
+        }
+
         RenderTexture unlockTarget;
 
         /// Parça duyurusu: aracın (kanat ve kalıcı parçalarıyla) arkadan 3/4 görünüşü.

@@ -102,13 +102,17 @@ namespace SledSurfers
                     Coin(zz, track.GuideX(zz));
                 }
 
-            // 2) Köprü tablasının ortasında pembe elmas: düz ve tam ortadan geçmenin ödülü.
+            // Elmaslar düz rotada değil (kullanıcı 2026-10-18): almak için hızdan ya da güvenden ödün verilir.
+            // 2) Köprüde elmas tablanın dışında, derenin üstünde (sırayla sağda, solda): toplama yarıçapı (1.6 m) ortadan
+            // geçen kızağa yetmez, tablanın en kenarından gitmek gerekir.
+            int bridgeSide = 1;
             foreach (var b in track.bridges)
             {
                 int n = Mathf.Max(3, Mathf.RoundToInt((b.r1 - b.r0) / 2.2f));
                 float zz = Mathf.Lerp(b.r0, b.r1, (float)(n / 2) / n);
-                Add(new Vector3(b.XAt(zz), TrackProfile.DeckHeight(b, zz) + 0.6f, zz), true);
+                Add(new Vector3(b.XAt(zz) + bridgeSide * (b.HalfWidth + 0.9f), TrackProfile.DeckHeight(b, zz) + 0.6f, zz), true);
                 items[items.Count - 1].small = true;
+                bridgeSide = -bridgeSide;
             }
 
             // 3) Köprüsüz çukurların üstünde, atlayışın tepesinde pembe elmas; iki yanında birer altın.
@@ -129,13 +133,24 @@ namespace SledSurfers
                 }
             }
 
-            // 4) Pistin zor kısımlarında birer elmas (iyi atışların ödülü).
+            // 4) Pistin %45 ve %82'si civarında, bir tepenin üstünde ve rotanın yanında (sırayla sağ, sol): yan yamaçlı
+            // pistte yamacın üstünde (tırmanmak hız yer), düz ormanda tepede rotadan 5-6 m açıkta (sapmak yol uzatır).
+            int gemSide = 1;
             foreach (float f in new[] { 0.45f, 0.82f })
             {
-                float z = track.finishZ * f;
-                for (int k = 0; k < 20 && NearWater(z, 8f); k++) z += 6f;
-                float gx = track.GuideX(z);
+                float z = track.finishZ * f, best = float.MinValue;
+                for (float c = track.finishZ * f - 60f; c <= track.finishZ * f + 60f; c += 2f)
+                {
+                    if (NearWater(c, 10f) || NearFork(c)) continue;
+                    float hump = track.Height(c) - 0.5f * (track.Height(c - 30f) + track.Height(c + 30f));
+                    if (hump > best) { best = hump; z = c; }
+                }
+                float gx = track.bankScale > 0f ? track.CenterX(z) + gemSide * (track.halfWidth + 4f)
+                                                : track.PathX(z) + gemSide * 5.5f;
+                foreach (var o in track.obstacles)
+                    if (Mathf.Abs(o.z - z) < 3f && Mathf.Abs(o.x - gx) < o.halfWidth + 1.5f) gx -= gemSide * 2.5f;
                 Add(new Vector3(gx, track.Height(gx, z) + 1.1f, z), true);
+                gemSide = -gemSide;
             }
 
             return items;

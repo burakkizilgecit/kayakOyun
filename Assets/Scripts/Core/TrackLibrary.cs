@@ -241,7 +241,14 @@ namespace SledSurfers
                     float amp = (float)crnd.NextDouble();
                     // İki ve daha çok köprülü pistte en az biri kıvrımlı: rastlantı hepsini düz bırakmasın (son köprü).
                     bool anyCurved = t.bridges.Exists(x => x.shape != 0);
-                    if (k > 0 && track >= 0 && (roll < BridgeCurveChance[track] || (k == bridges.Count - 1 && !anyCurved)))
+                    if (b.y - b.x >= HardBridgeSpan - 2f)
+                    {
+                        br.shape = 4;
+                        // Geç pistlerde (araçlar orada yavaş gelir) daha geniş kıvrım: simde Dunes/Ember zikzağı neredeyse hiç düşürmüyordu.
+                        br.bend = Mathf.Lerp(1f, 1.25f, amp) * (track >= 4 ? 1.25f : 1f) * (crnd.Next(2) == 0 ? -1f : 1f);
+                        br.hw = CurvedBridgeHalfWidth;
+                    }
+                    else if (k > 0 && track >= 0 && (roll < BridgeCurveChance[track] || (k == bridges.Count - 1 && !anyCurved)))
                     {
                         br.shape = 1 + crnd.Next(3);
                         float scale = Mathf.Clamp01((b.y - b.x) / 16f);
@@ -412,6 +419,12 @@ namespace SledSurfers
         public static string ApproachLog = "";   // test: hangi köprüye hangi yaklaşım tipi (pist:tip@z)
         /// Köprünün kıvrımlı olma olasılığı (ilk köprü hariç); geç pistlerde daha sık.
         public const float CurvedBridgeHalfWidth = 1.05f;
+        /// Zikzak köprü: tabla bu boydan uzunsa iki tam kıvrım çizer. Kızak yana en çok 16 m/s² döner: 28 m'de ~1 m
+        /// genlikli zikzak ~11 m/s'ye kadar izlenebilir; daha hızlı gelen iyi çizgi bulmalı (çok zor olması istendi).
+        public const float HardBridgeSpan = 28f;
+        /// İlk harita (öğrenme) ve Orman (zaten kayık dereler, zikzak son yokuşta 10'da 7-9 düşürüyordu) zikzaksız; çizimli
+        /// pistlerde dere listesinde (Kanyon'un son deresi).
+        public static float[] HardBridgeChance = { 0f, 0f, 0.6f, 0.6f, 0.7f, 0.7f, 0.7f };
         public static float[] BridgeCurveChance = { 0.5f, 0.6f, 0.6f, 0.6f, 0.65f, 0.7f, 0.7f };
         public static float[] BridgeWave = { 1f, 0.9f, 0.5f, 0.5f, 0.5f, 0.45f, 0.4f };
         public static Vector2 BridgeSpan = new Vector2(14f, 22f);
@@ -433,6 +446,8 @@ namespace SledSurfers
             var rnd = new System.Random(seed);
             var brnd = new System.Random(seed ^ 0xb21d);   // köprüler ayrı: pistin geri kalanının dizilişi değişmesin
             var frnd = new System.Random(seed ^ 0xf04c);   // çatallar da ayrı
+            var hrnd = new System.Random(seed ^ 0x2196);   // zikzak köprü ayrı: diğer köprülerin dizilişi değişmesin
+            bool hardBuilt = false;
             float R(float a, float b) => a + (b - a) * (float)rnd.NextDouble();
             var obstacles = new List<Vector2>();
             void Pickup(float ahead)
@@ -485,6 +500,8 @@ namespace SledSurfers
                     kick = false;
                     kickH = 0f;
                     float span = Mathf.Lerp(BridgeSpan.x, BridgeSpan.y, t);
+                    // Çok zor zikzak köprü (kullanıcı 2026-10-18): pistin ikinci yarısında en çok bir tane, uzun tabla.
+                    if (!hardBuilt && t > 0.45f && hrnd.NextDouble() < HardBridgeChance[track]) { span = HardBridgeSpan; hardBuilt = true; }
                     // Kanal çıkışından 20 m sonra: kızak biraz yavaşlamış, köprüye hizalanacak zaman var.
                     // Uzun kanaldan çıkan kızak hızlı: köprüye 40 m'lik yamaçla yaklaşır (yavaşlasın, hizalansın).
                     // Kanaldan yamaca ani geçişte hızlı kızak havalanıp köprüye havadan iniyordu: önce ara eğimli 20 m.
@@ -1186,7 +1203,7 @@ namespace SledSurfers
         /// Uçurum kenarları (yuvarlak tepenin bitişi, dudak): yumuşatma silmesin, iniş alanında vadi düz.
         static readonly Vector2[] CanyonEdges = { new Vector2(216f, 224f), new Vector2(500f, 508f), new Vector2(860f, 868f), new Vector2(1130f, 1138f) };
         /// Dar köprülü dereler: yokuş çıkışlarında (kızak yerde, yavaşlıyor), köprü patikada.
-        static readonly Vector3[] CanyonCreeks = { new Vector3(392f, 14f, 0f), new Vector3(800f, 14f, 0f), new Vector3(1024f, 14f, 0f) };
+        static readonly Vector3[] CanyonCreeks = { new Vector3(392f, 14f, 0f), new Vector3(800f, 14f, 0f), new Vector3(1030f, HardBridgeSpan, 0f) };
         /// Çatallar yatık platolarda (z başı, tip, altınlı şerit): kenardan inişten ve köprüden uzakta.
         static readonly Vector3[] CanyonForks = { new Vector3(430f, 1f, 1f), new Vector3(1062f, 2f, -1f) };
 
