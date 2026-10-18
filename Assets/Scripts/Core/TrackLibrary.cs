@@ -1065,7 +1065,9 @@ namespace SledSurfers
                     p.points.Add(new Vector2(a.x + 1.5f, bed));
                     p.points.Add(new Vector2(b.x - 1.5f, bed));
                     p.points.Add(b);
-                    p.water.Add(new Vector3(a.x + 0.5f, b.x - 0.5f, bed + 0.9f));
+                    // Su kıyının 1.2 m altında: yatakta (bed + 0.9) arkadan bakan kamerada karşı kıyının arkasında kalıp hiç
+                    // görünmüyordu, dere çimenli hendek gibi duruyordu.
+                    p.water.Add(new Vector3(a.x + 0.5f, b.x - 0.5f, Mathf.Min(a.y, b.y) - 1.2f));
                     p.bridges.Add(new Vector2(a.x, b.x));
                     p.sharp.Add(new Vector2(a.x - 3f, b.x + 3f));
                     p.straight.Add(new Vector2(a.x - 75f, b.x + 6f));
