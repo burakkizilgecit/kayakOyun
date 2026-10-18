@@ -23,7 +23,8 @@ namespace SledSurfers
         const float MaxHeading = 0.8f;   // rad (~46°): vadi kıvrılır, patika S çizer
         const float MaxSideGrip = 16f;   // m/s², yana dönüşte en büyük ivme (kıvrımlı patikayı izleyebilsin)
         const float MaxTurnRate = 1.6f;  // rad/s
-        const float DeckAlignRate = 1.0f;   // rad/s: köprü tablasında kızağın kendiliğinden hizalanma hızı
+        const float DeckAlignRate = 1.0f;
+        const float ApproachAssist = 35f, ApproachAlignRate = 0.7f;   // m, rad/s: köprüye yaklaşma yardımı   // rad/s: köprü tablasında kızağın kendiliğinden hizalanma hızı
         const float PitchRate = 1.8f;    // rad/s
         /// Kanadın profil sürükleme katsayısı. Küçük kanatlarda 0.12; büyük (üst seviye) kanatlar daha ince ve temizdir:
         /// toplam profil sürüklemesi (Cd0·alan) sabit kalır, böylece büyük kanat kızağı yavaşlatmaz, daha iyi süzülür.
@@ -301,6 +302,17 @@ namespace SledSurfers
                 float want = Mathf.Atan(deck.SlopeAt(position.z))
                              + Mathf.Clamp(0.5f * (deck.XAt(position.z) - position.x) / Mathf.Max(speed * 0.5f, 1f), -0.1f, 0.1f);
                 float turn = Mathf.Clamp(want - h, -DeckAlignRate * dt, DeckAlignRate * dt);
+                v = Quaternion.AngleAxis(turn * Mathf.Rad2Deg, n) * v;
+            }
+            // Köprüye yaklaşma yardımı (2026-10-18): son ApproachAssist metrede direksiyona sert basılmazsa kızak tablanın
+            // girişine doğru yavaşça döner. Roketle 27-32 m/s gelen ortalama oyuncu ilk (düz) köprüye 1-1.7 m kaymış girip
+            // düşüyordu (Dunes 10'da 6, Ember 10'da 4). Zikzak köprüde yardım yok: zorluğu o.
+            else if (speed > 0.5f && Mathf.Abs(steer) < 0.3f && track.BridgeAhead(position.z, ApproachAssist, out var next0) && next0.shape != 4)
+            {
+                float h = Mathf.Atan2(v.x, v.z);
+                float dist = Mathf.Max(next0.r0 - position.z, 4f);
+                float want = Mathf.Clamp(Mathf.Atan((next0.XAt(next0.r0) - position.x) / dist), -0.25f, 0.25f);
+                float turn = Mathf.Clamp(want - h, -ApproachAlignRate * dt, ApproachAlignRate * dt);
                 v = Quaternion.AngleAxis(turn * Mathf.Rad2Deg, n) * v;
             }
             if (speed > 0.3f) heading = Mathf.Atan2(v.x, Mathf.Max(v.z, 0.5f));

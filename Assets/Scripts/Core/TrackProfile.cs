@@ -467,6 +467,15 @@ namespace SledSurfers
             return false;
         }
 
+        /// z'nin önündeki (range metre içinde başlayan) köprü; tablanın üstündeyken değil.
+        public bool BridgeAhead(float z, float range, out Bridge bridge)
+        {
+            foreach (var b in bridges)
+                if (b.z0 > z && b.z0 - z < range) { bridge = b; return true; }
+            bridge = default;
+            return false;
+        }
+
         /// z bir köprü açıklığında mı (otomatik pilot ve coinler için)?
         public bool BridgeAt(float z, out Bridge bridge)
         {
