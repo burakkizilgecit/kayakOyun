@@ -175,10 +175,17 @@ namespace SledSurfers
             else
             {
                 if (pouchAttached) pouchVel = sledVelocity;   // bırakıldığı an
+                // Küçük adımlarla yarı örtük Euler: tek adımda w·dt > 2 olunca (kare 0.07 s'den uzun) yay patlıyor, lastik
+                // sonsuza gidip "abnormal mesh bounds" hatası yağdırıyordu (2026-10-18).
                 const float w = 28f, zeta = 0.1f;
-                Vector3 acc = -w * w * (pouchPos - rest) - 2f * zeta * w * pouchVel;
-                pouchVel += acc * dt;
-                pouchPos += pouchVel * dt;
+                int steps = Mathf.Clamp(Mathf.CeilToInt(dt / 0.008f), 1, 20);
+                float h = dt / steps;
+                for (int i = 0; i < steps; i++)
+                {
+                    Vector3 acc = -w * w * (pouchPos - rest) - 2f * zeta * w * pouchVel;
+                    pouchVel += acc * h;
+                    pouchPos += pouchVel * h;
+                }
             }
             pouchAttached = attached;
 

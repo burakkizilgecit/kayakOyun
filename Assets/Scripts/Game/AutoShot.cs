@@ -1511,7 +1511,7 @@ namespace SledSurfers
             yield return new WaitForEndOfFrame();
             ScreenCapture.CaptureScreenshot(Path.Combine(folder, name + ".png"));
             yield return null;
-            Debug.Log("[AUTOSHOT] " + name + " mesafe=" + game.DebugDistance.ToString("F0"));
+            Debug.Log("[AUTOSHOT] " + name + " mesafe=" + game.DebugDistance.ToString("F0") + " fps=" + (1f / Mathf.Max(Time.smoothDeltaTime, 1e-4f)).ToString("F0"));
         }
     }
 }

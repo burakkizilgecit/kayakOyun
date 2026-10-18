@@ -641,6 +641,7 @@ namespace SledSurfers
 
         Color dustColor = Color.white;
         Vector2 camDir = Vector2.up;   // koşu kamerasının yumuşatılmış yatay yönü (x, z)
+        const float CamYawLimit = 0.44f;   // rad (~25°): kameranın vadinin yönünden en çok sapması
         /// Elmasla coin paketleri: altı sabit miktar (GameUI.CoinPackCoins).
         int[] CoinPackAmounts() => GameUI.CoinPackCoins;
 
@@ -1242,12 +1243,13 @@ namespace SledSurfers
             if (hv.magnitude > 2f && !sled.launching)
             {
                 Vector2 want = hv.normalized;
-                // Kamera vadinin yönünden en çok ~7° sapar: şerit değiştirirken kızağın yanal hızı kamerayı çevirip
-                // (yokuş aşağı zeminde) ufku yatırıyordu (görsel analiz 2026-10-10). Vadi kıvrımını yine izler.
+                // Kamera vadinin yönünden en çok ~25° sapar. 2026-10-10'da ufuk yatmasın diye ~7°'ydi; kayık köprüler, yamaç
+                // elmasları ve zikzak köprülerle kızak daha çok yana gidince kamera yolu izliyor, kızak ekranda kayıyordu
+                // (kullanıcı 2026-10-18). Kamera yatmaz (yalnız sağa-sola döner), uç sapmada ufuk az eğilir.
                 float valley = Mathf.Atan2(track.CenterX(p.z + 6f) - track.CenterX(p.z - 6f), 12f);
-                float ang = Mathf.Clamp(Mathf.Atan2(want.x, want.y), valley - 0.12f, valley + 0.12f);
+                float ang = Mathf.Clamp(Mathf.Atan2(want.x, want.y), valley - CamYawLimit, valley + CamYawLimit);
                 want = new Vector2(Mathf.Sin(ang), Mathf.Cos(ang));
-                camDir = Vector2.Lerp(camDir, want, 1f - Mathf.Exp(-3f * Time.deltaTime)).normalized;
+                camDir = Vector2.Lerp(camDir, want, 1f - Mathf.Exp(-4.5f * Time.deltaTime)).normalized;
             }
             var fwd = new Vector3(camDir.x, 0f, camDir.y);
             Vector3 ahead = p + fwd * 7.5f;
