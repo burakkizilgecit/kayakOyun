@@ -7,6 +7,8 @@ namespace SledSurfers
     public static class Mats
     {
         public const int GlassLayer = 4;   // Unity'nin hazır "Water" katmanı
+        /// Yalnız bardak penceresinin kamerasının gördüğü katman (pencerenin arka planı); ana kamera görmez.
+        public const int InsetLayer = 30;
 
         static Material solidTemplate;
         static Material glassTemplate;

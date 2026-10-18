@@ -3125,6 +3125,8 @@ namespace SledSurfers
         {
             var hud = E("fill");
             glassFrame = E("glass-frame");
+            glassFrame.Add(E("glass-outline"));
+            glassFrame.Add(E("glass-gloss"));
             hud.Add(glassFrame);
 
             milkPill = E("milk-pill");
@@ -3153,9 +3155,10 @@ namespace SledSurfers
             glassFrame.style.width = width + 2f * b;
             glassFrame.style.height = height + 2f * b;
 
-            milkPill.style.left = left - b;
-            milkPill.style.width = width + 2f * b;
-            milkPill.style.top = top - b - 84f;
+            // Hap çerçevenin üst kenarına sekme gibi oturur (ayrı yüzen hap yerine).
+            milkPill.style.left = left + 6f;
+            milkPill.style.width = width - 12f;
+            milkPill.style.top = top - b - 48f;
 
             float fill = Mathf.Clamp01(h.fill);
             int pct = Mathf.RoundToInt(fill * 100f);
@@ -3176,10 +3179,14 @@ namespace SledSurfers
             // Süt ağza yaklaşınca gösterge büyür ve kızarır (dikkat bardağa); güvendeyken sade kalır.
             float risk = lid ? 0f : Mathf.Max(Mathf.InverseLerp(0.55f, 0.95f, h.milkDanger), fill < 0.3f ? 0.6f : 0f);
             milkDangerShown = Mathf.MoveTowards(milkDangerShown, risk, dt * 6f);
-            milkPill.style.opacity = Mathf.Lerp(0.8f, 1f, milkDangerShown);
-            glassFrame.style.opacity = Mathf.Lerp(0.42f, 1f, milkDangerShown);
+            milkPill.style.opacity = 1f;
+            glassFrame.style.opacity = 1f;
+            // Tehlikede çerçeve kızarır ve nabız gibi atar.
+            float pulse = milkDangerShown * (0.5f + 0.5f * Mathf.Sin(time * 9f));
             glassFrame.style.borderTopColor = glassFrame.style.borderBottomColor = glassFrame.style.borderLeftColor = glassFrame.style.borderRightColor
-                = Color.Lerp(Color.white, new Color(1f, 0.55f, 0.35f), milkDangerShown);
+                = Color.Lerp(Color.white, new Color(1f, 0.36f, 0.25f), Mathf.Max(milkDangerShown * 0.6f, pulse));
+            float fs = 1f + 0.03f * pulse;
+            glassFrame.style.scale = new Scale(new Vector2(fs, fs));
             float s = 1f + 0.12f * milkDangerShown + (fill < 0.3f ? 0.06f * Mathf.Abs(Mathf.Sin(time * 7f)) : 0f);
             milkPill.style.scale = new Scale(new Vector2(s, s));
             milkPill.style.backgroundColor = Color.Lerp(Color.white, new Color(1f, 0.45f, 0.35f), milkDangerShown);

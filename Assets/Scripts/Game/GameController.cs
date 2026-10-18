@@ -95,7 +95,7 @@ namespace SledSurfers
             sfx = new SoundFx(cam.transform);
             SoundFx.SetEnabled(save.sound);
             new PartPreview();   // kart önizlemeleri (arayüzden önce)
-            cam.cullingMask &= ~(1 << 31);
+            cam.cullingMask &= ~(1 << 31) & ~(1 << Mats.InsetLayer);
             ui = new GameUI(gameObject, sfx.Click);
             input.blocksPointer = ui.BlocksPointer;
             PushGemMarks();

@@ -7,6 +7,7 @@ namespace SledSurfers
     public class RiderView
     {
         public const float GlassScale = 2.4f;
+        public const float GlassSceneScale = 0.75f;
 
         public readonly Transform root;
         public readonly Camera glassCam;
@@ -238,9 +239,11 @@ namespace SledSurfers
                 dust = ps;
             }
 
-            var milk = Mats.Solid(new Color(0.98f, 0.97f, 0.92f), 0.5f);
+            // Süt gövdesi kremsi, yüzeyi daha beyaz ve parlak (kaymak): yüzeyin eğimi okunsun.
+            var milk = Mats.Solid(new Color(0.97f, 0.94f, 0.86f), 0.45f);
+            var cream = Mats.Glow(new Color(1f, 1f, 0.98f), new Color(0.22f, 0.22f, 0.2f), 0.85f);
             liquidBody = Mats.Prim(PrimitiveType.Cylinder, "Milk", glassPivot, Vector3.zero, Vector3.one, milk, null, Mats.GlassLayer);
-            liquidSurface = Mats.Prim(PrimitiveType.Cylinder, "Milk Surface", glassPivot, Vector3.zero, Vector3.one, milk, null, Mats.GlassLayer);
+            liquidSurface = Mats.Prim(PrimitiveType.Cylinder, "Milk Surface", glassPivot, Vector3.zero, Vector3.one, cream, null, Mats.GlassLayer);
             lid = Mats.Prim(PrimitiveType.Cylinder, "Lid", glassPivot, Vector3.zero, Vector3.one,
                             Mats.Solid(new Color(1f, 0.55f, 0.12f), 0.5f), null, Mats.GlassLayer);
 
@@ -248,13 +251,99 @@ namespace SledSurfers
             var camGo = new GameObject("Glass Camera");
             camGo.transform.SetParent(root, false);
             glassCam = camGo.AddComponent<Camera>();
-            glassCam.cullingMask = 1 << Mats.GlassLayer;
+            glassCam.cullingMask = (1 << Mats.GlassLayer) | (1 << Mats.InsetLayer);
             glassCam.clearFlags = CameraClearFlags.SolidColor;
             glassCam.backgroundColor = new Color(1f, 0.95f, 0.86f);
             glassCam.fieldOfView = 32f;
             glassCam.nearClipPlane = 0.05f;
             glassCam.farClipPlane = 5f;
             glassCam.depth = 1f;
+            // Pencerenin arka planı (kullanıcı 2026-10-18: düz krem zemin çok basitti): yukarıda gök mavisi, aşağıda sıcak
+            // krem, bardağın arkasında yumuşak ışık halesi. Kameraya bağlı, kendi ışığını veren düzlem.
+            var backdropMat = Mats.Glow(Color.black, Color.white);
+            backdropMat.SetTexture("_EmissionMap", InsetBackdrop());
+            insetBackdrop = Mats.Prim(PrimitiveType.Quad, "Inset Backdrop", glassCam.transform, new Vector3(0f, 0f, 4.6f), Vector3.one,
+                                      backdropMat, null, Mats.InsetLayer);
+            insetBackdrop.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        }
+
+        readonly Transform insetBackdrop;
+
+        static Texture2D InsetBackdrop()
+        {
+            const int W = 96, H = 128;
+            var tex = new Texture2D(W, H, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, name = "Inset Backdrop" };
+            var px = new Color[W * H];
+            Color top = new Color(0.5f, 0.76f, 0.97f), bottom = new Color(0.99f, 0.88f, 0.72f), halo = new Color(1f, 0.99f, 0.94f);
+            for (int y = 0; y < H; y++)
+                for (int x = 0; x < W; x++)
+                {
+                    float u = (x + 0.5f) / W, v = (y + 0.5f) / H;
+                    var c = Color.Lerp(bottom, top, Mathf.SmoothStep(0f, 1f, v));
+                    float dx = (u - 0.5f) * 1.3f, dy = v - 0.55f, r = Mathf.Sqrt(dx * dx + dy * dy);
+                    c = Color.Lerp(c, halo, Mathf.Clamp01(1f - r / 0.42f) * 0.45f);
+                    // Hafif kenar gölgesi: pencerenin içi derin dursun
+                    float edge = Mathf.Min(Mathf.Min(u, 1f - u), Mathf.Min(v, 1f - v));
+                    c *= Mathf.Lerp(0.86f, 1f, Mathf.Clamp01(edge / 0.16f));
+                    c.a = 1f;
+                    px[y * W + x] = c;
+                }
+            tex.SetPixels(px);
+            tex.Apply(false);
+            return tex;
+        }
+
+        /// Çizgi film eldiveni (kullanıcı 2026-10-18: karakter bardağı elinde tutamıyor gibiydi; bardağın yanında ten
+        /// rengi bir top vardı): avuç bardağın gövdeye bakan yanında, dört kıvrık parmak bardağı kameraya bakan arka
+        /// yüzden sarar, başparmak öbür yanda, bilekte beyaz bant.
+        static void BuildGlove(Transform parent, Mesh shell, float d, float h, float side, int layer)
+        {
+            // Gövdenin o yükseklikteki gerçek dış yarıçapı: kabuk ve süs parçaları (kılıf, bant) dahil. Termos/şişe gövdede
+            // ağızdan geniş, kılıflı modellerde kılıf kabuktan geniş: parmaklar içinde kalıp görünmüyordu.
+            var verts = new System.Collections.Generic.List<Vector3>(shell.vertices);
+            foreach (var mfp in parent.GetComponentsInChildren<MeshFilter>())
+                if (mfp.sharedMesh != null)
+                    foreach (var v in mfp.sharedMesh.vertices) verts.Add(parent.InverseTransformPoint(mfp.transform.TransformPoint(v)));
+            float RadiusAt(float y)
+            {
+                float best = d * 0.5f;
+                foreach (var v in verts)
+                    if (Mathf.Abs(v.y - y) < h * 0.2f) best = Mathf.Max(best, new Vector2(v.x, v.z).magnitude);   // köşe noktaları seyrek: geniş pencere
+                return best;
+            }
+            // Kırmızı örgü eldiven, beyaz bilek: beyaz eldiven beyaz sütün önünde kayboluyordu.
+            var glove = Mats.Solid(new Color(0.88f, 0.2f, 0.22f), 0.25f);
+            var cuff = Mats.Solid(new Color(0.97f, 0.96f, 0.93f), 0.2f);
+            float t = Mathf.Clamp(d * 0.26f, 0.035f, 0.055f);
+            var root = new GameObject("Glove") { layer = layer }.transform;
+            root.SetParent(parent, false);
+            void P(PrimitiveType type, string name, Vector3 pos, Vector3 scale, Material m, Quaternion rot)
+                => Mats.Prim(type, name, root, pos, scale, m, rot, layer);
+            float palmX = -side * (RadiusAt(h * 0.42f) + t * 0.45f);
+            P(PrimitiveType.Sphere, "Palm", new Vector3(palmX, h * 0.6f - t * 1.5f, -t * 0.15f), new Vector3(t * 1.3f, t * 4.4f, t * 2.2f), glove, Quaternion.identity);
+            // Parmaklar: avuçtan (açı 0, -side·x yönü) arkaya (-z) doğru bardağın çevresinde; alttakiler biraz kısa.
+            for (int k = 0; k < 4; k++)
+            {
+                float y = h * 0.6f - k * t * 1.02f;   // parmaklar birbirine değer
+                float ring = RadiusAt(y) + t * 0.5f;
+                float sweep = Mathf.Deg2Rad * (78f - 8f * k);
+                const int seg = 3;
+                for (int s = 0; s < seg; s++)
+                {
+                    float a = Mathf.Deg2Rad * 22f + sweep * (s + 0.5f) / seg;
+                    var dir = new Vector3(-side * Mathf.Cos(a), 0f, -Mathf.Sin(a));
+                    var tangent = new Vector3(side * Mathf.Sin(a), 0f, -Mathf.Cos(a));
+                    P(PrimitiveType.Capsule, "Finger", dir * ring + Vector3.up * y,
+                      new Vector3(t * 1.12f, sweep / seg * ring * 0.9f + t * 0.3f, t * 1.12f), glove, Quaternion.FromToRotation(Vector3.up, tangent));
+                }
+            }
+            // Başparmak: avucun önünde (kameradan uzak yanda), yukarı ve öne doğru
+            var thumbDir = new Vector3(-side * Mathf.Cos(0.75f), 0f, Mathf.Sin(0.75f));
+            P(PrimitiveType.Capsule, "Thumb", thumbDir * (RadiusAt(h * 0.62f) + t * 0.4f) + Vector3.up * h * 0.62f, new Vector3(t * 0.85f, t * 0.95f, t * 0.85f), glove,
+              Quaternion.Euler(0f, 0f, side * 25f));
+            // Bilek bandı: avucun dışında, kola doğru
+            P(PrimitiveType.Cylinder, "Cuff", new Vector3(palmX - side * t * 0.95f, h * 0.6f - t * 1.5f, -t * 0.1f), new Vector3(t * 2f, t * 0.5f, t * 2f), cuff,
+              Quaternion.Euler(0f, 0f, 90f));
         }
 
         /// 6 aşamayı (0..5) 4 renk takımına eşler.
@@ -683,7 +772,9 @@ namespace SledSurfers
                 var shoulder = avatar.ShoulderLocal(side, root, out float armLength);
                 // Meshy (iri kafalı, kısa kollu) karakterlerde bardak göğüs hizasında ve yanda: el yüzü örtmesin.
                 hand.localPosition = avatar.Chibi
-                    ? shoulder + new Vector3(armLength * 0.3f * side, -armLength * 0.35f, armLength * 0.65f)
+                    // 2026-10-18: bardak omza yapışık, başın yanında duruyordu (tutulduğu okunmuyordu): biraz aşağıda ve
+                    // dışarıda, kol uzanmış görünsün.
+                    ? shoulder + new Vector3(armLength * 0.42f * side, -armLength * 0.5f, armLength * 0.62f)
                     : shoulder + new Vector3(0.1f * side, -0.02f, armLength * 0.78f);
             }
             else hand.localPosition = new Vector3(0.45f * side, 0.86f, 0.32f);
@@ -704,6 +795,7 @@ namespace SledSurfers
                 var mf = glassShell.GetComponent<MeshFilter>();
                 if (mf.sharedMesh != null && mf.sharedMesh.name == "Lathe") Object.Destroy(mf.sharedMesh);
                 mf.sharedMesh = GlassModels.Build(cfg.glassModel, d, h, side, glassDeco, glassMat, Mats.GlassLayer);
+                BuildGlove(glassDeco, mf.sharedMesh, d, h, side, Mats.GlassLayer);
                 glassShell.localScale = Vector3.one;
                 glassShell.localPosition = Vector3.zero;
                 var frame = new System.Collections.Generic.List<MeshFilter>
@@ -714,8 +806,12 @@ namespace SledSurfers
                 glassFrameParts = frame.ToArray();
             }
 
-            // Yumruk bardağı gövdeye bakan yandan kavrar.
+            // Bardak sahnede %75 boyda (kullanıcı: bardak çok büyük, karakteri kapatıyor; uzun şişe kafadan uzundu).
+            // Köşe penceresi kamerayı bardağa sığdırdığı için orada boyut değişmez; sıvı ve fizik bardağın içinde ölçeklenir.
+            glassPivot.localScale = Vector3.one * GlassSceneScale;
+            // Yumruk bardağı gövdeye bakan yandan kavrar (görünen el eldiven: BuildGlove; bu nokta kolun hedefi).
             handBall.localPosition = new Vector3(-side * (d * 0.5f + 0.04f), h * 0.4f, 0f);
+            handBall.GetComponent<MeshRenderer>().enabled = false;
 
             glassCam.rect = side > 0f ? new Rect(0.68f, 0.03f, 0.29f, 0.2f) : new Rect(0.03f, 0.03f, 0.29f, 0.2f);
             PositionGlassCamera();
@@ -752,6 +848,11 @@ namespace SledSurfers
                     }
                 }
             glassCam.transform.SetPositionAndRotation(target + direction * distance, rotation);
+            if (insetBackdrop != null)
+            {
+                float far = insetBackdrop.localPosition.z, hh = 2f * far * Mathf.Tan(glassCam.fieldOfView * Mathf.Deg2Rad * 0.5f) * 1.04f;
+                insetBackdrop.localScale = new Vector3(hh * aspect, hh, 1f);
+            }
         }
 
         bool FramePartVisible(MeshFilter part) => part != null && part.sharedMesh != null
