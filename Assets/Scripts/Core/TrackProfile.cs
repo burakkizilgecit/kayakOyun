@@ -142,7 +142,9 @@ namespace SledSurfers
         /// yansır. good: altınların dizildiği (iyi) şeridin yönü (-1 sol, +1 sağ).
         public struct Fork { public float z0, z1; public int good; }
         public readonly List<Fork> forks = new List<Fork>();
-        public const float ForkOffset = 3.1f, ForkRidge = 0.75f, ForkRidgeHalf = 1.9f, ForkBlend = 14f;
+        // 2026-10-19: sırt 0.75 -> 0.45 m ve daha geniş, ayrılma/birleşme 14 -> 20 m (çatal 44 m): çatal çıkışında şerit 14 m içinde 3 m
+        // yana kayıyordu, sert yan ivme ortalama oyuncuya sütün %16-62sini döktürüyordu.
+        public const float ForkOffset = 3.1f, ForkRidge = 0.45f, ForkRidgeHalf = 2.2f, ForkBlend = 20f;
 
         /// Patikanın vadi ortasına toplandığı bölgeler (köprü yaklaşımı ve tablası; z0, z1), CenterBlend ile yumuşak.
         public readonly List<Vector2> centerZones = new List<Vector2>();

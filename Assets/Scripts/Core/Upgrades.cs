@@ -179,7 +179,9 @@ namespace SledSurfers
             c.glassGold = gl >= Max;
             c.glassStage = stage;
             c.glassModel = g;
-            c.glassReflex = 0.4f + 0.35f * gl / Max;   // iyi bardak = daha kolay dengelenir
+            // İyi bardak = daha kolay dengelenir. 2026-10-19: başlangıç 0.4 -> 0.5 (ortalama oyuncu ilk haritada sütün
+            // %38'ini döküyordu; kayıp birkaç olayda toplanıyordu: çatal çıkışı, rampa).
+            c.glassReflex = 0.5f + 0.35f * gl / Max;
 
             int r = levels[(int)UpgradeType.Rocket];
             c.rocketThrust = r == 0 ? 0f : RocketThrust(Power(r));

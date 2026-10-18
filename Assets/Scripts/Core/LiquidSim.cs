@@ -46,7 +46,7 @@ namespace SledSurfers
         /// 0.38 g'ye göre büyük kalıp sütü döküyordu; Dünya'da aynı itiş ağırlıksızlık sayılır.
         static float GRef => Mathf.Max(SledPhysics.Gravity, SledPhysics.EarthGravity);
 
-        public static float HolderPull => Mathf.Max(0f, 0.65f * (SledPhysics.EarthGravity - SledPhysics.Gravity));
+        public static float HolderPull => Mathf.Max(0f, 0.85f * (SledPhysics.EarthGravity - SledPhysics.Gravity));   // 2026-10-19: 0.65 -> 0.85 (Mars çatalında şerit değiştirmek sütün %50-76sını döküyordu)
 
         /// anchorAccel: elin (kızağın) dünya ivmesi. glassRotation: bardağın dünya yönelimi.
         public void Step(Vector3 anchorAccel, Quaternion glassRotation, float dt)
@@ -139,6 +139,7 @@ namespace SledSurfers
     public class GlassReflex
     {
         const float ReactionTime = 0.2f;
+        public const float AirReflex = 0.85f;
         Vector3 felt;
         public float pitch, roll;   // derece
 
@@ -151,6 +152,10 @@ namespace SledSurfers
         public void Step(SledPhysics sled, float strength, float dt)
         {
             felt = Vector3.Lerp(felt, sled.acceleration, dt / ReactionTime);
+            // Havada (süzülürken) karakter bardağı daha güçlü dengeler (2026-10-19): kızağın burun hareketi kanadın taşıma
+            // kuvvetiyle bardağı yerdeki gibi eğip, ortalama oyuncuya ilk haritanın ilk rampasında sütün %26-57'sini
+            // döktürüyordu. Yerdeki zorluk aynı kalır.
+            if (!sled.grounded) strength = Mathf.Max(strength, AirReflex);
             if (Level(sled.Orientation, felt, out float p, out float r))
             {
                 pitch = strength * p;
@@ -158,8 +163,10 @@ namespace SledSurfers
             }
             else
             {
-                pitch = Mathf.MoveTowards(pitch, 0f, 90f * dt);
-                roll = Mathf.MoveTowards(roll, 0f, 90f * dt);
+                // Ağırlıksızken (havada) karakter son duruşu korur, yavaşça bırakır (90 -> 30°/s): rampadan çıkarken
+                // bardak kızakla birlikte eğilip inişte dökülüyordu.
+                pitch = Mathf.MoveTowards(pitch, 0f, 30f * dt);
+                roll = Mathf.MoveTowards(roll, 0f, 30f * dt);
             }
         }
 

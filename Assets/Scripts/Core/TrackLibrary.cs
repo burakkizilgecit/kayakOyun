@@ -20,7 +20,7 @@ namespace SledSurfers
         public static readonly float[] MilkHeadroomScale = { 1f, 1f, 1f, 1f, 1f, 1f, 1.8f };
         public static float[] PowerStart = { 0f, 5f, 7f, 8f, 9f, 10f, 10f };
         public static float[] PowerEnd = { 15f, 18f, 21f, 23f, 24f, 25f, 25f };
-        public static float[] CostScale = { 0.8f, 0.78f, 2.6f, 1.45f, 1.7f, 1.3f, 2.15f };   // 2026-10-18: sim artık pistteki gerçek (sınırlı) altını sayıyor; geç pistler hedef atış sayısına geri çekildi   // 2026-10-10: referans fiyat eğrisi (5×aşama, 1.4→1.24) ile
+        public static float[] CostScale = { 0.88f, 0.78f, 3.1f, 1.45f, 1.8f, 1.3f, 2.3f };   // 2026-10-18: sim artık pistteki gerçek (sınırlı) altını sayıyor; geç pistler hedef atış sayısına geri çekildi   // 2026-10-10: referans fiyat eğrisi (5×aşama, 1.4→1.24) ile
         /// Pistin aracı: son üç haritada aracın şekli tamamen değişir.
         public static readonly VehicleKind[] Vehicles =
             { VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sandboard, VehicleKind.Bobsled, VehicleKind.Hover };
@@ -181,7 +181,7 @@ namespace SledSurfers
             /// 0 bir şeritte su (çamur), öteki temiz; 1 bir şeritte çamur, ötekinde buz (hızlı yol); 2 altınlı şeritte
             /// küçük su birikintisi (altın mı mesafe mi); 3 altınlı şeritte tümsekler (altın mı süt mü).
             /// good: altınların dizildiği şerit (-1/+1).
-            public Path Fork(float offset, float length, int variant, int good, bool wetIsMud, bool allowIce)
+            public Path Fork(float offset, float length, int variant, int good, bool wetIsMud, bool allowIce, float bumpHeight = 0.3f)
             {
                 float z0 = z + offset, off = TrackProfile.ForkOffset, mid = offset + length * 0.5f;
                 int bad = -good;
@@ -198,8 +198,10 @@ namespace SledSurfers
                         break;
                     case 2: LaneAt(wetIsMud ? Surface.Mud : Surface.Puddle, good, mid - 3f, 6f); break;
                     case 3:
+                        // Tümsek 0.45 -> 0.3 m (2026-10-19): altınlı şerit hâlâ süte mal olur ama tek çatalda bardağın yarısı
+                        // gitmesin (ortalama oyuncu Clover 176 m ve Mars 1372 m'de %16-62 döküyordu).
                         for (int k = 0; k < 3; k++)
-                            bumps.Add(new Bump { z0 = z0 + TrackProfile.ForkBlend + 2f + k * 5f, length = 4f, height = 0.45f,
+                            bumps.Add(new Bump { z0 = z0 + TrackProfile.ForkBlend + 2f + k * 5f, length = 4f, height = bumpHeight,
                                                  xc = good * off, halfWidth = 1.1f });
                         break;
                 }
@@ -488,7 +490,8 @@ namespace SledSurfers
                 bool kick = i > 0 && rnd.NextDouble() < kickChance;
                 // Kar parkurunda kalkışlar rastlantıya veya köprü seçimine bağlı kalmaz.
                 if (track == 3) kick = i > 0 && (i % 2 == 1);
-                float kickH = kick ? R(1.6f, 2.4f) : 0f;
+                // İlk haritada rampa alçak (2026-10-19: Clover'ın ilk rampasında ortalama oyuncu sütün %40-66'sını döküyordu).
+                float kickH = kick ? R(1.6f, 2.4f) * (track == 0 ? 0.6f : 1f) : 0f;
                 float snowDropCorrection = 0f;
                 // İnce köprü (kanal çıkışında, rampa yerine): kızak hızlıyken düz ve tam ortadan geçmeli.
                 bool bridge = i > 0 && p.z > length * 0.12f && p.z < length - 60f && p.z - lastBridge > BridgeSpacing
@@ -562,7 +565,8 @@ namespace SledSurfers
                 {
                     float fo = 12f + (float)frnd.NextDouble() * (L - ForkLength - 16f);   // kanal çıkışından sonra (kızak çok hızlı)
                     int variant = frnd.Next(4), good = frnd.Next(2) == 0 ? -1 : 1;
-                    p.Fork(fo, ForkLength, variant, good, snow, allowIce);
+                    // Mars'ta (düşük yerçekimi) tümsek kızağı havalandırıp sütün yarısını döktürüyordu: yarı yükseklik.
+                    p.Fork(fo, ForkLength, variant, good, snow, allowIce, track == 6 ? 0.15f : 0.3f);
                 }
                 // Çatallı yamaçta kendi su/çamur şeridi konmaz (rastgele sayılar yine çekilir: pistin geri kalanı aynı kalsın).
                 // Süzülme inişinde zorunlu şerit değişimi olmasın; buz/çamur diğer yamaçlarda kalır.

@@ -532,6 +532,35 @@ namespace SledSurfers.EditorTools
         /// track=, sets=a/b/c/d/e;... (bardağı hiç eğmeyen = klavyesiz PC oyuncusu, usta = otomatik pilot)
         static float traceA = -1f, traceB = -2f;
 
+        /// Pist profilleri (görselleştirme için): her pist için 1 m aralıkla yükseklik ve eğim, ayrıca köprü, dere, çatal,
+        /// yüzey ve engel listeleri. Tools/out/profiles/track_N.csv
+        public static void Profiles()
+        {
+            string dir = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "..", "SledRunner", "Tools", "out", "profiles");
+            foreach (var arg in System.Environment.GetCommandLineArgs())
+                if (arg.StartsWith("out=")) dir = arg.Substring(4);
+            System.IO.Directory.CreateDirectory(dir);
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            for (int t = 0; t < TrackLibrary.Count; t++)
+            {
+                var tr = TrackLibrary.Get(t);
+                var sb = new StringBuilder("kind,a,b,c,d" + System.Environment.NewLine);
+                for (float z = -30f; z <= tr.finishZ + 40f; z += 1f)
+                    sb.AppendLine(string.Format(inv, "p,{0:F1},{1:F3},{2:F4},{3:F3}", z, tr.Height(z), tr.Slope(z), tr.Curvature(z)));
+                foreach (var b in tr.bridges) sb.AppendLine(string.Format(inv, "bridge,{0:F1},{1:F1},{2},{3:F2}", b.r0, b.r1, b.shape, b.bend));
+                foreach (var w in tr.water) if (!tr.BridgeAt((w.x + w.y) * 0.5f, out _)) sb.AppendLine(string.Format(inv, "gap,{0:F1},{1:F1},0,0", w.x, w.y));
+                foreach (var f in tr.forks) sb.AppendLine(string.Format(inv, "fork,{0:F1},{1:F1},{2},0", f.z0, f.z1, f.good));
+                foreach (var sz in tr.surfaces) sb.AppendLine(string.Format(inv, "surf,{0:F1},{1:F1},{2},0", sz.z0, sz.z1, (int)sz.type));
+                foreach (var o in tr.obstacles) sb.AppendLine(string.Format(inv, "obst,{0:F1},{1:F2},{2},0", o.z, o.x - tr.PathX(o.z), o.variant));
+                foreach (var h in tr.rocketHills) sb.AppendLine(string.Format(inv, "rocket,{0:F1},0,0,0", h));
+                sb.AppendLine(string.Format(inv, "finish,{0:F1},0,0,0", tr.finishZ));
+                System.IO.File.WriteAllText(System.IO.Path.Combine(dir, "track_" + t + ".csv"), sb.ToString());
+            }
+            Debug.Log("[SIM] Profiller yazıldı: " + dir);
+        }
+
+        static int spillAverage;
+
         [MenuItem("Sled Surfers/Döküm Analizi")]
         public static void Spill()
         {
@@ -542,6 +571,7 @@ namespace SledSurfers.EditorTools
                 if (arg.StartsWith("track=")) track = int.Parse(arg.Substring(6));
                 if (arg.StartsWith("sets=")) sets = arg.Substring(5);
                 if (arg.StartsWith("bumpy=")) TrackLibrary.MeadowBumpy = ParseF(arg.Substring(6));
+                if (arg.StartsWith("average=")) spillAverage = int.Parse(arg.Substring(8));   // ortalama oyuncu tohum sayısı
                 if (arg.StartsWith("trace="))
                 {
                     var r = arg.Substring(6).Split('-');
@@ -551,7 +581,7 @@ namespace SledSurfers.EditorTools
             var t = TrackLibrary.Get(track);
             var sb = new StringBuilder("[SIM] Döküm analizi " + TrackLibrary.Names[track] + "\n");
             foreach (var set in sets.Split(';'))
-                for (int skilled = 0; skilled < 2; skilled++)
+                for (int skilled = 0; skilled < 2 + spillAverage; skilled++)
                 {
                     var lv = System.Array.ConvertAll(set.Split('/'), int.Parse);
                     var cfg = Upgrades.BuildConfig(lv);
@@ -562,6 +592,9 @@ namespace SledSurfers.EditorTools
                     sled.Launch();
                     var pilot = new AutoPilot();
                     var reflex = new GlassReflex();
+                    // skilled >= 2: ortalama oyuncu (gecikmeli/titrek direksiyon, bardağı yarım düzeltir), farklı tohumlar
+                    var avg = skilled >= 2 ? new SimPlayer(PlayerKind.Ortalama, skilled * 13) : null;
+                    Vector2 avgGlass = Vector2.zero;
                     var loss = new System.Collections.Generic.Dictionary<string, float>();
                     var worst = new System.Collections.Generic.List<(float z, float amount, string why)>();
                     float time = 0f, sinceLanding = 9f;
@@ -572,13 +605,23 @@ namespace SledSurfers.EditorTools
                     {
                         if (skilled == 1) pilot.StepGlass(sled, Dt);
                         reflex.Step(sled, cfg.glassReflex, Dt);
-                        if (AutoPilot.ShouldFire(t, sled, cfg)) sled.FireRocket();
-                        sled.Step(AutoPilot.Steer(t, sled), AutoPilot.Pitch(t, sled, cfg), Dt);
+                        if (avg != null)
+                        {
+                            avgGlass = avg.Glass(sled, cfg, Dt);
+                            if (avg.Fire(t, sled, cfg)) sled.FireRocket();
+                            sled.Step(avg.Steer(t, sled, Dt), avg.Pitch(t, sled, cfg), Dt);
+                        }
+                        else
+                        {
+                            if (AutoPilot.ShouldFire(t, sled, cfg)) sled.FireRocket();
+                            sled.Step(AutoPilot.Steer(t, sled), AutoPilot.Pitch(t, sled, cfg), Dt);
+                        }
                         if (sled.landings != landings) { landings = sled.landings; sinceLanding = 0f; }
                         sinceLanding += Dt;
                         float before = liquid.FillRatio;
                         liquid.lidClosed = sled.position.z < cfg.lidDistance;
-                        var rot = skilled == 1 ? sled.Orientation * Quaternion.Euler(pilot.glassPitch, 0f, -pilot.glassRoll)
+                        var rot = avg != null ? SimPlayer.GlassRotation(sled, avgGlass)
+                                : skilled == 1 ? sled.Orientation * Quaternion.Euler(pilot.glassPitch, 0f, -pilot.glassRoll)
                                                : sled.Orientation * Quaternion.Euler(reflex.pitch, 0f, -reflex.roll);
                         liquid.Step(sled.acceleration, rot, Dt);
                         float lost = before - liquid.FillRatio;
@@ -613,7 +656,7 @@ namespace SledSurfers.EditorTools
                         time += Dt;
                     }
                     if (lastWhy != null && eventAmount > 0.01f) worst.Add((eventStart, eventAmount, lastWhy));
-                    sb.AppendLine(string.Format("  {0,-14} {1,-7} {2,6:F0} m  süt %{3,3:F0}  {4}", set, skilled == 1 ? "usta" : "refleks",
+                    sb.AppendLine(string.Format("  {0,-14} {1,-7} {2,6:F0} m  süt %{3,3:F0}  {4}", set, skilled >= 2 ? "ort" + (skilled - 1) : skilled == 1 ? "usta" : "refleks",
                                                 sled.maxDistance, liquid.FillRatio * 100f, sled.endReason));
                     foreach (var kv in loss) sb.AppendLine(string.Format("      {0,-16} %{1,4:F0}", kv.Key, kv.Value * 100f));
                     worst.Sort((a, b) => b.amount.CompareTo(a.amount));
