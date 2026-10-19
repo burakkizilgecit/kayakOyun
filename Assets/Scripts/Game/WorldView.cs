@@ -78,6 +78,56 @@ namespace SledSurfers
                 wings.Add(flaps.ToArray());
             }
 
+            // Yükselen hava (2026-10-19): yerden yukarı akan ışıklı rüzgâr çizgileri; kanatlı kızak burada yükselir.
+            Color wind = theme.lava ? new Color(1f, 0.58f, 0.22f)
+                       : theme.landscape == TrackTheme.Landscape.Dunes ? new Color(1f, 0.9f, 0.62f)
+                       : theme.landscape == TrackTheme.Landscape.Craters ? new Color(1f, 0.72f, 0.55f)
+                       : new Color(0.86f, 0.95f, 1f);
+            var windMat = Mats.Glow(wind, wind * 0.9f);
+            foreach (var u in track.updrafts)
+            {
+                float zc = (u.x + u.y) * 0.5f, len = u.y - u.x;
+                var go = new GameObject("Updraft");
+                go.transform.SetParent(root, false);
+                go.transform.position = new Vector3(track.CenterX(zc), track.Height(zc) - 0.5f, zc);
+                var ps = go.AddComponent<ParticleSystem>();
+                ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                var main = ps.main;
+                main.loop = true;
+                main.startLifetime = new ParticleSystem.MinMaxCurve(2.2f, 3.4f);
+                main.startSpeed = 0f;
+                main.startSize = new ParticleSystem.MinMaxCurve(0.06f, 0.13f);
+                main.simulationSpace = ParticleSystemSimulationSpace.World;
+                main.maxParticles = 600;
+                var em = ps.emission;
+                em.rateOverTime = 120f;
+                var shape = ps.shape;
+                shape.shapeType = ParticleSystemShapeType.Box;
+                shape.scale = new Vector3(track.halfWidth * 2.4f, 1f, len);
+                var vel = ps.velocityOverLifetime;
+                vel.enabled = true;
+                vel.space = ParticleSystemSimulationSpace.World;
+                vel.x = new ParticleSystem.MinMaxCurve(-0.6f, 0.6f);
+                vel.y = new ParticleSystem.MinMaxCurve(6f, 10f);
+                vel.z = new ParticleSystem.MinMaxCurve(-0.6f, 0.6f);
+                var col = ps.colorOverLifetime;
+                col.enabled = true;
+                var grad = new Gradient();
+                grad.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+                             new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.2f), new GradientAlphaKey(1f, 0.7f), new GradientAlphaKey(0f, 1f) });
+                col.color = grad;
+                var size = ps.sizeOverLifetime;
+                size.enabled = true;
+                size.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.EaseInOut(0f, 0.4f, 1f, 1f));
+                var pr = go.GetComponent<ParticleSystemRenderer>();
+                pr.renderMode = ParticleSystemRenderMode.Stretch;   // hıza göre uzayan çizgi: rüzgâr gibi
+                pr.velocityScale = 0.12f;
+                pr.lengthScale = 2f;
+                pr.sharedMaterial = windMat;
+                pr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                ps.Play();
+            }
+
             // Rekor bayrağı
             bestFlag = new GameObject("Best Flag").transform;
             bestFlag.SetParent(root, false);

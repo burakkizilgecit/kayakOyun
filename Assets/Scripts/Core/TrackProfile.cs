@@ -205,6 +205,17 @@ namespace SledSurfers
         public readonly List<Flock> flocks = new List<Flock>();
         /// Roket tepelerinin zirve z'leri.
         public readonly List<float> rocketHills = new List<float>();
+        /// Yükselen hava (kullanıcı 2026-10-19: hiç yükseğe süzülmüyoruz, uçuş hissi olsun): (z0, z1, güç m/s²). Kanadı açık
+        /// kızak içinden geçerken yukarı itilir, kanadın taşıma süresi tükenmez, otomatik süzülme yamaca dalmaz.
+        public readonly List<Vector3> updrafts = new List<Vector3>();
+
+        /// z'deki yükselen havanın gücü (m/s², Dünya yerçekimine göre; yoksa 0). Uçlarda 8 m'de yumuşak geçiş.
+        public float UpdraftAt(float z)
+        {
+            foreach (var u in updrafts)
+                if (z > u.x && z < u.y) return u.z * Mathf.Clamp01(Mathf.Min(z - u.x, u.y - z) / 8f);
+            return 0f;
+        }
         /// Havada alınan roket hakkı: pistin %70'inden sonraki ilk rampanın uçuş yolunda, yerden yetişilemeyecek
         /// yükseklikte (her pistte en fazla bir tane). Kızağın merkezi (konum + 0.6 m) bu yarıçapa girerse alınır.
         public bool hasRocketPickup;

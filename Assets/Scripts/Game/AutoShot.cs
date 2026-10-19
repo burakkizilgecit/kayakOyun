@@ -239,6 +239,33 @@ namespace SledSurfers
                 Application.Quit();
                 yield break;
             }
+            if (mode == "updraft")
+            {
+                // Yükselen hava: ilk bölgeye yaklaşırken, içinde ve çıkışta (uçuş yüksekliği ve rüzgâr çizgileri).
+                game.DebugHideTutorial();
+                game.debugAutopilot = true;
+                foreach (int tr in new[] { 0, 2, 4 })
+                {
+                    game.DebugReset(new[] { 20, 20, 12, 20, 16 }, 0);
+                    game.DebugTrack(tr, tr);
+                    yield return new WaitForSeconds(1.5f);
+                    float uz = game.DebugUpdraftZ(0);
+                    if (uz < 0f) continue;
+                    game.DebugAim();
+                    yield return new WaitForSeconds(0.5f);
+                    game.DebugLaunch(1f);
+                    float wt = 0f;
+                    foreach (var mk in new (float d, string n)[] { (-14f, "a"), (20f, "b"), (36f, "c"), (70f, "d") })
+                    {
+                        while (!game.DebugInResult && game.DebugDistance < uz + mk.d && wt < 150f) { wt += Time.deltaTime; yield return null; }
+                        if (game.DebugInResult) break;
+                        yield return Shot("u" + tr + "_" + mk.n);
+                    }
+                }
+                SaveData.ClearAll();   // yalnız test önekli kayıt (gerçek kayıt korunur)
+                Application.Quit();
+                yield break;
+            }
             if (mode == "reset")
             {
                 // Test sıfırlaması: ileri pistte tam yükseltilmiş araç, sonra "Reset progress" ile başa dönüş.

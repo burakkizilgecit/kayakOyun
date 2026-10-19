@@ -261,6 +261,7 @@ namespace SledSurfers
             foreach (var b in track.bridges) if (b.shape != 0 && i-- == 0) return b.r0;
             return -1f;
         }
+        public float DebugUpdraftZ(int i) => track != null && i < track.updrafts.Count ? track.updrafts[i].x : -1f;
         public float DebugGapZ(int i) => track != null && i < track.water.Count ? track.water[i].x : -1f;
 
         /// 300 m'den sonraki ilk verilen türde yüzey lekesinin başladığı z; yoksa -1.

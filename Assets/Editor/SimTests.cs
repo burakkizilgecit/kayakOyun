@@ -553,6 +553,8 @@ namespace SledSurfers.EditorTools
                 foreach (var sz in tr.surfaces) sb.AppendLine(string.Format(inv, "surf,{0:F1},{1:F1},{2},0", sz.z0, sz.z1, (int)sz.type));
                 foreach (var o in tr.obstacles) sb.AppendLine(string.Format(inv, "obst,{0:F1},{1:F2},{2},0", o.z, o.x - tr.PathX(o.z), o.variant));
                 foreach (var h in tr.rocketHills) sb.AppendLine(string.Format(inv, "rocket,{0:F1},0,0,0", h));
+                foreach (var u in tr.updrafts) sb.AppendLine(string.Format(inv, "updraft,{0:F1},{1:F1},{2:F1},0", u.x, u.y, u.z));
+                foreach (var f in tr.flocks) sb.AppendLine(string.Format(inv, "flock,{0:F1},{1:F1},{2:F1},0", f.z, f.y - tr.Height(f.z), f.sway));
                 sb.AppendLine(string.Format(inv, "finish,{0:F1},0,0,0", tr.finishZ));
                 System.IO.File.WriteAllText(System.IO.Path.Combine(dir, "track_" + t + ".csv"), sb.ToString());
             }
@@ -989,6 +991,72 @@ namespace SledSurfers.EditorTools
                             track.BumpHeight(c, z), track.SurfaceAt(z, c - 3.1f), track.SurfaceAt(z, c + 3.1f))
                             + string.Format("  y {0:0.0} eğim {1:0.00}", track.Height(z), track.Slope(z)));
                     }
+                }
+            }
+            Debug.Log(sb.ToString());
+        }
+
+        /// Parkur hissi (kullanıcı 2026-10-19: zevksiz, heyecansız, yavaş parkur değişmeli): her pistte, oyuncunun o pisti
+        /// bitirdiği seviyenin %60'ı ve %100'ü ile ortalama oyuncu koşusu (3 tohum). Ortalama/en yüksek hız, havada geçen
+        /// süre, 0.5 s'den uzun uçuş sayısı, sürünme (< 25 km/sa) oranı, koşu süresi ve km başına olay (köprü, atlayış,
+        /// çatal, rampa dudağı) yoğunluğu.
+        public static void Feel()
+        {
+            int[][] finish =
+            {
+                new[] { 22, 21, 13, 20, 17 }, new[] { 22, 21, 13, 21, 17 }, new[] { 17, 16, 8, 15, 11 }, new[] { 21, 20, 12, 19, 16 },
+                new[] { 20, 18, 10, 18, 14 }, new[] { 21, 20, 12, 20, 16 }, new[] { 22, 21, 13, 20, 17 },
+            };
+            var sb = new StringBuilder("[SIM] Parkur hissi (ortalama oyuncu, 3 tohum)\n");
+            sb.AppendLine("  pist               seviye  mesafe  süre   ort km/sa  en yüksek  havada%  uçuş  sürünme%  olay/km");
+            for (int t = 0; t < TrackLibrary.Count; t++)
+            {
+                var tr = TrackLibrary.Get(t);
+                Upgrades.Track = t;
+                Upgrades.PartTier = t;
+                // Olaylar: köprü, köprüsüz atlayış, çatal, rampa dudağı (eğim birden düşer)
+                var events = new System.Collections.Generic.List<float>();
+                foreach (var b in tr.bridges) events.Add(b.r0);
+                foreach (var w in tr.water) if (!tr.BridgeAt((w.x + w.y) * 0.5f, out _)) events.Add(w.x);
+                foreach (var f in tr.forks) events.Add(f.z0);
+                for (float z = 0f; z < tr.finishZ; z += 1f)
+                    if (tr.Slope(z - 1f) > 0.08f && tr.Slope(z + 2f) < -0.02f) { events.Add(z); z += 20f; }
+                foreach (float frac in new[] { 0.6f, 1f })
+                {
+                    var lv = System.Array.ConvertAll(finish[t], v => Mathf.RoundToInt(v * frac));
+                    float dist = 0f, time = 0f, top = 0f, air = 0f, crawl = 0f;
+                    int flights = 0;
+                    for (int seed = 1; seed <= 3; seed++)
+                    {
+                        var cfg = Upgrades.BuildConfig(lv);
+                        var sled = new SledPhysics(tr, cfg);
+                        var liquid = new LiquidSim();
+                        liquid.Reset(cfg);
+                        sled.PlaceForAim(1f);
+                        sled.Launch();
+                        var player = new SimPlayer(PlayerKind.Ortalama, seed * 13);
+                        float clock = 0f, airRun = 0f;
+                        while (sled.end == RunEnd.None && clock < 600f)
+                        {
+                            Vector2 glass = player.Glass(sled, cfg, Dt);
+                            if (player.Fire(tr, sled, cfg)) sled.FireRocket();
+                            sled.Step(player.Steer(tr, sled, Dt), player.Pitch(tr, sled, cfg), Dt);
+                            liquid.lidClosed = sled.position.z < cfg.lidDistance;
+                            liquid.Step(sled.acceleration, SimPlayer.GlassRotation(sled, glass), Dt);
+                            if (liquid.FillRatio < 0.12f) sled.ForceEnd(RunEnd.Spilled, "Bardak boşaldı!");
+                            clock += Dt;
+                            if (!sled.grounded) { air += Dt; airRun += Dt; }
+                            else { if (airRun > 0.5f) flights++; airRun = 0f; }
+                            if (sled.Speed < 25f / 3.6f && sled.position.z > 20f) crawl += Dt;
+                            top = Mathf.Max(top, sled.Speed);
+                        }
+                        dist += sled.maxDistance;
+                        time += clock;
+                    }
+                    int ev = events.FindAll(z => z < dist / 3f).Count;
+                    sb.AppendLine(string.Format("  {0,-18} {1,4:P0}  {2,6:F0} m {3,5:F0} s  {4,7:F0}  {5,9:F0}  {6,7:F0}  {7,4:F1}  {8,8:F0}  {9,7:F1}",
+                        TrackLibrary.Names[t], frac, dist / 3f, time / 3f, dist / time * 3.6f, top * 3.6f, 100f * air / time, flights / 3f,
+                        100f * crawl / time, ev / Mathf.Max(dist / 3f / 1000f, 0.05f)));
                 }
             }
             Debug.Log(sb.ToString());

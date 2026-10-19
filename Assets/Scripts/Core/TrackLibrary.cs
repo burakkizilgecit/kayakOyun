@@ -20,7 +20,7 @@ namespace SledSurfers
         public static readonly float[] MilkHeadroomScale = { 1f, 1f, 1f, 1f, 1f, 1f, 1.8f };
         public static float[] PowerStart = { 0f, 5f, 7f, 8f, 9f, 10f, 10f };
         public static float[] PowerEnd = { 15f, 18f, 21f, 23f, 24f, 25f, 25f };
-        public static float[] CostScale = { 0.88f, 0.78f, 3.1f, 1.45f, 1.8f, 1.3f, 2.3f };   // 2026-10-18: sim artık pistteki gerçek (sınırlı) altını sayıyor; geç pistler hedef atış sayısına geri çekildi   // 2026-10-10: referans fiyat eğrisi (5×aşama, 1.4→1.24) ile
+        public static float[] CostScale = { 0.8f, 1.7f, 3.1f, 1.45f, 2.25f, 1.7f, 2.45f };   // 2026-10-18: sim artık pistteki gerçek (sınırlı) altını sayıyor; geç pistler hedef atış sayısına geri çekildi   // 2026-10-10: referans fiyat eğrisi (5×aşama, 1.4→1.24) ile
         /// Pistin aracı: son üç haritada aracın şekli tamamen değişir.
         public static readonly VehicleKind[] Vehicles =
             { VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sandboard, VehicleKind.Bobsled, VehicleKind.Hover };
@@ -39,16 +39,48 @@ namespace SledSurfers
         public static TrackProfile Get(int index)
         {
             Upgrades.Track = Mathf.Clamp(index, 0, Count - 1);
+            TrackProfile t;
             switch (index)
             {
-                case 1: return Forest();
-                case 2: return Canyon();
-                case 4: return Desert();
-                case 5: return Volcano();
-                case 6: return Mars();
-                case 3: return Snow();
-                default: return Meadow();
+                case 1: t = Forest(); break;
+                case 2: t = Canyon(); break;
+                case 4: t = Desert(); break;
+                case 5: t = Volcano(); break;
+                case 6: t = Mars(); break;
+                case 3: t = Snow(); break;
+                default: t = Meadow(); break;
             }
+            ClearFlightZones(t);
+            return t;
+        }
+
+        /// Yükselen havadan sonraki uçuş: kızak bölgeden ~150 m süzülür, havadan köprüye isabet ettirilemez ve engelden
+        /// kaçılamaz (2026-10-19: Clover'da kayaya, Frostpeak ve Orman'da dereye iniliyordu). Bitişinden sonraki
+        /// FlightClear metrede köprü, dere ya da çatal olan bölge kaldırılır (içindeki kuşlarla); kalanların uçuş ve iniş
+        /// yolundaki güzergâh üstü engeller (rotaya 4 m'den yakın) temizlenir.
+        public const float FlightClear = 220f;
+
+        static void ClearFlightZones(TrackProfile t)
+        {
+            bool Blocked(float z0, float z1)
+            {
+                foreach (var b in t.bridges) if (b.z1 > z0 && b.z0 < z1) return true;
+                foreach (var w in t.water) if (w.y > z0 && w.x < z1) return true;
+                foreach (var f in t.forks) if (f.z1 > z0 && f.z0 < z1) return true;
+                // Roket tepesinden önceki 400 m: yükselen havanın tepesinde hız düşünce roket havada harcanıyor, duvara
+                // roketsiz geliniyordu (Mars'ta 116 atışlık takılma).
+                foreach (float h in t.rocketHills) if (h > z0 && h < z1 + 400f - FlightClear) return true;
+                return false;
+            }
+            for (int i = t.updrafts.Count - 1; i >= 0; i--)
+            {
+                var u = t.updrafts[i];
+                if (!Blocked(u.x, u.y + FlightClear)) continue;
+                t.updrafts.RemoveAt(i);
+                t.flocks.RemoveAll(f => f.z > u.x && f.z < u.y);
+            }
+            foreach (var u in t.updrafts)
+                t.obstacles.RemoveAll(o => o.z > u.x - 5f && o.z < u.y + FlightClear && Mathf.Abs(o.x - t.PathX(o.z)) < 4f);
         }
 
         /// Parkur kontrol noktalarını parça parça kurar (z ileri, y yükseklik).
@@ -68,6 +100,8 @@ namespace SledSurfers
             public readonly List<Vector2> straight = new List<Vector2>();
             /// Roket tepelerinin zirve z'leri (otomatik pilot roketini bunlara saklar, ilerleme çubuğu işaretler).
             public readonly List<float> rocketHills = new List<float>();
+            /// Yükselen hava bölgeleri (z0, z1, güç); Build pist nesnesine aktarır.
+            public readonly List<Vector3> updrafts = new List<Vector3>();
             /// Havada alınan roket hakkının rampası (dudak z'si) ve dudaktan ne kadar ileride durduğu; yoksa -1.
             public float pickupLip = -1f, pickupAhead;
             /// Profilin üstüne eklenecek tümsekler.
@@ -227,6 +261,7 @@ namespace SledSurfers
                 t.surfaces.AddRange(surfaces);
                 t.flocks.AddRange(flocks);
                 t.rocketHills.AddRange(rocketHills);
+                t.updrafts.AddRange(updrafts);
                 t.bumps.AddRange(bumps);
                 t.IndexBumps();
                 // Tabla kıyılara 3.5 m uzanır (profil yumuşatması ±3 m) ve uçları profile tam oturur.
@@ -309,7 +344,7 @@ namespace SledSurfers
         public static TrackProfile Desert()
         {
             var gp = GlideStart(4, false);
-            var gobs = Glide(gp, 4, 71, 0.35f, false, true);
+            var gobs = Glide(gp, 4, 71, 0.6f, false, true);   // 2026-10-19: rampa 0.35 -> 0.6 (uçuş hissi, olay sıklığı)
             var gt = gp.Build(Names[4], Lengths[4], 9f, 220f, 2.4f, 85f, 11);
             gt.fallText = "Fell in the canal!";
             ScatterRocks(gt, 71, 24f);
@@ -321,7 +356,7 @@ namespace SledSurfers
         public static TrackProfile Volcano()
         {
             var gp = GlideStart(5, false);
-            var gobs = Glide(gp, 5, 83, 0.3f, true, true);
+            var gobs = Glide(gp, 5, 83, 0.6f, true, true);   // 2026-10-19: rampa 0.3 -> 0.6
             var gt = gp.Build(Names[5], Lengths[5], 5f, 320f, 2f, 110f, 13);
             gt.fallText = "Fell in the lava!";
             gt.ravineIsWater = false;
@@ -335,7 +370,7 @@ namespace SledSurfers
         public static TrackProfile Mars()
         {
             var gp = GlideStart(6, false);
-            var gobs = Glide(gp, 6, 97, 0.35f, true, true);
+            var gobs = Glide(gp, 6, 97, 0.65f, true, true);   // 2026-10-19: rampa 0.35 -> 0.65
             var gt = gp.Build(Names[6], Lengths[6], 3f, 420f, 1.4f, 150f, 17);
             gt.gravity = 0.38f * SledPhysics.EarthGravity;
             gt.fallText = "Fell in the crater!";
@@ -355,7 +390,7 @@ namespace SledSurfers
             if (UseGlide)
             {
                 var gp = GlideStart(0, true);
-                var gobs = Glide(gp, 0, 21, 0.35f, false, false);   // Çayır: buz yok, kanal da buzsuz
+                var gobs = Glide(gp, 0, 21, 0.45f, false, false);   // Çayır: buz yok, kanal da buzsuz; rampa 0.35 -> 0.45 (uçuşu tanıtır)
                 // Kullanıcı isteği (2026-10-09): yol çok düzdü; vadi belirgin kıvrılır, patika içinde S çizer.
                 var gt = gp.Build(Names[0], Lengths[0], 11f, 170f, 2.6f, 72f, 3);
                 ScatterRocks(gt, 21, 26f);
@@ -420,6 +455,10 @@ namespace SledSurfers
         /// Dalgalı yaklaşımda dalga yüksekliği (m).
         public static string ApproachLog = "";   // test: hangi köprüye hangi yaklaşım tipi (pist:tip@z)
         /// Köprünün kıvrımlı olma olasılığı (ilk köprü hariç); geç pistlerde daha sık.
+        /// Yükselen hava: rampadan sonra (olasılık, boy m, güç m/s²). Kuşlar BirdsFrom pistinden itibaren.
+        public static float[] UpdraftChance = { 0.6f, 0f, 0.5f, 0.5f, 0.7f, 0.75f, 0.7f };
+        public const float UpdraftLength = 40f, UpdraftPower = 6f;   // 55 m / 9 m/s²: kızak 27 m yükselip 175 m uçuyor, dereye iniyordu
+        public const int BirdsFrom = 2;
         public const float CurvedBridgeHalfWidth = 1.05f;
         /// Zikzak köprü: tabla bu boydan uzunsa iki tam kıvrım çizer. Kızak yana en çok 16 m/s² döner: 28 m'de ~1 m
         /// genlikli zikzak ~11 m/s'ye kadar izlenebilir; daha hızlı gelen iyi çizgi bulmalı (çok zor olması istendi).
@@ -448,6 +487,7 @@ namespace SledSurfers
             var rnd = new System.Random(seed);
             var brnd = new System.Random(seed ^ 0xb21d);   // köprüler ayrı: pistin geri kalanının dizilişi değişmesin
             var frnd = new System.Random(seed ^ 0xf04c);   // çatallar da ayrı
+            var urnd = new System.Random(seed ^ 0x5a17);   // yükselen hava ve kuşlar ayrı
             var hrnd = new System.Random(seed ^ 0x2196);   // zikzak köprü ayrı: diğer köprülerin dizilişi değişmesin
             bool hardBuilt = false;
             float R(float a, float b) => a + (b - a) * (float)rnd.NextDouble();
@@ -553,6 +593,18 @@ namespace SledSurfers
                     else p.Ramp(8f, kickH, 0.8f);
                     Pickup(4f);
                     L = Mathf.Max(25f, L - 10f);
+                    // Rampanın ardında yükselen hava (2026-10-19, uçuş hissi): kanatlı kızak yükselir; ileri pistlerde
+                    // içinde kuş sürüsü salınır (havada kaçınılır). Ayrı rastlantı: pistin geri kalanı aynı kalır.
+                    if (urnd.NextDouble() < UpdraftChance[track])
+                    {
+                        float lip = p.lastLip, lipY = p.y + 0.8f;
+                        p.updrafts.Add(new Vector3(lip + 4f, lip + 4f + UpdraftLength, UpdraftPower));
+                        // Uçuş boyunca vadi düz: kızak havada düz gider, kıvrılan vadinin kenarına inip kayaya çarpıyordu.
+                        p.straight.Add(new Vector2(lip - 10f, lip + 4f + UpdraftLength + FlightClear));
+                        if (track >= BirdsFrom && urnd.NextDouble() < 0.6)
+                            p.flocks.Add(new Flock { z = lip + 4f + UpdraftLength * 0.6f, x = 0f, y = lipY + (float)(4.5 + urnd.NextDouble() * 2.5),
+                                                     sway = (float)(3 + urnd.NextDouble() * 2), period = (float)(2.5 + urnd.NextDouble() * 1.5), radius = 2.2f });
+                    }
                 }
                 float side = rnd.Next(2) == 0 ? -1f : 1f;
                 // Yamaçtaki yüzey (yamaç başına göre): buz şeridi (hızlı yol), patikayı kesen su/çamur (yanından dolaş)
@@ -1049,6 +1101,9 @@ namespace SledSurfers
             {
                 p.sharp.Add(new Vector2(kk.x - 4f, kk.y + 10f));
                 p.straight.Add(new Vector2(kk.x - 15f, kk.y + 90f));
+                // Rampa ve uçurum kenarının ardında yükselen hava (2026-10-19): orman üstünde yüksek süzülme; uçuş boyunca vadi düz.
+                p.updrafts.Add(new Vector3(kk.y + 4f, kk.y + 4f + UpdraftLength, UpdraftPower));
+                p.straight.Add(new Vector2(kk.y, kk.y + 4f + UpdraftLength + FlightClear));
             }
             return p;
         }
@@ -1219,7 +1274,7 @@ namespace SledSurfers
                 foreach (var e in CanyonEdges)
                 {
                     gp.sharp.Add(new Vector2(e.x - 6f, e.y + 8f));
-                    gp.straight.Add(new Vector2(e.x - 15f, e.y + 90f));
+                    gp.straight.Add(new Vector2(e.x - 15f, e.y + 4f + UpdraftLength + FlightClear));   // yükselen havadan sonraki uçuş da düz
                 }
                 float end = gp.z;
                 foreach (var f in CanyonForks)
@@ -1232,6 +1287,14 @@ namespace SledSurfers
                 // Kanyonun köprüsü dar kalır (ormandakinden dar), ama 0.8'de gecikmeli oyuncu yokuş çıkarken yavaşken bile
                 // düşüyordu.
                 PlaceCreekBridges(gt, CanyonCreeks, 1.05f);
+                // Her uçurum kenarının ardında yükselen hava; ikinci ve dördüncüsünde içinde salınan kuş sürüsü (2026-10-19).
+                foreach (int ei in new[] { 0, 1, 2, 3 })
+                {
+                    float lip = CanyonEdges[ei].y;
+                    gt.updrafts.Add(new Vector3(lip + 4f, lip + 4f + UpdraftLength, UpdraftPower));
+                    if (ei % 2 == 1)
+                        gt.flocks.Add(new Flock { z = lip + 4f + UpdraftLength * 0.6f, x = 0f, y = gt.Height(lip) + 5.5f, sway = 4f, period = 3.2f, radius = 2.2f });
+                }
                 ScatterRocks(gt, 47, 22f);
                 AddObstacles(gt, new List<Vector2>());
                 return gt;

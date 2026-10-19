@@ -165,6 +165,14 @@ namespace SledSurfers
             float zBefore = position.z;
             Vector3 before = velocity;
 
+            // Yükselen havaya kanatla yeterince hızlı giren kızak yerden kalkar (2026-10-19): alçak rampadan sonra
+            // kızak bölgeyi yerde geçiyor, rüzgâr hiç işe yaramıyordu. Kalkış hafif: yükselişi bölgenin kendisi verir.
+            if (grounded && !launching && cfg.wingArea > 0f && Speed > 8f && track.UpdraftAt(position.z) > 1f)
+            {
+                grounded = false;
+                airTime = 0f;
+                velocity += track.Normal(position.x, position.z) * 2.2f;
+            }
             if (grounded) StepGround(steer, dt);
             else StepAir(steer, pitchInput, dt);
 
@@ -430,6 +438,18 @@ namespace SledSurfers
             float speed = v.magnitude;
             Vector3 a = new Vector3(0f, -Gravity, 0f);
             a -= 0.5f * AirDensity * cfg.dragArea / m * speed * v;
+            // Yükselen hava: kanat alanıyla orantılı yukarı itiş (küçük kanat az, büyük kanat tam); taşıma süresi
+            // tükenmez (kanat tutunur). Düşük yerçekiminde (Mars) itiş de oranlı.
+            float updraft = cfg.wingArea > 0f ? track.UpdraftAt(position.z) * (Gravity / EarthGravity) : 0f;
+            if (updraft > 0f)
+            {
+                // Hedef tırmanma hızına çeker (kanat büyüdükçe hızlı: ~2-4 m/s): yalnız ivme eklemek yavaş kızakta
+                // yerçekimini ancak dengeliyordu, kızak bölgede 0.3-0.7 m yükseliyordu.
+                float k = Mathf.Clamp01(0.35f + cfg.wingArea / 2.2f);
+                float climb = updraft * 0.65f * k;
+                a.y += Gravity * 0.6f * k + Mathf.Max(0f, climb - v.y) * 2.5f;
+                airTime = Mathf.Max(0f, airTime - 1.5f * dt);
+            }
 
             float gamma = Mathf.Atan2(v.y, Mathf.Max(v.z, 0.01f));   // uçuş yolu açısı
             if (Mathf.Abs(pitchInput) > 0.05f) pitch += pitchInput * PitchRate * dt;
@@ -442,7 +462,8 @@ namespace SledSurfers
                 // Arazi takibi: altındaki yamaç süzülme yolundan dikse (vadi/dere üstü hariç) kızak yamacı izler,
                 // birkaç metre yüksekte kalır; dik inişlerin üstünde yükselip sonra çakılmaz. Sığ süzülme
                 // (sürtünmesiz, uzağa taşır) yalnızca vadi ve derelerin üstünde.
-                if (!InGap(position.z) && !InGap(position.z + v.z * 0.8f))
+                if (updraft > 0f) glidePath = 0.35f;   // yükselen havada tırmanır (~20°); 0.06 iken kontrol itişi burnu indirerek boşa harcıyordu
+                else if (!InGap(position.z) && !InGap(position.z + v.z * 0.8f))
                 {
                     float above = position.y - track.Height(position.x, position.z);
                     // Yamacın eğimini izler (0.5 s ileride), üstüne yüksekliğe orantılı dalış: yüksekteyken yere yaklaşır,
@@ -451,7 +472,9 @@ namespace SledSurfers
                     {
                         float slopeAhead = Mathf.Atan(track.SlopeZ(position.x, position.z + Mathf.Max(v.z, 0f) * 0.5f));
                         // En az ~6°: yamacın birkaç metre üstünde asılı kalmasın (süzülme süresini boşa harcamasın), yumuşakça değsin.
-                        float dive = Mathf.Max(0.1f, Mathf.Atan((above - 1f) / Mathf.Max(10f, v.z * 1.5f)));
+                        // Dalış en çok ~29° (2026-10-19): yükselen havadan sonra 18 m yüksekten 49°'lik dalışla 11 m/s ile
+                        // yere çakılıp "Landed too hard" oluyordu.
+                        float dive = Mathf.Clamp(Mathf.Atan((above - 1f) / Mathf.Max(10f, v.z * 1.5f)), 0.1f, 0.5f);
                         glidePath = Mathf.Clamp(slopeAhead - dive, -1.2f, 0.3f);
                     }
                 }
