@@ -393,7 +393,11 @@ namespace SledSurfers
                 var gobs = Glide(gp, 0, 21, 0.45f, false, false);   // Çayır: buz yok, kanal da buzsuz; rampa 0.35 -> 0.45 (uçuşu tanıtır)
                 // Kullanıcı isteği (2026-10-09): yol çok düzdü; vadi belirgin kıvrılır, patika içinde S çizer.
                 var gt = gp.Build(Names[0], Lengths[0], 11f, 170f, 2.6f, 72f, 3);
+                // 2026-10-19 (kullanıcı: yandaki yükseltileri kaldır ya da alanı genişlet, taş ve ağaç ekle): yan yamaç
+                // alçak ve açık; kenarlarda ağaç ve kaya, rotada seyrek ağaç (ilk harita: ormanın yarısı sıklıkta).
+                gt.bankScale = 0.3f;
                 ScatterRocks(gt, 21, 26f);
+                ScatterForest(gt, 21, null, 95f, 150f);
                 AddObstacles(gt, gobs);
                 return gt;
             }
@@ -1002,7 +1006,7 @@ namespace SledSurfers
 
         /// Orman zemini: patikanın iki yanına (ve seyrek olarak kenarına) ağaç ve kayalar. Patikanın kendisi, köprü
         /// yaklaşımları, çatallar ve rampa inişleri boş kalır.
-        static void ScatterForest(TrackProfile t, int seed, Vector2[] clear = null)
+        static void ScatterForest(TrackProfile t, int seed, Vector2[] clear = null, float routeGapMin = 45f, float routeGapMax = 70f)
         {
             var rnd = new System.Random(seed * 17 + 3);
             float R(float a, float b) => a + (b - a) * (float)rnd.NextDouble();
@@ -1034,7 +1038,7 @@ namespace SledSurfers
             // Güzergâhın üstünde de engeller (kullanıcı 2026-10-11: ağaçlar hep kenardaydı, yol dümdüzdü): 24-38 m'de bir,
             // sırayla sağa-sola kayık; arada kızağın geçeceği boşluk hep kalır (oyuncu aralarından kıvrılır).
             float turn = 1f;
-            for (float z = 150f; z < t.finishZ - 40f; z += R(45f, 70f))
+            for (float z = 150f; z < t.finishZ - 40f; z += R(routeGapMin, routeGapMax))
             {
                 // Enerji kuralı: ağaç inişin dibine (kızağın en hızlı olduğu yer) konmaz; dalganın çıkış kısmına, eğimin
                 // yatıklaştığı yere kaydırılır: kızak orada yavaşlar, kaçınmaya zamanı olur.

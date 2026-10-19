@@ -683,7 +683,9 @@ namespace SledSurfers
         const float LaunchTimeScale = 3f;
         /// Ana ekranda kızağın durduğu yer (kullanıcı kararı 2026-10-11): sapanın ve başlangıç tribünlerinin çok ilerisinde,
         /// pistin içinde; arkada yalnız manzara görünür. Nişana geçince kızak sapana döner.
-        const float HubForward = 135f;
+        // 2026-10-19 (kullanıcı: ana ekrana sapan geri gelsin, küçük): kızak sapanın 2.6 m önünde; küçülen sapan karakterin
+        // arkasında kalır.
+        const float HubForward = 2.6f;
         float fpsSmooth = 60f;
         GUIStyle fpsStyle;
 
@@ -1323,6 +1325,8 @@ namespace SledSurfers
         void WireUi()
         {
             ui.PauseRequested += () => SetPaused(true);
+            // Koşudan vazgeçip yeniden nişan: kazanç yok, yeni atış bir hak harcar (Launch).
+            ui.RetryRun += () => { if (state == State.Run && !rider.Crashing) { sfx.Pop(); EnterAim(); } };
             ui.ResumeRequested += () => SetPaused(false);
             ui.Retry += EnterAim;
             ui.OpenShop += () => ui.ShowShop(save.gems, CoinPackAmounts(), save.FreeGemsLeft);

@@ -58,7 +58,7 @@ namespace SledSurfers
         public event Action OpenQuests, ClaimLogin;
         public event Action<int> ClaimQuest;
         public event Action OpenHub, OpenMap, NextTrack, Retry, FireRocket, OpenChest, OpenAvatars;
-        public event Action PauseRequested, ResumeRequested;
+        public event Action PauseRequested, ResumeRequested, RetryRun;
         public event Action<int> BrowseAvatar, AvatarAction;
         public event Action<int> ClaimChest;   // çarpan: 1 ya da 3 (reklamla)
         public event Action<int> Buy, SetHand, SelectTrack;
@@ -2135,71 +2135,206 @@ namespace SledSurfers
             if (open) Open(questModal, questCard);
         }
 
+        // Günlük ödül (kullanıcı 2026-10-19, örnek görsele benzer): ahşap çerçeve, buz kenarlı mavi panel, kırmızı kurdele
+        // başlık; 1-6. gün iki sütunlu kahverengi kutular (alınanlarda büyük sarı tik, bugünkü altın çerçeveli ve nabızlı),
+        // 7. gün geniş mor kutu (elmaslar), altta büyük sarı CLAIM düğmesi.
+        readonly VisualElement[] loginChecks = new VisualElement[7];
+        readonly VisualElement[] loginBodies = new VisualElement[7];
+        VisualElement loginToday;
+
+        static void Outline(Label l, float width, Color color)
+        {
+            l.style.unityTextOutlineWidth = width;
+            l.style.unityTextOutlineColor = color;
+        }
+
+        static void Box(VisualElement e, Color bg, Color border, float bw, float radius)
+        {
+            e.style.backgroundColor = bg;
+            e.style.borderTopColor = e.style.borderBottomColor = e.style.borderLeftColor = e.style.borderRightColor = border;
+            e.style.borderTopWidth = e.style.borderBottomWidth = e.style.borderLeftWidth = e.style.borderRightWidth = bw;
+            e.style.borderTopLeftRadius = e.style.borderTopRightRadius = e.style.borderBottomLeftRadius = e.style.borderBottomRightRadius = radius;
+        }
+
+        /// Üst üste üç altın: altın yığını.
+        static VisualElement CoinPile(float size)
+        {
+            var pile = new VisualElement();
+            pile.style.width = size * 1.7f;
+            pile.style.height = size * 1.25f;
+            pile.style.flexShrink = 0;
+            foreach (var (x, y) in new[] { (0f, 0.35f), (0.7f, 0.35f), (0.35f, 0f) })
+            {
+                var c = new Icon(IconKind.Coin, size);
+                c.style.position = Position.Absolute;
+                c.style.left = x * size;
+                c.style.top = y * size * 0.7f;
+                pile.Add(c);
+            }
+            return pile;
+        }
+
         void BuildLogin()
         {
-            loginModal = Modal(out loginCard, "DAILY REWARD", new Color32(0xFF, 0x8F, 0x1F, 0xFF), new Color32(0xD8, 0x62, 0x0A, 0xFF));
-            var sub = L("Come back every day for bigger rewards! Day 7 is the big one.", "heavy");
-            sub.style.fontSize = 32;
-            sub.style.color = Muted;
-            sub.style.marginTop = 10;
-            sub.style.whiteSpace = WhiteSpace.Normal;
-            sub.style.unityTextAlign = TextAnchor.MiddleCenter;
-            loginCard.Add(sub);
-            var grid = E("row");
-            grid.style.flexWrap = Wrap.Wrap;
-            grid.style.justifyContent = Justify.Center;
-            grid.style.marginTop = 10;
-            for (int d = 0; d < 7; d++)
+            loginModal = new VisualElement();
+            foreach (var c in new[] { "fill", "dim", "center", "pick" }) loginModal.AddToClassList(c);
+            loginModal.style.display = DisplayStyle.None;
+            Color wood = new Color32(0x9A, 0x62, 0x36, 0xFF), woodDark = new Color32(0x6B, 0x3F, 0x1F, 0xFF);
+            Color panel = new Color32(0x1E, 0x5C, 0xAE, 0xFF), ice = new Color32(0x8F, 0xDD, 0xFF, 0xFF);
+            Color tile = new Color32(0x7A, 0x48, 0x2A, 0xFF), tileEdge = new Color32(0xC8, 0x8B, 0x4E, 0xFF);
+            Color gold = new Color32(0xFF, 0xD8, 0x4A, 0xFF), brownInk = new Color32(0x4A, 0x22, 0x0C, 0xFF);
+
+            loginCard = new VisualElement();
+            foreach (var c in new[] { "col", "pop", "off" }) loginCard.AddToClassList(c);
+            loginCard.style.width = Length.Percent(88);
+            Box(loginCard, wood, woodDark, 14, 52);
+            loginCard.style.paddingTop = loginCard.style.paddingBottom = 18;
+            loginCard.style.paddingLeft = loginCard.style.paddingRight = 18;
+
+            var inner = E("col");
+            Box(inner, panel, ice, 9, 40);
+            inner.style.paddingTop = 96;
+            inner.style.paddingLeft = inner.style.paddingRight = 18;
+            inner.style.paddingBottom = 26;
+            inner.style.alignItems = Align.Stretch;
+            inner.style.alignSelf = Align.Stretch;   // çerçeveyi doldursun (yoksa dar sütunda kalıyordu)
+            loginCard.Add(inner);
+
+            // Kurdele başlık
+            var ribbon = E("row");
+            ribbon.style.position = Position.Absolute;
+            ribbon.style.top = -46;
+            ribbon.style.alignSelf = Align.Center;
+            Box(ribbon, new Color32(0xE6, 0x3E, 0x62, 0xFF), new Color32(0xA8, 0x22, 0x47, 0xFF), 0, 28);
+            ribbon.style.borderBottomWidth = 12;
+            ribbon.style.paddingLeft = ribbon.style.paddingRight = 46;
+            ribbon.style.paddingTop = 4;
+            ribbon.style.height = 128;
+            ribbon.style.alignItems = Align.Center;
+            var title = L("DAILY REWARD", "heavy");
+            title.style.fontSize = 78;
+            title.style.color = gold;
+            Outline(title, 9, new Color32(0x6B, 0x14, 0x30, 0xFF));
+            ribbon.Add(title);
+            loginCard.Add(ribbon);
+
+            VisualElement Tile(int d, bool wide)
             {
-                var cell = E("card", "col");
-                cell.style.width = d == 6 ? 300 : 142;
-                cell.style.height = 196;
-                cell.style.overflow = Overflow.Hidden;
-                cell.style.justifyContent = Justify.FlexStart;
-                cell.style.marginLeft = cell.style.marginRight = 6;
-                cell.style.marginTop = 12;
-                cell.style.paddingTop = 6;
-                cell.style.paddingLeft = cell.style.paddingRight = 4;
-                cell.style.paddingBottom = 8;
-                cell.style.alignItems = Align.Center;
+                var t = E("col");
+                Box(t, wide ? (Color)new Color32(0x8E, 0x2A, 0x6B, 0xFF) : tile, wide ? gold : tileEdge, 8, 30);
+                t.style.flexGrow = 1;
+                t.style.flexBasis = 0;
+                t.style.height = wide ? 290 : 272;
+                t.style.marginLeft = t.style.marginRight = 9;
+                t.style.marginTop = 16;
+                t.style.alignItems = Align.Center;
+                t.style.justifyContent = Justify.Center;
+                var body = E(wide ? "row" : "col");
+                body.style.alignItems = Align.Center;
+                body.style.justifyContent = Justify.Center;
                 var day = L("DAY " + (d + 1), "heavy");
-                day.style.fontSize = 24;
-                day.style.flexShrink = 0;
-                day.style.marginTop = 4;
-                cell.Add(day);
-                var icon = new Icon(d == 6 ? IconKind.Chest : IconKind.Coin, d == 6 ? 56 : 44);
-                icon.style.flexShrink = 0;
-                icon.style.marginTop = 4;
-                icon.style.marginBottom = 4;
-                cell.Add(icon);
+                day.style.fontSize = wide ? 66 : 44;
+                day.style.color = Color.white;
+                Outline(day, wide ? 8 : 6, brownInk);
                 loginAmounts[d] = L("", "heavy");
-                loginAmounts[d].style.fontSize = 24;
-                loginAmounts[d].style.flexShrink = 0;
-                loginAmounts[d].style.whiteSpace = WhiteSpace.Normal;
+                loginAmounts[d].style.fontSize = wide ? 52 : 42;
+                loginAmounts[d].style.color = gold;
                 loginAmounts[d].style.unityTextAlign = TextAnchor.MiddleCenter;
-                cell.Add(loginAmounts[d]);
-                loginDays[d] = cell;
-                grid.Add(cell);
+                Outline(loginAmounts[d], 6, brownInk);
+                if (wide)
+                {
+                    var left = E("col");
+                    left.style.alignItems = Align.Center;
+                    left.style.marginRight = 30;
+                    left.Add(day);
+                    left.Add(loginAmounts[d]);
+                    body.Add(left);
+                    var gems = E("row");
+                    var g1 = new Icon(IconKind.Gem, 130);
+                    var g2 = new Icon(IconKind.Gem, 110);
+                    g2.style.marginLeft = -34;
+                    g2.style.marginTop = 30;
+                    gems.Add(g1);
+                    gems.Add(g2);
+                    body.Add(gems);
+                }
+                else
+                {
+                    body.Add(day);
+                    body.Add(CoinPile(62));
+                    body.Add(loginAmounts[d]);
+                }
+                t.Add(body);
+                loginBodies[d] = body;
+                // Alınmış gün: büyük sarı tik
+                var check = new Icon(IconKind.Check, wide ? 150 : 132, gold);
+                check.style.position = Position.Absolute;
+                check.style.alignSelf = Align.Center;
+                check.style.top = wide ? 66 : 64;
+                check.style.display = DisplayStyle.None;
+                t.Add(check);
+                loginChecks[d] = check;
+                loginDays[d] = t;
+                return t;
             }
-            loginCard.Add(grid);
-            var claim = B(() => { ClaimLogin?.Invoke(); Close(loginModal, loginCard); }, "btn", "btn-green", "btn-big");
+
+            for (int r = 0; r < 3; r++)
+            {
+                var row = E("row");
+                row.style.alignSelf = Align.Stretch;
+                row.Add(Tile(r * 2, false));
+                row.Add(Tile(r * 2 + 1, false));
+                inner.Add(row);
+            }
+            var row7 = E("row");
+            row7.style.alignSelf = Align.Stretch;
+            row7.Add(Tile(6, true));
+            inner.Add(row7);
+
+            var claim = B(() => { ClaimLogin?.Invoke(); Close(loginModal, loginCard); }, "btn", "btn-big");
             claim.name = "menu-login-close";
-            claim.text = "CLAIM REWARD";
-            claim.style.alignSelf = Align.Stretch;
+            claim.text = "CLAIM";
+            claim.style.backgroundColor = (Color)new Color32(0xFF, 0xC9, 0x3C, 0xFF);
+            claim.style.borderBottomColor = (Color)new Color32(0xD2, 0x86, 0x10, 0xFF);
+            claim.style.color = brownInk;
+            claim.style.unityTextOutlineWidth = 0;
+            claim.style.fontSize = 84;
+            claim.style.alignSelf = Align.Center;
+            claim.style.width = Length.Percent(62);
             claim.style.marginTop = 28;
-            loginCard.Add(claim);
+            inner.Add(claim);
+
+            loginModal.Add(loginCard);
             safe.Add(loginModal);
+            // Bugünkü kutu nabız gibi atar
+            loginModal.schedule.Execute(() =>
+            {
+                if (loginToday == null || loginModal.style.display == DisplayStyle.None) return;
+                float k = 1f + 0.035f * Mathf.Sin(Time.unscaledTime * 6f);
+                loginToday.style.scale = new Scale(new Vector2(k, k));
+            }).Every(16);
         }
 
         /// day: bugün alınacak gün (1..7); coins/gems: 7 günün ödülleri.
         public void ShowLogin(int day, int[] coins, int[] gems)
         {
+            if (loginToday != null) loginToday.style.scale = new Scale(Vector2.one);
+            loginToday = null;
             for (int d = 0; d < 7; d++)
             {
-                loginAmounts[d].text = coins[d] + (gems[d] > 0 ? "\n+" + gems[d] + " gems" : "");
+                loginAmounts[d].text = d == 6 ? (gems[d] > 0 ? gems[d] + " GEMS" : "") + (coins[d] > 0 ? (gems[d] > 0 ? "\n" : "") + coins[d] : "")
+                                              : coins[d] + (gems[d] > 0 ? "\n+" + gems[d] + " GEMS" : "");
                 bool past = d < day - 1, today = d == day - 1;
-                loginDays[d].style.opacity = past ? 0.45f : 1f;
-                loginDays[d].style.backgroundColor = today ? (Color)new Color32(0xFF, 0xE0, 0x8A, 0xFF) : Color.white;
+                loginChecks[d].style.display = past ? DisplayStyle.Flex : DisplayStyle.None;
+                loginBodies[d].style.opacity = past ? 0.3f : 1f;
+                var t = loginDays[d];
+                Color edge = today ? (Color)new Color32(0xFF, 0xD8, 0x4A, 0xFF) : d == 6 ? (Color)new Color32(0xFF, 0xD8, 0x4A, 0xFF) : (Color)new Color32(0xC8, 0x8B, 0x4E, 0xFF);
+                t.style.borderTopColor = t.style.borderBottomColor = t.style.borderLeftColor = t.style.borderRightColor = edge;
+                float w = today ? 12 : 8;
+                t.style.borderTopWidth = t.style.borderBottomWidth = t.style.borderLeftWidth = t.style.borderRightWidth = w;
+                if (d < 6) t.style.backgroundColor = past ? (Color)new Color32(0x5A, 0x33, 0x1C, 0xFF)
+                                                   : today ? (Color)new Color32(0xA0, 0x62, 0x36, 0xFF) : (Color)new Color32(0x7A, 0x48, 0x2A, 0xFF);
+                if (today) loginToday = t;
             }
             Open(loginModal, loginCard);
         }
@@ -2901,6 +3036,13 @@ namespace SledSurfers
             pause.style.right = 36;
             pause.style.top = 36;
             p.Add(pause);
+            // Kötü atışta durmayı beklemeden yeniden (kullanıcı 2026-10-19): yeni atış bir hak harcar.
+            var again = B(() => RetryRun?.Invoke(), "btn", "btn-orange", "pause-button");
+            again.text = "RETRY";
+            again.style.position = Position.Absolute;
+            again.style.right = 36;
+            again.style.top = 132;
+            p.Add(again);
 
             // Sol üst köşe (kullanıcı isteği): toplanan coin ve elmas; gidilen mesafe onların altında, ortada.
             var runCorner = E("col");

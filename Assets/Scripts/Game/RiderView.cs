@@ -317,7 +317,7 @@ namespace SledSurfers
             // Kırmızı örgü eldiven, beyaz bilek: beyaz eldiven beyaz sütün önünde kayboluyordu.
             var glove = Mats.Solid(new Color(0.88f, 0.2f, 0.22f), 0.25f);
             var cuff = Mats.Solid(new Color(0.97f, 0.96f, 0.93f), 0.2f);
-            float t = Mathf.Clamp(d * 0.26f, 0.035f, 0.055f);
+            float t = Mathf.Clamp(d * 0.2f, 0.026f, 0.05f);   // küçük kupada eldiven bardağı örtüyordu
             var root = new GameObject("Glove") { layer = layer }.transform;
             root.SetParent(parent, false);
             void P(PrimitiveType type, string name, Vector3 pos, Vector3 scale, Material m, Quaternion rot)

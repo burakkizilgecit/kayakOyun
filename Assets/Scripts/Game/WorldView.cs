@@ -6,9 +6,10 @@ namespace SledSurfers
     /// Parkur profilinden zemin, korkuluk, çimen, ağaçlar, engeller, tabelalar ve sapanı üretir.
     public class WorldView
     {
-        const float SlingPostX = 1.7f;
+        // 2026-10-19 (kullanıcı: sapan oyuncudan çok büyük): ±1.7 m / 1.75 m -> ±1.15 m / 1.2 m, direkler orantılı ince.
+        const float SlingPostX = 1.15f;
         const float SlingPostZ = 0.3f;
-        const float SlingTop = 1.75f;
+        const float SlingTop = 1.2f;
 
         const int GuideDots = 14;
 

@@ -239,6 +239,50 @@ namespace SledSurfers
                 Application.Quit();
                 yield break;
             }
+            if (mode == "check")
+            {
+                // Ana ekran (küçük sapan), nişan, koşu (RETRY düğmesi, açık Clover ve engeller), günlük ödül
+                game.DebugHideTutorial();
+                game.debugAutopilot = true;
+                game.DebugReset(new[] { 12, 12, 6, 12, 9 }, 0);
+                game.DebugTrack(0, 0);
+                yield return new WaitForSeconds(1.5f);
+                yield return Shot("c1_hub");
+                game.DebugAim();
+                yield return new WaitForSeconds(0.8f);
+                yield return Shot("c2_aim");
+                game.DebugLaunch(1f);
+                float wt = 0f;
+                foreach (var d in new[] { 120f, 200f, 330f })
+                {
+                    while (!game.DebugInResult && game.DebugDistance < d && wt < 90f) { wt += Time.deltaTime; yield return null; }
+                    if (game.DebugInResult) break;
+                    yield return Shot("c3_run_" + d.ToString("0"));
+                }
+                game.DebugHub();
+                game.DebugLogin(3);
+                yield return new WaitForSeconds(1.2f);
+                yield return Shot("c4_login");
+                SaveData.ClearAll();   // yalnız test önekli kayıt (gerçek kayıt korunur)
+                Application.Quit();
+                yield break;
+            }
+            if (mode == "login")
+            {
+                // Günlük ödül penceresi: seride 4. gün ve 7. gün
+                game.DebugHideTutorial();
+                game.DebugHub();
+                game.DebugLogin(3);
+                yield return new WaitForSeconds(1.2f);
+                yield return Shot("login_day4");
+                game.DebugHub();
+                game.DebugLogin(6);
+                yield return new WaitForSeconds(1.2f);
+                yield return Shot("login_day7");
+                SaveData.ClearAll();   // yalnız test önekli kayıt (gerçek kayıt korunur)
+                Application.Quit();
+                yield break;
+            }
             if (mode == "updraft")
             {
                 // Yükselen hava: ilk bölgeye yaklaşırken, içinde ve çıkışta (uçuş yüksekliği ve rüzgâr çizgileri).
