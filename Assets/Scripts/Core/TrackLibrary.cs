@@ -20,7 +20,7 @@ namespace SledSurfers
         public static readonly float[] MilkHeadroomScale = { 1f, 1f, 1f, 1f, 1f, 1f, 1.8f };
         public static float[] PowerStart = { 0f, 5f, 7f, 8f, 9f, 10f, 10f };
         public static float[] PowerEnd = { 15f, 18f, 21f, 23f, 24f, 25f, 25f };
-        public static float[] CostScale = { 0.8f, 1.7f, 3.1f, 1.45f, 2.25f, 1.7f, 2.45f };   // 2026-10-18: sim artık pistteki gerçek (sınırlı) altını sayıyor; geç pistler hedef atış sayısına geri çekildi   // 2026-10-10: referans fiyat eğrisi (5×aşama, 1.4→1.24) ile
+        public static float[] CostScale = { 0.72f, 1.25f, 3.1f, 1.45f, 2.25f, 1.9f, 2.45f };   // 2026-10-18: sim artık pistteki gerçek (sınırlı) altını sayıyor; geç pistler hedef atış sayısına geri çekildi   // 2026-10-10: referans fiyat eğrisi (5×aşama, 1.4→1.24) ile
         /// Pistin aracı: son üç haritada aracın şekli tamamen değişir.
         public static readonly VehicleKind[] Vehicles =
             { VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sandboard, VehicleKind.Bobsled, VehicleKind.Hover };
@@ -420,7 +420,7 @@ namespace SledSurfers
         /// Pist başına süzülme ayarları: yavaşlama yamacı eğimi (pist başında → sonunda; sona doğru düzleşir, her kızak
         /// seviyesi bir iki yamaç daha aşar), yamaç uzunluğu, kanal eğimi ve uzunluğu.
         public static float[] SlowGrade = { 0.178f, 0.18f, 0.18f, 0.1f, 0.1f, 0.08f, 0.08f };   // 2026-10-10: uzun yokuşlarla yeniden tarandı (Mars: sona doğru belirgin azalır; pervane telafisiyle sonda hafif yokuş yukarı)
-        public static float[] SlowGradeEnd = { 0.173f, 0.16f, 0.162f, 0.1f, 0.1f, 0.08f, 0.045f };
+        public static float[] SlowGradeEnd = { 0.18f, 0.16f, 0.162f, 0.1f, 0.1f, 0.08f, 0.045f };
         public static Vector2[] SlowLength = { new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f) };
         public static float[] BoostGrade = { 0.42f, 0.36f, 0.36f, 0.34f, 0.34f, 0.34f, 0.32f };
         public static float[] BoostLength = { 25f, 25f, 25f, 25f, 25f, 25f, 25f };
@@ -598,7 +598,7 @@ namespace SledSurfers
                     if (urnd.NextDouble() < UpdraftChance[track])
                     {
                         float lip = p.lastLip, lipY = p.y + 0.8f;
-                        p.updrafts.Add(new Vector3(lip + 4f, lip + 4f + UpdraftLength, UpdraftPower));
+                        p.updrafts.Add(new Vector3(lip - 1f, lip - 1f + UpdraftLength, UpdraftPower));   // dudakta başlar: uçuş hemen taşınır
                         // Uçuş boyunca vadi düz: kızak havada düz gider, kıvrılan vadinin kenarına inip kayaya çarpıyordu.
                         p.straight.Add(new Vector2(lip - 10f, lip + 4f + UpdraftLength + FlightClear));
                         if (track >= BirdsFrom && urnd.NextDouble() < 0.6)
@@ -1102,7 +1102,7 @@ namespace SledSurfers
                 p.sharp.Add(new Vector2(kk.x - 4f, kk.y + 10f));
                 p.straight.Add(new Vector2(kk.x - 15f, kk.y + 90f));
                 // Rampa ve uçurum kenarının ardında yükselen hava (2026-10-19): orman üstünde yüksek süzülme; uçuş boyunca vadi düz.
-                p.updrafts.Add(new Vector3(kk.y + 4f, kk.y + 4f + UpdraftLength, UpdraftPower));
+                p.updrafts.Add(new Vector3(kk.y - 1f, kk.y - 1f + UpdraftLength, UpdraftPower));
                 p.straight.Add(new Vector2(kk.y, kk.y + 4f + UpdraftLength + FlightClear));
             }
             return p;
@@ -1291,7 +1291,7 @@ namespace SledSurfers
                 foreach (int ei in new[] { 0, 1, 2, 3 })
                 {
                     float lip = CanyonEdges[ei].y;
-                    gt.updrafts.Add(new Vector3(lip + 4f, lip + 4f + UpdraftLength, UpdraftPower));
+                    gt.updrafts.Add(new Vector3(lip - 1f, lip - 1f + UpdraftLength, UpdraftPower));
                     if (ei % 2 == 1)
                         gt.flocks.Add(new Flock { z = lip + 4f + UpdraftLength * 0.6f, x = 0f, y = gt.Height(lip) + 5.5f, sway = 4f, period = 3.2f, radius = 2.2f });
                 }

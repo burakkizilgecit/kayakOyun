@@ -209,11 +209,12 @@ namespace SledSurfers
         /// kızak içinden geçerken yukarı itilir, kanadın taşıma süresi tükenmez, otomatik süzülme yamaca dalmaz.
         public readonly List<Vector3> updrafts = new List<Vector3>();
 
-        /// z'deki yükselen havanın gücü (m/s², Dünya yerçekimine göre; yoksa 0). Uçlarda 8 m'de yumuşak geçiş.
+        /// z'deki yükselen havanın gücü (m/s², Dünya yerçekimine göre; yoksa 0). Başta 3 m'de tam güç (rampadan çıkan
+        /// kızak hemen taşınsın, kullanıcı 2026-10-19), sonda 8 m'de söner.
         public float UpdraftAt(float z)
         {
             foreach (var u in updrafts)
-                if (z > u.x && z < u.y) return u.z * Mathf.Clamp01(Mathf.Min(z - u.x, u.y - z) / 8f);
+                if (z > u.x && z < u.y) return u.z * Mathf.Clamp01(Mathf.Min((z - u.x) / 3f, (u.y - z) / 8f));
             return 0f;
         }
         /// Havada alınan roket hakkı: pistin %70'inden sonraki ilk rampanın uçuş yolunda, yerden yetişilemeyecek

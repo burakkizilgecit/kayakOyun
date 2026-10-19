@@ -445,10 +445,16 @@ namespace SledSurfers
             {
                 // Hedef tırmanma hızına çeker (kanat büyüdükçe hızlı: ~2-4 m/s): yalnız ivme eklemek yavaş kızakta
                 // yerçekimini ancak dengeliyordu, kızak bölgede 0.3-0.7 m yükseliyordu.
-                float k = Mathf.Clamp01(0.35f + cfg.wingArea / 2.2f);
+                // Hava hızına bağlı: yavaş kızak (7 m/s altı) yükselmez, 13 m/s'de tam (yavaşken 7.7 m'ye çıkıp bölge
+                // çıkışında tutunamadan taş gibi düşüyor, "Landed too hard" oluyordu).
+                // Kanat alanıyla orantılı (taban payı yok): küçük kanat (0.7 m²) 14 m/s'de ağırlığın ancak beşte birini
+                // taşır; 12 m'ye çıkınca bölge çıkışında çakılıyordu. Küçük kanat birkaç metre, büyük kanat tam yükselir.
+                float k = Mathf.Clamp01(cfg.wingArea / 2.2f) * Mathf.Clamp01((speed - 7f) / 6f);
                 float climb = updraft * 0.65f * k;
                 a.y += Gravity * 0.6f * k + Mathf.Max(0f, climb - v.y) * 2.5f;
-                airTime = Mathf.Max(0f, airTime - 1.5f * dt);
+                // Bölgedeyken taşıma süresi baştan: çıkışta kanadın tam süzülme süresi kalır (orta seviyede süre bölge
+                // içinde bitiyor, kızak yüksekten düşüp "Landed too hard" oluyordu).
+                airTime = 0f;
             }
 
             float gamma = Mathf.Atan2(v.y, Mathf.Max(v.z, 0.01f));   // uçuş yolu açısı
@@ -478,7 +484,11 @@ namespace SledSurfers
                         glidePath = Mathf.Clamp(slopeAhead - dive, -1.2f, 0.3f);
                     }
                 }
+                // İniş yolu en çok ~26°, hızlı düşüşte kanat tam açıyla tutunur (2026-10-19): yükselen havadan sonra 12 m
+                // yüksekten hücum açısı 0'a inip kızak serbest düşüyor, 14 m/s ile çakılıyordu.
+                glidePath = Mathf.Max(glidePath, -0.45f);
                 float alpha = Mathf.Clamp(0.12f + 1.5f * (glidePath - gamma), 0f, 0.24f);
+                if (v.y < -7f) alpha = 0.24f;
                 pitch = Mathf.MoveTowards(pitch, gamma + alpha, 1.5f * dt);
             }
             else pitch = Mathf.MoveTowards(pitch, gamma, 0.5f * dt);
@@ -486,6 +496,9 @@ namespace SledSurfers
             // Kanatlı kızak (kuyruklu planör gibi) kendini akışa hizalar: burun akışın
             // altına bastırılamaz, böylece eksi g oluşmaz; en fazla ~25° kabartılabilir.
             if (wingsOpen) pitch = Mathf.Clamp(pitch, gamma, gamma + 0.45f);
+            // Hızlı düşüşte kanat kendiliğinden tutunur (burun dalışta bile en az 0.24 rad hücum açısı): oyuncu ya da pilot
+            // burnu yamaca indirince taşıma sıfırlanıp kızak yükselen havadan sonra yere çakılıyordu.
+            if (wingsOpen && v.y < -7f) pitch = Mathf.Max(pitch, gamma + 0.24f);
 
             if (wingsOpen)
             {

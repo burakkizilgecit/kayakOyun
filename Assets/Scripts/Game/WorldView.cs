@@ -78,52 +78,87 @@ namespace SledSurfers
                 wings.Add(flaps.ToArray());
             }
 
-            // Yükselen hava (2026-10-19): yerden yukarı akan ışıklı rüzgâr çizgileri; kanatlı kızak burada yükselir.
-            Color wind = theme.lava ? new Color(1f, 0.58f, 0.22f)
-                       : theme.landscape == TrackTheme.Landscape.Dunes ? new Color(1f, 0.9f, 0.62f)
-                       : theme.landscape == TrackTheme.Landscape.Craters ? new Color(1f, 0.72f, 0.55f)
-                       : new Color(0.86f, 0.95f, 1f);
-            var windMat = Mats.Glow(wind, wind * 0.9f);
+            // Yükselen hava (kullanıcı 2026-10-19: düz çizgiler çok basitti, dalgalı hava figürü olmalı): bölge boyunca
+            // kıvrılarak yükselen yarı saydam hava şeritleri (dokusu yukarı akar, uçlarda incelir) ve aralarında girdap
+            // gibi dönerek yükselen hava zerrecikleri. Renk temadan (lavda sıcak turuncu, çölde kum, Mars'ta pas).
+            Color wind = theme.lava ? new Color(1f, 0.62f, 0.3f)
+                       : theme.landscape == TrackTheme.Landscape.Dunes ? new Color(1f, 0.92f, 0.7f)
+                       : theme.landscape == TrackTheme.Landscape.Craters ? new Color(1f, 0.76f, 0.6f)
+                       : new Color(0.9f, 0.97f, 1f);
+            if (track.updrafts.Count > 0)
+            {
+                windRibbonMat = Mats.Glass();
+                windRibbonMat.color = new Color(wind.r, wind.g, wind.b, 0.55f);
+                windRibbonMat.mainTexture = WindTexture();
+                windRibbonMat.SetFloat("_Glossiness", 0.2f);
+            }
+            var moteMat = Mats.Glow(wind, wind * 0.7f);
+            var wrnd = new System.Random(77);
             foreach (var u in track.updrafts)
             {
                 float zc = (u.x + u.y) * 0.5f, len = u.y - u.x;
-                var go = new GameObject("Updraft");
-                go.transform.SetParent(root, false);
-                go.transform.position = new Vector3(track.CenterX(zc), track.Height(zc) - 0.5f, zc);
+                var zone = new GameObject("Updraft").transform;
+                zone.SetParent(root, false);
+                zone.position = new Vector3(track.CenterX(zc), track.Height(zc) - 0.3f, zc);
+                const int Ribbons = 6;
+                for (int k = 0; k < Ribbons; k++)
+                {
+                    var rib = new GameObject("Wind Ribbon");
+                    rib.transform.SetParent(zone, false);
+                    float lz = -len * 0.5f + (k + 0.5f) * len / Ribbons + (float)(wrnd.NextDouble() - 0.5) * 4f;
+                    float lx = (float)(wrnd.NextDouble() * 2 - 1) * track.halfWidth * 0.8f;
+                    rib.transform.localPosition = new Vector3(lx, 0f, lz);
+                    rib.AddComponent<MeshFilter>().sharedMesh = resources.Own(WindRibbon((float)wrnd.NextDouble() * 6.28f, 16f + (float)wrnd.NextDouble() * 8f));
+                    var mr = rib.AddComponent<MeshRenderer>();
+                    mr.sharedMaterial = windRibbonMat;
+                    mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                    mr.receiveShadows = false;
+                }
+                // Girdaplı hava zerrecikleri
+                var go = new GameObject("Updraft Motes");
+                go.transform.SetParent(zone, false);
                 var ps = go.AddComponent<ParticleSystem>();
                 ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
                 var main = ps.main;
                 main.loop = true;
-                main.startLifetime = new ParticleSystem.MinMaxCurve(2.2f, 3.4f);
+                main.startLifetime = new ParticleSystem.MinMaxCurve(2.5f, 4f);
                 main.startSpeed = 0f;
-                main.startSize = new ParticleSystem.MinMaxCurve(0.06f, 0.13f);
-                main.simulationSpace = ParticleSystemSimulationSpace.World;
-                main.maxParticles = 600;
+                main.startSize = new ParticleSystem.MinMaxCurve(0.07f, 0.16f);
+                main.simulationSpace = ParticleSystemSimulationSpace.Local;
+                main.maxParticles = 300;
                 var em = ps.emission;
-                em.rateOverTime = 120f;
+                em.rateOverTime = 60f;
                 var shape = ps.shape;
                 shape.shapeType = ParticleSystemShapeType.Box;
-                shape.scale = new Vector3(track.halfWidth * 2.4f, 1f, len);
+                shape.scale = new Vector3(track.halfWidth * 2f, 1f, len);
                 var vel = ps.velocityOverLifetime;
                 vel.enabled = true;
-                vel.space = ParticleSystemSimulationSpace.World;
-                vel.x = new ParticleSystem.MinMaxCurve(-0.6f, 0.6f);
-                vel.y = new ParticleSystem.MinMaxCurve(6f, 10f);
-                vel.z = new ParticleSystem.MinMaxCurve(-0.6f, 0.6f);
+                vel.space = ParticleSystemSimulationSpace.Local;
+                // Bütün eğriler aynı modda (iki sabit arası) olmalı: karışık mod konsola hata yağdırıyordu.
+                vel.x = new ParticleSystem.MinMaxCurve(0f, 0f);
+                vel.y = new ParticleSystem.MinMaxCurve(4f, 7f);
+                vel.z = new ParticleSystem.MinMaxCurve(0f, 0f);
+                vel.orbitalX = new ParticleSystem.MinMaxCurve(0f, 0f);
+                vel.orbitalY = new ParticleSystem.MinMaxCurve(1.2f, 2.4f);   // dönerek yükselir
+                vel.orbitalZ = new ParticleSystem.MinMaxCurve(0f, 0f);
+                vel.radial = new ParticleSystem.MinMaxCurve(0.3f, 0.5f);
+                var noise = ps.noise;
+                noise.enabled = true;
+                noise.strength = 1.2f;
+                noise.frequency = 0.35f;
+                noise.scrollSpeed = 0.6f;
                 var col = ps.colorOverLifetime;
                 col.enabled = true;
                 var grad = new Gradient();
                 grad.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
-                             new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.2f), new GradientAlphaKey(1f, 0.7f), new GradientAlphaKey(0f, 1f) });
+                             new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.25f), new GradientAlphaKey(1f, 0.7f), new GradientAlphaKey(0f, 1f) });
                 col.color = grad;
                 var size = ps.sizeOverLifetime;
                 size.enabled = true;
-                size.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.EaseInOut(0f, 0.4f, 1f, 1f));
+                size.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.EaseInOut(0f, 0.3f, 1f, 1f));
                 var pr = go.GetComponent<ParticleSystemRenderer>();
-                pr.renderMode = ParticleSystemRenderMode.Stretch;   // hıza göre uzayan çizgi: rüzgâr gibi
-                pr.velocityScale = 0.12f;
-                pr.lengthScale = 2f;
-                pr.sharedMaterial = windMat;
+                pr.renderMode = ParticleSystemRenderMode.Billboard;
+                pr.sharedMaterial = moteMat;
                 pr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 ps.Play();
             }
@@ -185,9 +220,73 @@ namespace SledSurfers
 
         public Transform Root => root;
 
-        /// Kuş sürülerini atışın saatine göre konumlar, kanatları çırptırır.
+        Material windRibbonMat;
+
+        /// Dalgalı hava şeridi: yükseldikçe sağa-sola salınan ve kendi ekseninde kıvrılan, uçlarda incelen dikey şerit
+        /// (iki yüzlü). v boyunca doku yukarı akar (AnimateBirds).
+        static Mesh WindRibbon(float phase, float height)
+        {
+            const int Seg = 36, Front = (Seg + 1) * 2;
+            // Ön ve arka yüz ayrı noktalarla (aynı noktaları paylaşınca yüzey yönleri birbirini sıfırlıyor, şerit siyah görünüyordu).
+            var verts = new Vector3[Front * 2];
+            var uvs = new Vector2[verts.Length];
+            for (int i = 0; i <= Seg; i++)
+            {
+                float t = i / (float)Seg, y = t * height;
+                var c = new Vector3(1.1f * Mathf.Sin(y * 0.32f + phase), y, 0.8f * Mathf.Cos(y * 0.27f + phase * 1.3f));
+                float twist = y * 0.22f + phase;
+                float w = 1.6f * Mathf.Sin(Mathf.PI * t) * (0.75f + 0.25f * Mathf.Sin(y * 0.6f + phase));
+                var side = new Vector3(Mathf.Cos(twist), 0f, Mathf.Sin(twist)) * (w * 0.5f);
+                verts[i * 2] = c - side;
+                verts[i * 2 + 1] = c + side;
+                uvs[i * 2] = new Vector2(0f, y / 6f);
+                uvs[i * 2 + 1] = new Vector2(1f, y / 6f);
+                verts[Front + i * 2] = verts[i * 2];
+                verts[Front + i * 2 + 1] = verts[i * 2 + 1];
+                uvs[Front + i * 2] = uvs[i * 2];
+                uvs[Front + i * 2 + 1] = uvs[i * 2 + 1];
+            }
+            var tris = new int[Seg * 12];
+            for (int i = 0, n = 0; i < Seg; i++)
+            {
+                int a = i * 2, b = a + 1, c2 = a + 2, d = a + 3;
+                tris[n++] = a; tris[n++] = c2; tris[n++] = b; tris[n++] = b; tris[n++] = c2; tris[n++] = d;
+                a += Front; b += Front; c2 += Front; d += Front;
+                tris[n++] = a; tris[n++] = b; tris[n++] = c2; tris[n++] = b; tris[n++] = d; tris[n++] = c2;   // arka yüz
+            }
+            var mesh = new Mesh { name = "Wind Ribbon" };
+            mesh.vertices = verts;
+            mesh.uv = uvs;
+            mesh.triangles = tris;
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        /// Şerit dokusu: kenarlara doğru sönen, akış yönünde dalgalı ince bantlar (alfa).
+        static Texture2D WindTexture()
+        {
+            const int W = 32, H = 128;
+            var tex = new Texture2D(W, H, TextureFormat.RGBA32, true) { wrapMode = TextureWrapMode.Repeat, name = "Wind" };
+            var px = new Color[W * H];
+            for (int y = 0; y < H; y++)
+                for (int x = 0; x < W; x++)
+                {
+                    float u = (x + 0.5f) / W, v = (y + 0.5f) / H;
+                    float edge = Mathf.Sin(Mathf.PI * u);
+                    float band = 0.5f + 0.5f * Mathf.Sin((v * 3f + 0.15f * Mathf.Sin(u * 6.28f * 2f)) * 6.2832f);
+                    float a = edge * edge * Mathf.Lerp(0.15f, 1f, band * band);
+                    px[y * W + x] = new Color(1f, 1f, 1f, a);
+                }
+            tex.SetPixels(px);
+            tex.Apply(true);
+            return tex;
+        }
+
+        /// Kuş sürülerini atışın saatine göre konumlar, kanatları çırptırır; hava şeritlerinin dokusunu yukarı akıtır.
         public void AnimateBirds(float clock, float time)
         {
+            if (windRibbonMat != null) windRibbonMat.mainTextureOffset = new Vector2(0f, -time * 0.45f);
             for (int i = 0; i < flockRoots.Count; i++)
             {
                 flockRoots[i].position = track.FlockCenter(track.flocks[i], clock);
