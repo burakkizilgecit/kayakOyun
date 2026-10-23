@@ -111,7 +111,7 @@ namespace SledSurfers
         public float DebugSimulationTime => sled.clock;
         public void DebugPause(bool value) => SetPaused(value);
         public bool DebugInResult => state == State.Result;
-        public void DebugHub() => EnterHub();
+        public void DebugHub() { ui.DebugCloseModals(); EnterHub(); }
         public GameUI.Page DebugUiPage => ui.Current;
         public int DebugMoney => save.money;
         public int DebugGemBalance => save.gems;
@@ -1577,6 +1577,7 @@ namespace SledSurfers
                 fill = liquid.FillRatio,
                 milkDanger = state == State.Run ? liquid.Danger : 0f,
                 pull = pull,
+                aimAngle = aim,
                 perfectWindow = state == State.Aim && PerfectWindowOpen,
                 runTime = runTime,
                 // Yalnızca gerçek uçuşta (yerden 1.2 m'den yüksek) yazı çıkar; "GLIDE!" kanat hâlâ taşıyorsa.

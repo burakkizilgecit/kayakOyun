@@ -14,7 +14,7 @@ namespace SledSurfers
         public int sensitivity;     // direksiyon hassasiyeti (0..2)
         public float milkDanger;    // süt taşmaya ne kadar yakın (0..1)
         public bool perfectWindow;  // sapan tam gerildi: şimdi bırakırsa mükemmel atış
-        public float progress, bestProgress, speedKmh, fill, pull, runTime;
+        public float progress, bestProgress, speedKmh, fill, pull, runTime, aimAngle;
         public bool airborne, canGlide, dragging, tiltMode, sound;
         public bool mobileControls, hasWings, rocketNeedsLanding;
         public float wingSecondsLeft;
@@ -285,8 +285,8 @@ namespace SledSurfers
         class MapCard
         {
             public Button root;
-            public VisualElement badge, fill;
-            public Label number, status, wallet;
+            public VisualElement badge, fill, island, lockDisc;
+            public Label number, status, wallet, lockName;
             public Icon lockIcon;
         }
 
@@ -760,6 +760,22 @@ namespace SledSurfers
             flag.AddToClassList("hub-bar-flag");
             slim.Add(flag);
             title.Add(slim);
+            // MAP kartı kaldırıldı (kullanıcı 2026-10-23): haritalara parkur adına dokunarak gidilir; altında küçük ipucu.
+            var allMaps = L("SHOW ALL MAPS  ›", "heavy");
+            allMaps.name = "home-all-maps";
+            allMaps.style.fontSize = 30;
+            allMaps.style.color = Color.white;
+            allMaps.style.unityTextOutlineWidth = 4;
+            allMaps.style.unityTextOutlineColor = new Color(0f, 0f, 0f, 0.45f);
+            allMaps.style.alignSelf = Align.Center;
+            allMaps.style.marginTop = 4;
+            // Plakanın hemen altında, ona sabitli (ana ekran öğeleri mutlak konumlu: ayrı öğe en tepeye kayıyordu).
+            allMaps.pickingMode = PickingMode.Ignore;
+            allMaps.style.position = Position.Absolute;
+            allMaps.style.left = allMaps.style.right = 0;
+            allMaps.style.bottom = -46;
+            allMaps.style.unityTextAlign = TextAnchor.MiddleCenter;
+            title.Add(allMaps);
             p.Add(title);
 
             var mid = E("home-stage");
@@ -813,6 +829,7 @@ namespace SledSurfers
             mapArt.style.flexShrink = StyleKeyword.Null;
             map.Add(mapArt);
             map.Add(L("MAP", "side-label"));
+            map.style.display = DisplayStyle.None;   // 2026-10-23: haritalar parkur adından açılır
             right.Add(map);
             var shop = SideCard(() => OpenShop?.Invoke(), new Color32(242, 68, 167, 255), new Color32(184, 34, 126, 255));
             shop.name = "home-shop";
@@ -1467,47 +1484,50 @@ namespace SledSurfers
 
         // ================================================================ sandık
 
+        RayBurst chestRays;
+        RewardConfetti chestConfetti;
+
+        /// Test: açık bütün pencereleri (görev, ödül, sandık, fırsat...) kapatır.
+        public void DebugCloseModals()
+        {
+            foreach (var child in safe.Children())
+                if (child.ClassListContains("dim")) child.style.display = DisplayStyle.None;
+        }
+
         void BuildChest()
         {
             chestModal = E("fill", "dim", "center", "pick");
             chestModal.name = "home-chest-modal";
             chestModal.style.display = DisplayStyle.None;
 
-            chestCard = E("card", "card-cream", "col", "pop", "off");
+            // 2026-10-23 (örnek görsele göre): kart yok; dönen ışın patlaması önünde büyük sandık, düşen konfeti.
+            chestCard = E("col", "pop", "off");
             chestCard.style.width = Length.Percent(84);
-            chestCard.style.paddingTop = 0;
-            chestCard.style.paddingLeft = chestCard.style.paddingRight = 40;
-            chestCard.style.paddingBottom = 40;
+            chestCard.style.alignItems = Align.Center;
 
-            var ribbon = E("ribbon");
-            ribbon.style.marginTop = -50;
-            ribbon.style.height = 104;
-            var title = L("CHEST");
-            title.style.fontSize = 56;
-            ribbon.Add(title);
-            chestCard.Add(ribbon);
-
-            var big = new Icon(IconKind.Chest, 230);
-            big.style.marginTop = 20;
+            var stage = E("center");
+            stage.style.width = 640;
+            stage.style.height = 560;
+            chestRays = new RayBurst();
+            stage.Add(chestRays);
+            var big = new Icon(IconKind.Chest, 400);
             big.name = "chest-big";
-            chestCard.Add(big);
-
-            var won = L("YOU WON!", "heavy");
-            won.style.fontSize = 44;
-            won.style.color = Muted;
-            chestCard.Add(won);
+            stage.Add(big);
+            chestCard.Add(stage);
+            chestConfetti = new RewardConfetti();
+            chestModal.Add(chestConfetti);
 
             var coinRow = E("row");
             coinRow.Add(new Icon(IconKind.Coin, 90));
             chestCoins = Sp(L("0", "outlined"), 14);
-            chestCoins.style.fontSize = 110;
+            chestCoins.style.fontSize = 140;
             coinRow.Add(chestCoins);
             chestCard.Add(coinRow);
 
             chestGemRow = E("row");
             chestGemRow.Add(new Icon(IconKind.Gem, 70));
             chestGems = Sp(L("+1", "outlined"), 12);
-            chestGems.style.fontSize = 72;
+            chestGems.style.fontSize = 110;
             chestGemRow.Add(chestGems);
             chestCard.Add(chestGemRow);
 
@@ -2052,13 +2072,58 @@ namespace SledSurfers
 
         void BuildQuests()
         {
-            questModal = Modal(out questCard, "DAILY QUESTS", new Color32(0x9B, 0x6B, 0xFF, 0xFF), new Color32(0x6A, 0x3D, 0xD0, 0xFF));
+            // 2026-10-23 (örnek görsele göre): tepeden iplerle sarkan tahta tabela, tahta kurdele başlık, renkli görev ikonları.
+            questModal = Modal(out questCard, "DAILY QUESTS", Wood, WoodDark);
             questModal.name = "home-quests-modal";
+            var sign = E("col");
+            sign.pickingMode = PickingMode.Ignore;
+            sign.style.position = Position.Absolute;
+            sign.style.top = 0;
+            sign.style.left = Length.Percent(12);
+            sign.style.right = Length.Percent(12);
+            sign.style.alignItems = Align.Center;
+            var ropes = E("row");
+            ropes.style.width = Length.Percent(78);
+            ropes.style.justifyContent = Justify.SpaceBetween;
+            for (int r = 0; r < 2; r++)
+            {
+                var rope = E();
+                rope.style.width = 12;
+                rope.style.height = 150;
+                rope.style.backgroundColor = (Color)new Color32(0xC9, 0x9A, 0x5A, 0xFF);
+                rope.style.borderLeftWidth = rope.style.borderRightWidth = 2;
+                rope.style.borderLeftColor = rope.style.borderRightColor = (Color)new Color32(0x8A, 0x60, 0x2E, 0xFF);
+                ropes.Add(rope);
+            }
+            sign.Add(ropes);
+            var plank = E("row");
+            plank.style.alignSelf = Align.Stretch;
+            plank.style.justifyContent = Justify.Center;
+            plank.style.height = 150;
+            plank.style.alignItems = Align.Center;
+            plank.style.backgroundColor = Wood;
+            plank.style.borderBottomWidth = 14;
+            plank.style.borderBottomColor = WoodDark;
+            plank.style.borderTopLeftRadius = plank.style.borderTopRightRadius = plank.style.borderBottomLeftRadius = plank.style.borderBottomRightRadius = 24;
+            var signText = L("DAILY QUESTS", "heavy");
+            signText.style.fontSize = 84;
+            signText.style.color = Color.white;
+            signText.style.unityTextOutlineWidth = 8;
+            signText.style.unityTextOutlineColor = WoodDark;
+            plank.Add(signText);
+            sign.Add(plank);
+            questModal.Insert(0, sign);
+            var timerRow = E("row");
+            timerRow.style.alignSelf = Align.Center;
+            timerRow.style.alignItems = Align.Center;
+            timerRow.style.marginTop = 14;
+            timerRow.Add(new Icon(IconKind.Flag, 40, (Color)new Color32(0xE8, 0x9A, 0x1A, 0xFF)));
             questTimer = L("", "heavy");
-            questTimer.style.fontSize = 32;
-            questTimer.style.color = Muted;
-            questTimer.style.marginTop = 10;
-            questCard.Add(questTimer);
+            questTimer.style.fontSize = 34;
+            questTimer.style.color = (Color)new Color32(0x7A, 0x5A, 0x3A, 0xFF);
+            questTimer.style.marginLeft = 10;
+            timerRow.Add(questTimer);
+            questCard.Add(timerRow);
             for (int i = 0; i < DailyQuests.PerDay; i++)
             {
                 int index = i;
@@ -2067,6 +2132,15 @@ namespace SledSurfers
                 row.style.marginTop = 18;
                 row.style.paddingTop = row.style.paddingBottom = 16;
                 row.style.paddingLeft = row.style.paddingRight = 20;
+                row.style.alignItems = Align.Center;
+                questIcons[i] = E("center");
+                questIcons[i].style.width = questIcons[i].style.height = 118;
+                questIcons[i].style.flexShrink = 0;
+                questIcons[i].style.marginRight = 20;
+                questIcons[i].style.borderTopLeftRadius = questIcons[i].style.borderTopRightRadius = 28;
+                questIcons[i].style.borderBottomLeftRadius = questIcons[i].style.borderBottomRightRadius = 28;
+                questIcons[i].style.borderBottomWidth = 8;
+                row.Add(questIcons[i]);
                 var col = E("grow");
                 questTexts[i] = L("", "heavy");
                 questTexts[i].style.fontSize = 34;
@@ -2091,7 +2165,7 @@ namespace SledSurfers
                 questRewards[i].style.marginTop = 4;
                 col.Add(questRewards[i]);
                 row.Add(col);
-                questClaims[i] = B(() => ClaimQuest?.Invoke(index), "btn", "btn-green", "btn-mid");
+                questClaims[i] = B(() => ClaimQuest?.Invoke(index), "btn", "btn-mid");
                 questClaims[i].text = "CLAIM";
                 questClaims[i].style.width = 210;
                 questClaims[i].style.fontSize = 40;
@@ -2109,6 +2183,28 @@ namespace SledSurfers
             safe.Add(questModal);
         }
 
+        static readonly Color Wood = new Color32(0xB0, 0x6A, 0x32, 0xFF), WoodDark = new Color32(0x6E, 0x3E, 0x18, 0xFF);
+        readonly VisualElement[] questIcons = new VisualElement[DailyQuests.PerDay];
+
+        /// Görev türünün ikonu ve kutu rengi.
+        static (IconKind, Color) QuestLook(QuestKind k)
+        {
+            switch (k)
+            {
+                case QuestKind.Distance: case QuestKind.TotalDistance: return (IconKind.Flag, new Color32(0x9B, 0x6B, 0xFF, 0xFF));
+                case QuestKind.Milk: return (IconKind.Glass, new Color32(0x8E, 0x7C, 0xFF, 0xFF));
+                case QuestKind.Finish: return (IconKind.Finish, new Color32(0x3F, 0xC0, 0x7A, 0xFF));
+                case QuestKind.Coins: return (IconKind.Coin, new Color32(0xFF, 0xB0, 0x20, 0xFF));
+                case QuestKind.Gems: return (IconKind.Gem, new Color32(0xF0, 0x5F, 0xB0, 0xFF));
+                case QuestKind.AirTime: case QuestKind.LongAir: return (IconKind.Wing, new Color32(0x3F, 0xA9, 0xF5, 0xFF));
+                case QuestKind.Perfect: return (IconKind.Slingshot, new Color32(0xFF, 0x8A, 0x3D, 0xFF));
+                case QuestKind.Rocket: return (IconKind.Rocket, new Color32(0xF2, 0x55, 0x55, 0xFF));
+                case QuestKind.Bridges: return (IconKind.Map, new Color32(0x2F, 0xB8, 0xC8, 0xFF));
+                case QuestKind.ForkGood: return (IconKind.Swap, new Color32(0x2F, 0xB8, 0xC8, 0xFF));
+                default: return (IconKind.Runners, new Color32(0x6F, 0x9B, 0xD8, 0xFF));
+            }
+        }
+
         /// Görev listesini günceller (open: pencereyi de açar); alınabilir ödül varsa ana ekrandaki düğmede kırmızı nokta.
         public void ShowQuests(DailyQuests.Quest[] quests, int[] progress, int claimed, bool open)
         {
@@ -2123,11 +2219,24 @@ namespace SledSurfers
                 questTexts[i].text = q.text;
                 questCounts[i].text = p + "/" + q.target;
                 questFills[i].style.width = Length.Percent(100f * p / Mathf.Max(1, q.target));
-                questFills[i].style.backgroundColor = done ? (Color)new Color32(0x3F, 0xD1, 0x5B, 0xFF) : (Color)new Color32(0xFF, 0xB0, 0x20, 0xFF);
+                questFills[i].style.backgroundColor = done ? (Color)new Color32(0x3F, 0xD1, 0x5B, 0xFF) : (Color)new Color32(0xFF, 0xA1, 0x1F, 0xFF);
+                var (kindIcon, kindColor) = QuestLook(q.kind);
+                if (questIcons[i].userData == null || (QuestKind)questIcons[i].userData != q.kind)
+                {
+                    questIcons[i].Clear();
+                    questIcons[i].Add(new Icon(kindIcon, 78));
+                    questIcons[i].style.backgroundColor = kindColor;
+                    questIcons[i].style.borderBottomColor = Color.Lerp(kindColor, Color.black, 0.25f);
+                    questIcons[i].userData = q.kind;
+                }
+                bool ready = done && !got;
+                questClaims[i].style.backgroundColor = ready ? (Color)new Color32(0xFF, 0xC9, 0x3C, 0xFF) : (Color)new Color32(0xC9, 0xC8, 0xCF, 0xFF);
+                questClaims[i].style.borderBottomColor = ready ? (Color)new Color32(0xD2, 0x86, 0x10, 0xFF) : (Color)new Color32(0xA3, 0xA2, 0xAA, 0xFF);
+                questClaims[i].style.color = ready ? (Color)new Color32(0x4A, 0x22, 0x0C, 0xFF) : Color.white;
                 questRewards[i].text = "+" + q.coins + " coins" + (q.gems > 0 ? "  ·  +" + q.gems + " gems" : "");
                 questClaims[i].SetEnabled(done && !got);
                 questClaims[i].text = got ? "CLAIMED" : "CLAIM";
-                questClaims[i].style.opacity = done && !got ? 1f : 0.45f;
+                questClaims[i].style.opacity = 1f;
                 questRows[i].style.opacity = got ? 0.6f : 1f;
                 if (done && !got) any = true;
             }
@@ -2523,6 +2632,7 @@ namespace SledSurfers
             var title = L("HEROES", "outlined");
             title.style.fontSize = 72;
             top.Add(title);
+            HeaderBand(top);
             top.Add(GemPill());
             p.Add(top);
 
@@ -2708,6 +2818,16 @@ namespace SledSurfers
 
         // ================================================================ harita
 
+        /// Başlık satırının arkasında yarı saydam mavi bant (örnek görseldeki başlık şeridi).
+        static void HeaderBand(VisualElement top)
+        {
+            top.style.backgroundColor = new Color(0.27f, 0.58f, 0.96f, 0.55f);
+            top.style.borderTopLeftRadius = top.style.borderTopRightRadius = top.style.borderBottomLeftRadius = top.style.borderBottomRightRadius = 34;
+            top.style.paddingLeft = top.style.paddingRight = 10;
+            top.style.borderBottomWidth = 6;
+            top.style.borderBottomColor = new Color(0.12f, 0.36f, 0.75f, 0.6f);
+        }
+
         void BuildMap()
         {
             var p = NewPage(Page.Map);
@@ -2720,6 +2840,7 @@ namespace SledSurfers
             var title = L("TRACKS", "outlined");
             title.style.fontSize = 80;
             top.Add(title);
+            HeaderBand(top);
             top.Add(CoinPill());
             p.Add(top);
 
@@ -2763,44 +2884,96 @@ namespace SledSurfers
                 }
 
                 int index = i;
-                var c = new MapCard { root = B(() => SelectTrack?.Invoke(index), "btn", "btn-white", "map-card") };
+                // Ada düğümü (kullanıcı 2026-10-23, örnek görsele göre): açık parkur, üstü parkur renginde çimen, altı toprak
+                // kalınlığında oval ada; üstünde adı ve ilerleme çubuğu. Kilitli parkur: tahta disk ve altın asma kilit.
+                var c = new MapCard { root = B(() => SelectTrack?.Invoke(index)) };
                 c.root.name = "map-track-" + i;
                 c.root.style.flexShrink = 0;
-                c.badge = E("map-badge");
-                c.badge.style.flexShrink = 0;
-                c.badge.style.backgroundColor = TrackColors[i];
-                c.number = L((i + 1).ToString(), "outlined");
-                c.number.style.fontSize = 72;
-                c.badge.Add(c.number);
-                c.lockIcon = new Icon(IconKind.Lock, 64, Color.white);
-                c.badge.Add(c.lockIcon);
-                c.root.Add(c.badge);
+                c.root.style.backgroundColor = Color.clear;
+                c.root.style.borderTopWidth = c.root.style.borderBottomWidth = c.root.style.borderLeftWidth = c.root.style.borderRightWidth = 0;
+                c.root.style.flexDirection = FlexDirection.Column;
+                c.root.style.alignItems = Align.Center;
+                c.root.style.alignSelf = Align.Center;
+                c.root.style.paddingTop = c.root.style.paddingBottom = 0;
+                c.root.style.marginLeft = c.root.style.marginRight = 0;
+                c.root.style.translate = new Translate((i % 2 == 0 ? -1 : 1) * 70, 0);   // yol hafifçe kıvrılır
 
-                var info = E("grow");
-                info.style.flexBasis = 0;
-                info.style.flexShrink = 1;
-                info.style.minWidth = 0;
-                info.style.marginLeft = 24;
-                var name = L(TrackLibrary.Names[i] + "  ·  " + TrackLibrary.Show(TrackLibrary.Lengths[i]) + " m", "heavy");
-                name.style.fontSize = 42;
-                name.style.whiteSpace = WhiteSpace.Normal;
-                name.style.marginBottom = -6;
-                info.Add(name);
-                c.status = L("", "heavy");
-                c.status.style.fontSize = 32;
-                info.Add(c.status);
-                c.wallet = L("", "muted");
-                c.wallet.style.fontSize = 28;
-                info.Add(c.wallet);
+                c.island = E("col");
+                c.island.style.width = 580;
+                c.island.style.height = 230;
+                c.island.style.alignItems = Align.Center;
+                c.island.style.justifyContent = Justify.Center;
+                c.island.style.backgroundColor = TrackColors[i];
+                c.island.style.borderBottomWidth = 46;
+                c.island.style.borderBottomColor = (Color)new Color32(0x8A, 0x5A, 0x33, 0xFF);
+                c.island.style.borderTopLeftRadius = c.island.style.borderTopRightRadius = 140;
+                c.island.style.borderBottomLeftRadius = c.island.style.borderBottomRightRadius = 160;
+                // Çimen tümsekleri (yuvarlak çalılar)
+                for (int b = 0; b < 3; b++)
+                {
+                    var bush = E();
+                    bush.pickingMode = PickingMode.Ignore;
+                    bush.style.position = Position.Absolute;
+                    float bs = 70 - b * 12;
+                    bush.style.width = bush.style.height = bs;
+                    bush.style.top = -bs * 0.45f;
+                    bush.style.left = b == 0 ? 70 : b == 1 ? 410 : 470;
+                    bush.style.borderTopLeftRadius = bush.style.borderTopRightRadius = bush.style.borderBottomLeftRadius = bush.style.borderBottomRightRadius = bs * 0.5f;
+                    bush.style.backgroundColor = Color.Lerp(TrackColors[i], Color.black, 0.15f + 0.05f * b);
+                    c.island.Add(bush);
+                }
+                var name = L(TrackLibrary.Names[i], "heavy");
+                name.style.fontSize = 60;
+                name.style.color = Color.white;
+                name.style.unityTextOutlineWidth = 6;
+                name.style.unityTextOutlineColor = (Color)new Color32(0x2B, 0x23, 0x40, 0xFF);
+                c.island.Add(name);
                 var slim = E("bar");
-                slim.style.height = 24;
-                slim.style.borderTopWidth = slim.style.borderBottomWidth = slim.style.borderLeftWidth = slim.style.borderRightWidth = 3;
-                slim.style.marginTop = 6;
-                slim.style.backgroundColor = (Color)new Color32(0xED, 0xE6, 0xDC, 0xFF);
+                slim.style.width = 400;
+                slim.style.height = 30;
+                slim.style.marginTop = 8;
+                slim.style.borderTopWidth = slim.style.borderBottomWidth = slim.style.borderLeftWidth = slim.style.borderRightWidth = 4;
+                slim.style.borderTopColor = slim.style.borderBottomColor = slim.style.borderLeftColor = slim.style.borderRightColor = (Color)new Color32(0x2B, 0x23, 0x40, 0xFF);
+                slim.style.backgroundColor = (Color)new Color32(0x3A, 0x34, 0x55, 0xFF);
                 c.fill = E("bar-fill");
                 slim.Add(c.fill);
-                info.Add(slim);
-                c.root.Add(info);
+                c.island.Add(slim);
+                c.root.Add(c.island);
+
+                c.lockDisc = E("center");
+                c.lockDisc.style.width = 230;
+                c.lockDisc.style.height = 150;
+                c.lockDisc.style.backgroundColor = (Color)new Color32(0xB0, 0x7A, 0x45, 0xFF);
+                c.lockDisc.style.borderBottomWidth = 30;
+                c.lockDisc.style.borderBottomColor = (Color)new Color32(0x7A, 0x4A, 0x22, 0xFF);
+                c.lockDisc.style.borderTopLeftRadius = c.lockDisc.style.borderTopRightRadius = 115;
+                c.lockDisc.style.borderBottomLeftRadius = c.lockDisc.style.borderBottomRightRadius = 115;
+                c.lockIcon = new Icon(IconKind.Lock, 110, (Color)new Color32(0xFF, 0xC9, 0x3C, 0xFF));
+                c.lockIcon.style.marginTop = -50;
+                c.lockDisc.Add(c.lockIcon);
+                c.root.Add(c.lockDisc);
+                c.lockName = L(TrackLibrary.Names[i], "heavy");
+                c.lockName.style.fontSize = 32;
+                c.lockName.style.color = new Color(1f, 1f, 1f, 0.75f);
+                c.lockName.style.unityTextOutlineWidth = 4;
+                c.lockName.style.unityTextOutlineColor = new Color(0f, 0f, 0f, 0.4f);
+                c.root.Add(c.lockName);
+
+                c.status = L("", "heavy");
+                c.status.style.fontSize = 32;
+                c.status.style.marginTop = 6;
+                c.status.style.unityTextOutlineWidth = 4;
+                c.status.style.unityTextOutlineColor = new Color(1f, 1f, 1f, 0.85f);
+                c.root.Add(c.status);
+                c.wallet = L("", "heavy");
+                c.wallet.style.fontSize = 28;
+                c.wallet.style.color = Color.white;
+                c.wallet.style.unityTextOutlineWidth = 4;
+                c.wallet.style.unityTextOutlineColor = new Color(0f, 0f, 0f, 0.45f);
+                c.root.Add(c.wallet);
+                // Eski rozet alanları (ShowMap uyumu)
+                c.badge = new VisualElement();
+                c.number = new Label();
 
                 mapCards[i] = c;
                 list.Add(c.root);
@@ -2816,15 +2989,19 @@ namespace SledSurfers
                 bool open = i <= save.unlocked;
                 bool done = save.Finished(i);
                 float progress = Mathf.Clamp01(save.bests[i] / TrackLibrary.Lengths[i]);
-                c.number.style.display = open ? DisplayStyle.Flex : DisplayStyle.None;
-                c.lockIcon.style.display = open ? DisplayStyle.None : DisplayStyle.Flex;
-                c.badge.style.backgroundColor = open ? TrackColors[i] : (Color)new Color32(0xB8, 0xB0, 0xA6, 0xFF);
-                c.root.EnableInClassList("map-current", i == save.track);
-                c.root.style.opacity = open ? 1f : 0.75f;
+                c.island.style.display = open ? DisplayStyle.Flex : DisplayStyle.None;
+                c.lockDisc.style.display = open ? DisplayStyle.None : DisplayStyle.Flex;
+                c.lockName.style.display = open ? DisplayStyle.None : DisplayStyle.Flex;
+                // Güncel parkur: altın çerçeve ve hafif büyük
+                bool isCur = i == save.track;
+                c.island.style.borderTopWidth = c.island.style.borderLeftWidth = c.island.style.borderRightWidth = isCur ? 8 : 0;
+                c.island.style.borderTopColor = c.island.style.borderLeftColor = c.island.style.borderRightColor = (Color)new Color32(0xFF, 0xD8, 0x4A, 0xFF);
+                c.root.style.scale = new Scale(isCur ? new Vector2(1.06f, 1.06f) : Vector2.one);
+                c.root.style.opacity = 1f;
                 c.wallet.text = open ? save.trackMoney[i].ToString("N0", Tr) + " coins saved here" : "";
                 c.wallet.style.display = open ? DisplayStyle.Flex : DisplayStyle.None;
                 c.fill.style.width = Length.Percent(progress * 100f);
-                c.fill.style.backgroundColor = Col(done, new Color32(0x3F, 0xD1, 0x5B, 0xFF));
+                c.fill.style.backgroundColor = done || progress > 0.66f ? (Color)new Color32(0x3F, 0xD1, 0x5B, 0xFF) : (Color)new Color32(0xFF, 0x8A, 0x2E, 0xFF);
                 if (done)
                 {
                     c.status.text = "Complete! · Best " + TrackLibrary.Show(save.bests[i]) + " m";
@@ -2870,6 +3047,8 @@ namespace SledSurfers
             safe.Add(pauseModal);
         }
 
+        AimArrows aimArrows;
+
         void BuildAim()
         {
             var p = NewPage(Page.Aim);
@@ -2880,21 +3059,40 @@ namespace SledSurfers
             top.Add(CoinPill());
             p.Add(top);
 
-            hint = E("card", "col");
+            // Nişan okları (güce göre renk ve boy, nişana göre yön); ipucu ve güç yazısının arkasında.
+            aimArrows = new AimArrows();
+            p.Add(aimArrows);
+
+            // İpucu (kullanıcı 2026-10-23, örnek görsele göre): parmak yok; yarı saydam cam panel, büyük iki renkli başlık.
+            hint = E("col");
             hint.style.alignSelf = Align.Center;
-            hint.style.marginTop = 90;
-            hint.style.width = Length.Percent(84);
-            hint.style.paddingTop = 18;
-            var handBox = E();
-            handBox.style.height = 150;
-            hintHand = new Icon(IconKind.Hand, 120, new Color32(0xFF, 0xB8, 0x6B, 0xFF));
-            handBox.Add(hintHand);
-            hint.Add(handBox);
-            var hl = L("Pull back and release!", "heavy");
-            hl.style.fontSize = 58;
-            hint.Add(hl);
-            hintSub = L("", "muted");
-            hintSub.style.fontSize = 32;
+            hint.style.marginTop = 70;
+            hint.style.width = Length.Percent(86);
+            hint.style.paddingTop = 26;
+            hint.style.paddingBottom = 30;
+            hint.style.paddingLeft = hint.style.paddingRight = 24;
+            hint.style.alignItems = Align.Center;
+            hint.style.backgroundColor = new Color(1f, 1f, 1f, 0.42f);
+            hint.style.borderTopColor = hint.style.borderBottomColor = hint.style.borderLeftColor = hint.style.borderRightColor = new Color(1f, 1f, 1f, 0.85f);
+            hint.style.borderTopWidth = hint.style.borderBottomWidth = hint.style.borderLeftWidth = hint.style.borderRightWidth = 4;
+            hint.style.borderTopLeftRadius = hint.style.borderTopRightRadius = hint.style.borderBottomLeftRadius = hint.style.borderBottomRightRadius = 44;
+            hintHand = new VisualElement();   // eski parmak ikonu (artık gösterilmiyor)
+            var hl1 = L("PULL BACK", "heavy");
+            var hl2 = L("& RELEASE!", "heavy");
+            foreach (var (l, c) in new[] { (hl1, (Color)new Color32(0xFF, 0xD2, 0x3F, 0xFF)), (hl2, (Color)new Color32(0xFF, 0x7E, 0x4A, 0xFF)) })
+            {
+                l.style.fontSize = 112;
+                l.style.color = c;
+                l.style.unityTextOutlineWidth = 9;
+                l.style.unityTextOutlineColor = (Color)new Color32(0x4A, 0x24, 0x48, 0xFF);
+                l.style.marginTop = -18;
+                l.style.marginBottom = -18;
+                hint.Add(l);
+            }
+            hintSub = L("", "heavy");
+            hintSub.style.fontSize = 34;
+            hintSub.style.color = (Color)new Color32(0x2B, 0x23, 0x40, 0xFF);
+            hintSub.style.marginTop = 22;
             hintSub.style.unityTextAlign = TextAnchor.MiddleCenter;
             hint.Add(hintSub);
             p.Add(hint);
@@ -2930,10 +3128,10 @@ namespace SledSurfers
 
             bool pulling = h.pull > 0.01f;
             hint.style.opacity = Mathf.MoveTowards(hint.resolvedStyle.opacity, pulling ? 0f : 1f, 0.15f);
-            float cycle = (time % 1.4f) / 1.4f;
-            float down = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(cycle / 0.7f));
-            hintHand.style.translate = new Translate(0f, 70f * down - 10f);
-            hintHand.style.opacity = cycle < 0.85f ? 1f : 1f - (cycle - 0.85f) / 0.15f;
+            aimArrows.power = h.pull;
+            aimArrows.aim = h.aimAngle;
+            aimArrows.time = time;
+            aimArrows.MarkDirtyRepaint();
 
             power.style.display = pulling ? DisplayStyle.Flex : DisplayStyle.None;
             if (pulling)

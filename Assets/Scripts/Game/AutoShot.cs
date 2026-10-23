@@ -239,6 +239,44 @@ namespace SledSurfers
                 Application.Quit();
                 yield break;
             }
+            if (mode == "screens")
+            {
+                // Arayüz ekranları: ana ekran, harita, kahramanlar, görevler, sandık, fırlatma (3 güç)
+                game.DebugHideTutorial();
+                game.DebugReset(new[] { 12, 12, 6, 12, 9 }, 4428);
+                game.DebugTrack(1, 1);
+                game.DebugGems(25);
+                yield return new WaitForSeconds(1.5f);
+                yield return Shot("s1_hub");
+                game.DebugMap();
+                yield return new WaitForSeconds(1f);
+                yield return Shot("s2_map");
+                game.DebugHub();
+                game.DebugAvatars(2);
+                yield return new WaitForSeconds(1.5f);
+                yield return Shot("s3_heroes");
+                game.DebugHub();
+                game.DebugQuests(new[] { 99999, 11, 0 });
+                yield return new WaitForSeconds(1.2f);
+                yield return Shot("s4_quests");
+                game.DebugHub();
+                game.DebugChest();
+                yield return new WaitForSeconds(2.5f);
+                yield return Shot("s5_chest");
+                game.DebugHub();
+                game.DebugAim();
+                yield return new WaitForSeconds(0.8f);
+                yield return Shot("s6_aim");
+                foreach (var (pull, ang, n) in new[] { (0.3f, 0f, "a"), (0.7f, 0.25f, "b"), (1f, -0.3f, "c") })
+                {
+                    game.DebugSetPull(pull, ang);
+                    yield return new WaitForSeconds(0.6f);
+                    yield return Shot("s7_pull_" + n);
+                }
+                SaveData.ClearAll();   // yalnız test önekli kayıt (gerçek kayıt korunur)
+                Application.Quit();
+                yield break;
+            }
             if (mode == "check")
             {
                 // Ana ekran (küçük sapan), nişan, koşu (RETRY düğmesi, açık Clover ve engeller), günlük ödül
