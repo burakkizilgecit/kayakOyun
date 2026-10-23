@@ -450,11 +450,13 @@ namespace SledSurfers
                 else if (!InGap(position.z) && !InGap(position.z + v.z * 0.8f))
                 {
                     float above = position.y - track.Height(position.x, position.z);
-                    // Yamacın eğimini izler (0.5 s ileride), üstüne yüksekliğe orantılı dalış: yüksekteyken yere yaklaşır,
-                    // yere yakınken yamaca paralel uçup yumuşak değer; önde yokuş/düzlük varsa burun ona göre kalkar.
+                    float slopeAhead = Mathf.Atan(track.SlopeZ(position.x, position.z + Mathf.Max(v.z, 0f) * 0.5f));
+                    // Yere yakınken (1.5 m altı) yamaçtan biraz dik iner, oturur (2026-10-23: dalgalı tepelerde hızla kalkan
+                    // kızak 1 m yukarıda yamaca paralel yüzlerce metre "süzülüyor", değip kalkarak titriyordu).
+                    if (above <= 1.5f) glidePath = Mathf.Min(glidePath, slopeAhead - 0.12f);
+                    // Yamacın eğimini izler (0.5 s ileride), üstüne yüksekliğe orantılı dalış: yüksekteyken yere yaklaşır.
                     if (above > 1.5f)
                     {
-                        float slopeAhead = Mathf.Atan(track.SlopeZ(position.x, position.z + Mathf.Max(v.z, 0f) * 0.5f));
                         // En az ~6°: yamacın birkaç metre üstünde asılı kalmasın (süzülme süresini boşa harcamasın), yumuşakça değsin.
                         // Dalış en çok ~29° (2026-10-19): yükselen havadan sonra 18 m yüksekten 49°'lik dalışla 11 m/s ile
                         // yere çakılıp "Landed too hard" oluyordu.
@@ -464,7 +466,7 @@ namespace SledSurfers
                 }
                 // İniş yolu en çok ~26°, hızlı düşüşte kanat tam açıyla tutunur (2026-10-19): yükselen havadan sonra 12 m
                 // yüksekten hücum açısı 0'a inip kızak serbest düşüyor, 14 m/s ile çakılıyordu.
-                glidePath = Mathf.Max(glidePath, -0.45f);
+                if (updraft <= 0f && position.y - track.Height(position.x, position.z) > 3f) glidePath = Mathf.Max(glidePath, -0.45f);
                 float alpha = Mathf.Clamp(0.12f + 1.5f * (glidePath - gamma), 0f, 0.24f);
                 if (v.y < -7f) alpha = 0.24f;
                 pitch = Mathf.MoveTowards(pitch, gamma + alpha, 1.5f * dt);

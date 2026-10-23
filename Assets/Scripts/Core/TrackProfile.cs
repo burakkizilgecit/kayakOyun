@@ -135,7 +135,7 @@ namespace SledSurfers
         public readonly List<Bridge> bridges = new List<Bridge>();
         /// Tablanın yarı genişliği (kızağın ortası bu aralıkta kalmalı; kızak 0.76 m genişliğinde). 0.6'da simdeki
         /// ortalama oyuncu Kanyon ve Karlı Dağ'ın ilk köprüsünden hep düşüyordu (yol haritası aşama 3).
-        public const float BridgeHalfWidth = 0.8f;
+        public const float BridgeHalfWidth = 1.0f;   // 2026-10-23: 0.8 -> 1.0 (otomatik hizalama kalkınca düz köprüler çok affetmezdi; yön yine tamamen oyuncuda)
 
         /// Çatal: patika z0..z1 boyunca ikiye ayrılır; ortada çimenli alçak sırt, iki yanda birer şerit (vadi ortasından
         /// ±ForkOffset). Şeritlerden biri yavaş (su/çamur/tümsek), öteki hızlı ya da temiz: oyuncu seçer, seçimi mesafeye

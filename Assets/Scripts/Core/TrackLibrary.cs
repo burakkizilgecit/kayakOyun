@@ -397,7 +397,7 @@ namespace SledSurfers
                 // alçak ve açık; kenarlarda ağaç ve kaya, rotada seyrek ağaç (ilk harita: ormanın yarısı sıklıkta).
                 gt.bankScale = 0.3f;
                 ScatterRocks(gt, 21, 26f);
-                ScatterForest(gt, 21, null, 95f, 150f);
+                ScatterForest(gt, 21, null, 95f, 150f, 220f);   // ilk hızlı bölüm temiz (116 m'de ağaca çarpılıyordu)
                 AddObstacles(gt, gobs);
                 return gt;
             }
@@ -1006,7 +1006,7 @@ namespace SledSurfers
 
         /// Orman zemini: patikanın iki yanına (ve seyrek olarak kenarına) ağaç ve kayalar. Patikanın kendisi, köprü
         /// yaklaşımları, çatallar ve rampa inişleri boş kalır.
-        static void ScatterForest(TrackProfile t, int seed, Vector2[] clear = null, float routeGapMin = 45f, float routeGapMax = 70f)
+        static void ScatterForest(TrackProfile t, int seed, Vector2[] clear = null, float routeGapMin = 45f, float routeGapMax = 70f, float startZ = 110f)
         {
             var rnd = new System.Random(seed * 17 + 3);
             float R(float a, float b) => a + (b - a) * (float)rnd.NextDouble();
@@ -1014,7 +1014,7 @@ namespace SledSurfers
             for (float z = 0f; z < t.finishZ; z += 1f)
                 if (t.Slope(z - 1f) > 0.08f && t.Slope(z + 2f) < -0.02f) lips.Add(z);
             float reach = t.halfWidth + TrackProfile.BankRim - 1.5f;
-            for (float z = 110f; z < t.finishZ - 30f; z += R(3.5f, 7f))   // ilk 165 m boş: sapan hızıyla engele girilmesin
+            for (float z = startZ; z < t.finishZ - 30f; z += R(3.5f, 7f))   // ilk 165 m boş: sapan hızıyla engele girilmesin
             {
                 bool skip = false;
                 foreach (var w in t.water) if (z > w.x - 80f && z < w.y + 20f) skip = true;
@@ -1038,7 +1038,7 @@ namespace SledSurfers
             // Güzergâhın üstünde de engeller (kullanıcı 2026-10-11: ağaçlar hep kenardaydı, yol dümdüzdü): 24-38 m'de bir,
             // sırayla sağa-sola kayık; arada kızağın geçeceği boşluk hep kalır (oyuncu aralarından kıvrılır).
             float turn = 1f;
-            for (float z = 150f; z < t.finishZ - 40f; z += R(routeGapMin, routeGapMax))
+            for (float z = startZ + 40f; z < t.finishZ - 40f; z += R(routeGapMin, routeGapMax))
             {
                 // Enerji kuralı: ağaç inişin dibine (kızağın en hızlı olduğu yer) konmaz; dalganın çıkış kısmına, eğimin
                 // yatıklaştığı yere kaydırılır: kızak orada yavaşlar, kaçınmaya zamanı olur.
@@ -1074,10 +1074,11 @@ namespace SledSurfers
             0, 25, 80, 95, 140, 160, 195, 225, 250, 305, 320, 365, 400, 425, 433, 490, 505, 513, 516, 575, 620, 650, 675,
             710, 735, 741, 765, 790, 835, 860, 868, 915, 928, 936, 939, 1000, 1040, 1065, 1085, 1120, 1145, 1200,
         };
+        /// 2026-10-23: 7. tepe 4-5 m alçak (yükselen havadan sonra 70 m'lik neredeyse düz çıkışta oyuncular takılıyordu).
         static readonly float[] WoodsR =
         {
             0, 0, -9, -9.5f, 2, 3, 0, 3.5f, 3.5f, -9, -9.2f, 4, 5, 11, 11, -7, -9, -5.6f, -8.4f, -14, -4, -3.5f, -4.5f,
-            0, 0.5f, -2.5f, -9, -11, -5, -1, -1, -10, -12, -8.6f, -11.4f, -16, -9, -9, -11, -8, -8.5f, -12,
+            0, 0.5f, -2.5f, -9, -11, -8, -5.5f, -5.5f, -10, -12, -8.6f, -11.4f, -16, -9, -9, -11, -8, -8.5f, -12,
         };
         /// Dipteki rampalar ve uçurum kenarı (z0: giriş, z1: dudak): yumuşatma bunları silmesin, vadi düz gitsin.
         /// Rampa mutlak olarak yükselir (8 m'de ~2 m, diğer parkurların rampası gibi): genel eğime yatırılınca çizimdeki
