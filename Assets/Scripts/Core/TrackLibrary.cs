@@ -6,27 +6,27 @@ namespace SledSurfers
     /// Parkurlar sırayla açılır: biri %100 bitince sonraki açılır.
     public static class TrackLibrary
     {
-        public const int Count = 7;
+        public const int Count = 8;
 
-        public static readonly string[] Names = { "Clover Valley", "Whispering Woods", "Sunset Canyon", "Frostpeak Summit", "Golden Dunes", "Ember Peak", "Red Planet Rush" };
+        public static readonly string[] Names = { "Clover Valley", "Whispering Woods", "Sunset Canyon", "Frostpeak Summit", "Golden Dunes", "Ember Peak", "Red Planet Rush", "Canyon Run" };
         /// Atış kazancı çarpanı: zor pistler metre başına daha çok öder (son seviyeler pahalı, koşular kısa kalır).
-        public static float[] PayFactors = { 4f, 3.2f, 2.5f, 2.2f, 2.2f, 2.2f, 2f };
+        public static float[] PayFactors = { 4f, 3.2f, 2.5f, 2.2f, 2.2f, 2.2f, 2f, 2.4f };
 
         // Pist başına geliştirme (kullanıcı kararı 2026-10-09): yeni pistte kartlar sıfırdan başlar. Zor pistler 6 aşama
         // (24 kademe) ister. Kademe gücü [PowerStart, PowerEnd] güç endeksine eşlenir (Upgrades.Power); fiyatlar
         // pistin ölçeğiyle büyür (CostScale). Değerler ortalama oyuncu simiyle ayarlanır.
-        public static readonly int[] UpgradeStages = { 5, 5, 6, 6, 6, 6, 6 };
+        public static readonly int[] UpgradeStages = { 5, 5, 6, 6, 6, 6, 6, 6 };
         /// Bardak ağız boşluğu çarpanı: Mars'ın düşük yerçekiminde süt yavaş ama kolay çalkalanır, bardak daha az doldurulur.
-        public static readonly float[] MilkHeadroomScale = { 1f, 1f, 1f, 1f, 1f, 1f, 1.8f };
-        public static float[] PowerStart = { 0f, 5f, 7f, 8f, 9f, 10f, 10f };
-        public static float[] PowerEnd = { 15f, 18f, 21f, 23f, 24f, 25f, 25f };
-        public static float[] CostScale = { 0.72f, 1.25f, 3.1f, 1.45f, 2.25f, 1.9f, 2.45f };   // 2026-10-18: sim artık pistteki gerçek (sınırlı) altını sayıyor; geç pistler hedef atış sayısına geri çekildi   // 2026-10-10: referans fiyat eğrisi (5×aşama, 1.4→1.24) ile
+        public static readonly float[] MilkHeadroomScale = { 1f, 1f, 1f, 1f, 1f, 1f, 1.8f, 1f };
+        public static float[] PowerStart = { 0f, 5f, 7f, 8f, 9f, 10f, 10f, 8f };
+        public static float[] PowerEnd = { 15f, 18f, 21f, 23f, 24f, 25f, 25f, 23f };
+        public static float[] CostScale = { 0.62f, 1.25f, 1.4f, 1.45f, 3.4f, 3.4f, 9f, 2f };   // 2026-10-23: hızlandırıcı, rampa, geniş vadi, çoklu köprü sonrası yeniden (sim 430 atış)   // 2026-10-18: sim artık pistteki gerçek (sınırlı) altını sayıyor; geç pistler hedef atış sayısına geri çekildi   // 2026-10-10: referans fiyat eğrisi (5×aşama, 1.4→1.24) ile
         /// Pistin aracı: son üç haritada aracın şekli tamamen değişir.
         public static readonly VehicleKind[] Vehicles =
-            { VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sandboard, VehicleKind.Bobsled, VehicleKind.Hover };
+            { VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sandboard, VehicleKind.Bobsled, VehicleKind.Hover, VehicleKind.Sled };
 
         // Gerçek uzunluklar (m). Ekranda ×DisplayScale gösterilir (Sled Surfers gibi: Çayır "3600 m").
-        public static readonly float[] Lengths = { 1000f, 1200f, 1400f, 1600f, 1800f, 2000f, 2200f };
+        public static readonly float[] Lengths = { 1000f, 1200f, 1400f, 1600f, 1800f, 2000f, 2200f, 1500f };
 
         /// Ekrandaki mesafe ölçeği (kullanıcı kararı, videodaki gibi): gösterilen metre = gerçek × 3.6. Böylece km/s
         /// cinsinden hız, ekranda saniyede geçen metreye eşit olur; koşular 20 sn - 2 dk.
@@ -47,11 +47,118 @@ namespace SledSurfers
                 case 4: t = Desert(); break;
                 case 5: t = Volcano(); break;
                 case 6: t = Mars(); break;
+                case 7: t = Gorge(); break;
                 case 3: t = Snow(); break;
                 default: t = Meadow(); break;
             }
             ClearFlightZones(t);
+            SideBridges(t, index);
+            AddBoosts(t, index);
             return t;
+        }
+
+        /// Dere başına köprü sayısı (kullanıcı 2026-10-23: "bazen 1 bazen 2 bazen 3; biri düz, diğeri S, üstünde coin elmas"):
+        /// %30 tek köprü (eski hali: düz, yay ya da zikzak), %45 iki, %25 üç köprü. Çoklu derede köprüler vadi ortasına göre
+        /// eşit aralıklı; biri düz (güvenli), ötekiler S biçimli ve üstlerinde coin dizisi ile elmas (Collectibles).
+        public static readonly float[] BridgeCountOdds = { 0.3f, 0.75f };
+        const float SideBridgeGap2 = 2.7f, SideBridgeGap3 = 3.7f, SideBridgeBend = 1.0f, SideBridgeHalfWidth = 1.0f;
+
+        /// Hızlandırıcılar 3. parkurdan (indeks 2) itibaren, aralarında ~BoostSpacing m. Köprü, dere, çatal, yükselen hava ve
+        /// roket tepesinin yakınına konmaz (sıçrayıp dereye ya da roket duvarına uçmasın); önündeki engeller kalkar.
+        public const int BoostFrom = 2;
+        public static bool BoostsOn = true, SideBridgesOn = true;   // simde karşılaştırma için
+        public static float BoostSpacing = 320f;
+
+        static void AddBoosts(TrackProfile t, int track)
+        {
+            if (track < BoostFrom || !BoostsOn) return;
+            var rnd = new System.Random(track * 53 + 7);
+            float z = t.startZ + 90f;
+            while (z < t.finishZ - 90f)
+            {
+                z += (float)rnd.NextDouble() * 40f;
+                if (!BoostClear(t, z)) { z += 12f; continue; }
+                // Yolun üstünde değil (kullanıcı 2026-10-23): almak için sapmak gerekir. Yamaçlı pistte yamacın üstünde
+                // (tırmanmak hız yer), düz pistte rotanın 3.5-5 m yanında.
+                float side = rnd.Next(2) == 0 ? -1f : 1f;
+                // Dar kanyonda duvarın dibinde (duvara sürtmeden alınmalı).
+                float x = t.wallHalf > 0f ? t.CenterX(z) + side * (t.WallHalfAt(z) - 1.6f)
+                        : t.bankScale > 0.2f
+                    ? t.CenterX(z) + side * (t.halfWidth + 2.5f + (float)rnd.NextDouble() * 2f)
+                    : t.GuideX(z) + side * (3.5f + (float)rnd.NextDouble() * 1.5f);
+                if (t.bankScale <= 0.2f && t.wallHalf <= 0f) x = Mathf.Clamp(x, t.CenterX(z) - t.halfWidth + 1.5f, t.CenterX(z) + t.halfWidth - 1.5f);
+                // Rampa versiyonu (kullanıcı 2026-10-23): her ikinci hızlandırıcı hafif rampa; kanatlı hızlı kızak dudaktan
+                // uçuşa geçer. Önünde uçuş için temiz alan ister (köprü/dere/çatal yok), yoksa düz levha kalır.
+                bool ramp = t.boosts.Count % 2 == 1 && t.wallHalf <= 0f && RampClear(t, z);
+                // Rampa yamaçta değil, geniş tabanın kenarında (rotadan sapmak gerekir, uçuşa düz zeminden çıkılır).
+                if (ramp && t.bankScale > 0.2f) x = t.CenterX(z) + side * (t.halfWidth - 2f);
+                float len = ramp ? BoostRampLength : TrackProfile.BoostLength;
+                t.boosts.Add(new TrackProfile.Boost { z0 = z, z1 = z + len, x = x, ramp = ramp });
+                if (ramp)
+                {
+                    t.bumps.Add(new Bump { z0 = z, length = len, height = BoostRampHeight, ramp = true,
+                                           xc = x - t.CenterX(z + len * 0.5f), halfWidth = TrackProfile.BoostHalfWidth + 0.16f });
+                    t.IndexBumps();
+                }
+                if (t.wallHalf <= 0f) t.obstacles.RemoveAll(o => o.z > z - 4f && o.z < z + 45f && Mathf.Abs(o.x - x) < 4f);
+                z += BoostSpacing;
+            }
+        }
+
+        public const float BoostRampHeight = 0.9f, BoostRampLength = 11f;
+
+        /// Rampadan sonraki uçuş yolu: köprü, dere, çatal ve rota engeli yok.
+        static bool RampClear(TrackProfile t, float z)
+        {
+            foreach (var b in t.bridges) if (b.z1 > z && b.z0 < z + FlightClear) return false;
+            foreach (var w in t.water) if (w.y > z && w.x < z + FlightClear) return false;
+            foreach (var f in t.forks) if (f.z1 > z && f.z0 < z + 120f) return false;
+            // Roket tepesinin önünde ve düşük yerçekiminde rampa yok: Mars'ta rampadan süzülen kızak roket duvarını aşıp
+            // parkuru 6 atışta bitiriyordu (2026-10-23).
+            foreach (float h in t.rocketHills) if (h > z - 20f && h < z + 450f) return false;
+            if (t.gravity < 5f) return false;
+            return true;
+        }
+
+        static bool BoostClear(TrackProfile t, float z)
+        {
+            foreach (var b in t.bridges) if (b.z1 > z - 30f && b.z0 < z + 90f) return false;
+            foreach (var w in t.water) if (w.y > z - 30f && w.x < z + 90f) return false;
+            foreach (var f in t.forks) if (f.z1 > z - 10f && f.z0 < z + 40f) return false;
+            foreach (var u in t.updrafts) if (u.y > z - 20f && u.x < z + 40f) return false;
+            foreach (float h in t.rocketHills) if (Mathf.Abs(h - z) < 80f) return false;
+            if (t.hasRocketPickup && Mathf.Abs(t.rocketPickup.z - z) < 60f) return false;
+            foreach (var p in t.pinches) if (Mathf.Abs(p.x - z) < p.y * 0.5f + 25f) return false;
+            foreach (var o in t.obstacles) if (o.z > z - 5f && o.z < z + 30f && t.wallHalf > 0f) return false;   // kanyonda sütunlar kalır
+            return true;
+        }
+
+        static void SideBridges(TrackProfile t, int track)
+        {
+            if (t.bridges.Count == 0 || !SideBridgesOn || t.wallHalf > 0f) return;   // kanyonda tek ince kaya yol
+            var rnd = new System.Random(track * 97 + 11);
+            var result = new List<TrackProfile.Bridge>();
+            foreach (var b in t.bridges)
+            {
+                double roll = rnd.NextDouble();
+                int n = roll < BridgeCountOdds[0] ? 1 : roll < BridgeCountOdds[1] ? 2 : 3;
+                if (n == 1) { result.Add(b); continue; }
+                float cx = t.CenterX((b.r0 + b.r1) * 0.5f);
+                int straight = rnd.Next(n);
+                for (int k = 0; k < n; k++)
+                {
+                    var c = b;
+                    c.x = cx + (n == 2 ? (k == 0 ? -SideBridgeGap2 : SideBridgeGap2) : (k - 1) * SideBridgeGap3);
+                    c.hw = Mathf.Max(b.hw, SideBridgeHalfWidth);
+                    if (k == straight) { c.shape = 0; c.bend = 0f; c.bonus = false; }
+                    else { c.shape = 2; c.bend = (rnd.Next(2) == 0 ? -1f : 1f) * SideBridgeBend; c.bonus = true; }
+                    result.Add(c);
+                }
+                // Köprü ağızlarının önündeki engeller kalkar (yan köprüye giden yol açık olsun).
+                t.obstacles.RemoveAll(o => o.z > b.z0 - 22f && o.z < b.z1 + 3f && Mathf.Abs(o.x - cx) < t.halfWidth + 0.5f);
+            }
+            t.bridges.Clear();
+            t.bridges.AddRange(result);
         }
 
         /// Yükselen havadan sonraki uçuş: kızak bölgeden ~150 m süzülür, havadan köprüye isabet ettirilemez ve engelden
@@ -84,7 +191,7 @@ namespace SledSurfers
         }
 
         /// Parkur kontrol noktalarını parça parça kurar (z ileri, y yükseklik).
-        public const float ValleyHalfWidth = 6.5f;
+        public const float ValleyHalfWidth = 8.5f;   // 2026-10-23: 6.5 -> 8.5 (kullanıcı: iki tepe arasındaki orta alan daha geniş olsun)
 
         class Path
         {
@@ -250,10 +357,10 @@ namespace SledSurfers
             /// Pist nesnesine su, buz ve dere bilgisini aktarır.
             /// meander: vadinin sağa sola kıvrılma genliği (m) ve dalga boyu; pathAmp/pathWave: patikanın vadi içindeki S'i.
             public TrackProfile Build(string name, float length, float meander = 6f, float meanderWave = 170f,
-                                      float pathAmp = 2.4f, float pathWave = 60f, int seed = 1)
+                                      float pathAmp = 2.4f, float pathWave = 60f, int seed = 1, float halfWidth = 0f)
             {
                 var cliffs = bridges.ConvertAll(b => new Vector2(b.x - 3f, b.y + 3f));
-                var t = new TrackProfile(name, points.ToArray(), length, ValleyHalfWidth, corners, sharp, rawZones: cliffs);
+                var t = new TrackProfile(name, points.ToArray(), length, halfWidth > 0f ? halfWidth : ValleyHalfWidth, corners, sharp, rawZones: cliffs);
                 t.SetValley(meander, meanderWave, pathAmp, pathWave, seed, straight);
                 foreach (var f in forks) t.forks.Add(new TrackProfile.Fork { z0 = f.x, z1 = f.y, good = (int)f.z });
                 foreach (var b in bridges) t.centerZones.Add(new Vector2(b.x - 60f, b.y + 5f));
@@ -423,44 +530,44 @@ namespace SledSurfers
 
         /// Pist başına süzülme ayarları: yavaşlama yamacı eğimi (pist başında → sonunda; sona doğru düzleşir, her kızak
         /// seviyesi bir iki yamaç daha aşar), yamaç uzunluğu, kanal eğimi ve uzunluğu.
-        public static float[] SlowGrade = { 0.178f, 0.18f, 0.18f, 0.1f, 0.1f, 0.08f, 0.08f };   // 2026-10-10: uzun yokuşlarla yeniden tarandı (Mars: sona doğru belirgin azalır; pervane telafisiyle sonda hafif yokuş yukarı)
-        public static float[] SlowGradeEnd = { 0.18f, 0.16f, 0.162f, 0.1f, 0.1f, 0.08f, 0.045f };
-        public static Vector2[] SlowLength = { new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f) };
-        public static float[] BoostGrade = { 0.42f, 0.36f, 0.36f, 0.34f, 0.34f, 0.34f, 0.32f };
-        public static float[] BoostLength = { 25f, 25f, 25f, 25f, 25f, 25f, 25f };
+        public static float[] SlowGrade = { 0.178f, 0.18f, 0.18f, 0.1f, 0.1f, 0.08f, 0.08f, 0.15f };   // 2026-10-10: uzun yokuşlarla yeniden tarandı (Mars: sona doğru belirgin azalır; pervane telafisiyle sonda hafif yokuş yukarı)
+        public static float[] SlowGradeEnd = { 0.18f, 0.16f, 0.162f, 0.1f, 0.1f, 0.08f, 0.045f, 0.13f };
+        public static Vector2[] SlowLength = { new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f), new Vector2(60f, 80f) };
+        public static float[] BoostGrade = { 0.42f, 0.36f, 0.36f, 0.34f, 0.34f, 0.34f, 0.32f, 0.34f };
+        public static float[] BoostLength = { 25f, 25f, 25f, 25f, 25f, 25f, 25f, 25f };
         /// Kullanıcı isteği (2026-10-09, oyun videoları): uzun ama düşük eğimli yokuşlar. Yamaç ve kanal CycleScale kat
         /// uzar; kanal BoostSoft kadar yatıklaşır ve aynı düşüşü korumak için o oranda daha da uzar (pistin toplam
         /// düşüşü, yani ekonomi, aşağı yukarı aynı kalır; hız daha az dalgalanır).
         public static float BoostSoft = 0.7f;
         /// Parkur başına uzatma: Çayır'da az (kullanıcı 2026-10-10: ilk parkurda uzun düzlükler boş duruyordu), sonraki
         /// parkurlarda giderek uzun yokuşlar. WaveLength: yamaçtaki dalgaların aralığı (m), WaveAmp: yüksekliği.
-        public static float[] CycleScale = { 1.1f, 1.4f, 1.8f, 1.8f, 1.8f, 1.8f, 1.8f };
+        public static float[] CycleScale = { 1.1f, 1.4f, 1.8f, 1.8f, 1.8f, 1.8f, 1.8f, 1.8f };
         // Çayır: belirgin inişli çıkışlı uzun dalgalar (kullanıcı 2026-10-10: çok düzlük vardı). 70 m'de bir, 2.4 m:
         // eğim neredeyse düz (%8) ile dik (%30) arasında gidip gelir; tepeler yumuşak (81 km/sa'nın altında havalanmaz).
         // Orman (kullanıcı 2026-10-11: dümdüzdü; rastgele değil, enerji kuralına göre): tepede havalanma koşulu
         // v²·A·(2π/λ)² > g. 90 m'de 2.2 m'lik dalga 25 m/s'de (90 km/sa) yerde tutar (0.67 g) ama eğimi +%5 yokuş yukarı ile
         // -%26 iniş arasında değiştirir; dalga indiği kadar çıkar, yamacın net düşüşü (= sürtünme kaybı) aynı kalır.
-        public static float[] WaveLength = { 70f, 90f, 70f, 80f, 70f, 70f, 70f };
+        public static float[] WaveLength = { 70f, 90f, 70f, 80f, 70f, 70f, 70f, 70f };
         // Kar: geniş tepeler; net yamaç düşüşü değişmeden 0.6 m yerine 2 m kabartı.
-        public static float[] WaveAmp = { 2.4f, 2.2f, 0.6f, 2f, 0.6f, 0.6f, 0.6f };
+        public static float[] WaveAmp = { 2.4f, 2.2f, 0.6f, 2f, 0.6f, 0.6f, 0.6f, 0.6f };
         /// Krater duvarının yüksekliği (m; 0 = yok) ve pistteki yeri (uzunluk oranı).
-        public static float[] WallRise = { 0f, 0f, 0f, 0f, 0f, 0f, 16f };
+        public static float[] WallRise = { 0f, 0f, 0f, 0f, 0f, 0f, 16f, 0f };
         public static float WallAt = 0.72f;
         /// Kızak kartının hava direncine etkisi (ilk kademe → son kademe çarpanı). Mars'ta sürtünme küçük, belirleyici olan
         /// hava direnci: hover gövdesi yükseldikçe aerodinamikleşir, böylece yükseltme mesafeye yansır.
-        public static float[] DragStart = { 1f, 1f, 1f, 1f, 1f, 1f, 1.8f };
-        public static float[] DragEnd = { 1f, 1f, 1f, 1f, 1f, 1f, 0.7f };
+        public static float[] DragStart = { 1f, 1f, 1f, 1f, 1f, 1f, 1.8f, 1f };
+        public static float[] DragEnd = { 1f, 1f, 1f, 1f, 1f, 1f, 0.7f, 1f };
         /// İnce köprü olasılığı (yamaç başına) ve iki köprü arası en az mesafe; köprü uzunluğu pist boyunca uzar.
-        public static float[] BridgeChance = { 0.5f, 0.45f, 0.35f, 0.5f, 0.25f, 0.22f, 0.22f };   // son üç pist uzun: köprü sayısı 3-4 (7 köprüde hızlı kızak hep birinde düşüyordu)
+        public static float[] BridgeChance = { 0.5f, 0.45f, 0.35f, 0.5f, 0.25f, 0.22f, 0.22f, 0f };   // son üç pist uzun: köprü sayısı 3-4 (7 köprüde hızlı kızak hep birinde düşüyordu)
         public const float BridgeSpacing = 120f, BridgeDepth = 5f, BridgeLead = 40f;
         /// Köprü öncesi yükselti (m) ve ardından köprüye inen yokuşun eğimi (0 = yok, düz yavaşlama yamacı).
-        public static float[] BridgeRise = { 0.5f, 0.5f, 0.4f, 0.4f, 0.4f, 0.4f, 0.3f };
-        public static float[] BridgeDive = { 0.42f, 0.36f, 0.32f, 0.3f, 0.3f, 0.28f, 0.22f };
+        public static float[] BridgeRise = { 0.5f, 0.5f, 0.4f, 0.4f, 0.4f, 0.4f, 0.3f, 0.4f };
+        public static float[] BridgeDive = { 0.42f, 0.36f, 0.32f, 0.3f, 0.3f, 0.28f, 0.22f, 0.3f };
         /// Dalgalı yaklaşımda dalga yüksekliği (m).
         public static string ApproachLog = "";   // test: hangi köprüye hangi yaklaşım tipi (pist:tip@z)
         /// Köprünün kıvrımlı olma olasılığı (ilk köprü hariç); geç pistlerde daha sık.
         /// Yükselen hava: rampadan sonra (olasılık, boy m, güç m/s²). Kuşlar BirdsFrom pistinden itibaren.
-        public static float[] UpdraftChance = { 0.6f, 0f, 0.5f, 0.5f, 0.7f, 0.75f, 0.7f };
+        public static float[] UpdraftChance = { 0.6f, 0f, 0.5f, 0.5f, 0.7f, 0.75f, 0.7f, 0f };
         public const float UpdraftLength = 40f, UpdraftPower = 6f;   // 55 m / 9 m/s²: kızak 27 m yükselip 175 m uçuyor, dereye iniyordu
         public const int BirdsFrom = 2;
         public const float CurvedBridgeHalfWidth = 1.05f;
@@ -469,12 +576,12 @@ namespace SledSurfers
         public const float HardBridgeSpan = 28f;
         /// İlk harita (öğrenme) ve Orman (zaten kayık dereler, zikzak son yokuşta 10'da 7-9 düşürüyordu) zikzaksız; çizimli
         /// pistlerde dere listesinde (Kanyon'un son deresi).
-        public static float[] HardBridgeChance = { 0f, 0f, 0.6f, 0.6f, 0.7f, 0.7f, 0.7f };
-        public static float[] BridgeCurveChance = { 0.5f, 0.6f, 0.6f, 0.6f, 0.65f, 0.7f, 0.7f };
-        public static float[] BridgeWave = { 1f, 0.9f, 0.5f, 0.5f, 0.5f, 0.45f, 0.4f };
+        public static float[] HardBridgeChance = { 0f, 0f, 0.6f, 0.6f, 0.7f, 0.7f, 0.7f, 0f };
+        public static float[] BridgeCurveChance = { 0.5f, 0.6f, 0.6f, 0.6f, 0.65f, 0.7f, 0.7f, 0.6f };
+        public static float[] BridgeWave = { 1f, 0.9f, 0.5f, 0.5f, 0.5f, 0.45f, 0.4f, 0.5f };
         public static Vector2 BridgeSpan = new Vector2(14f, 22f);
         /// Çatal olasılığı (yüzeysiz yamaç başına).
-        public static float[] ForkChance = { 0.9f, 0f, 0.45f, 0.5f, 0.45f, 0.5f, 0.3f };   // yolsuz haritada (Orman) çatal yok
+        public static float[] ForkChance = { 0.9f, 0f, 0.45f, 0.5f, 0.45f, 0.5f, 0.3f, 0f };   // yolsuz haritada (Orman) çatal yok
         public const float ForkLength = 44f;
 
         /// Pervane itişinin eğim karşılığı (o piste gelen oyuncunun parçasıyla; fizikteki tavanla aynı: ≈ %70 μg).
@@ -1116,7 +1223,7 @@ namespace SledSurfers
         /// Çizimden pist: (zs, rs) göreli şekli genel eğime (SlowGrade → SlowGradeEnd, pervane telafili) yatırır.
         /// Şekil monoton kübik (PCHIP) eğriyle çizilir: tepe ve çukurlar çizimdeki yerinde kalır, aralarda taşma olmaz.
         /// creeks: (orta z, açıklık, köprünün vadi ortasına göre yeri): enine dere, kıyılar dik, üstünde ince köprü.
-        static Path Drawn(int track, float[] zs, float[] rs, Vector3[] creeks)
+        static Path Drawn(int track, float[] zs, float[] rs, Vector3[] creeks, float depth = BridgeDepth, bool withWater = true)
         {
             float length = Lengths[track];
             int n = zs.Length;
@@ -1161,14 +1268,14 @@ namespace SledSurfers
                     int g1 = g;
                     while (g1 < grid.Count - 1 && grid[g1].x < grid[g].x + creeks[c].y) g1++;
                     Vector2 a = grid[g], b = grid[g1];
-                    float bed = Mathf.Min(a.y, b.y) - BridgeDepth;
+                    float bed = Mathf.Min(a.y, b.y) - depth;
                     p.points.Add(a);
                     p.points.Add(new Vector2(a.x + 1.5f, bed));
                     p.points.Add(new Vector2(b.x - 1.5f, bed));
                     p.points.Add(b);
                     // Su kıyının 1.2 m altında: yatakta (bed + 0.9) arkadan bakan kamerada karşı kıyının arkasında kalıp hiç
                     // görünmüyordu, dere çimenli hendek gibi duruyordu.
-                    p.water.Add(new Vector3(a.x + 0.5f, b.x - 0.5f, Mathf.Min(a.y, b.y) - 1.2f));
+                    if (withWater) p.water.Add(new Vector3(a.x + 0.5f, b.x - 0.5f, Mathf.Min(a.y, b.y) - 1.2f));
                     p.bridges.Add(new Vector2(a.x, b.x));
                     p.sharp.Add(new Vector2(a.x - 3f, b.x + 3f));
                     p.straight.Add(new Vector2(a.x - 75f, b.x + 6f));
@@ -1270,6 +1377,49 @@ namespace SledSurfers
         static readonly Vector3[] CanyonCreeks = { new Vector3(392f, 14f, 0f), new Vector3(800f, 14f, 0f), new Vector3(1030f, HardBridgeSpan, 0f) };
         /// Çatallar yatık platolarda (z başı, tip, altınlı şerit): kenardan inişten ve köprüden uzakta.
         static readonly Vector3[] CanyonForks = { new Vector3(430f, 1f, 1f), new Vector3(1062f, 2f, -1f) };
+
+        /// Parkur 8 — Canyon Run (kullanıcı 2026-10-23: "dar bir kanyon; amaç kenardaki duvarlara çarpmadan ilerlemek").
+        /// Dar taban, iki yanda dik kaya duvar (değen düşer), kıvrılan boğaz; yer yer duvarlar daralır (GorgePinches) ve
+        /// ortada kaya sütunları durur (bir yandan geçilir). Köprü, çatal, yükselen hava yok; kısa iniş-çıkışlar hız ritmi verir.
+        public static readonly float[] GorgeZ = { 0f, 90f, 150f, 230f, 290f, 380f, 450f, 540f, 610f, 700f, 770f, 860f, 930f, 1020f, 1100f, 1190f, 1270f, 1360f, 1440f, 1500f };
+        public static readonly float[] GorgeR = { 0f, -2f, 1.5f, -3f, 0.5f, -4f, -1f, -6f, -3f, -8f, -4.5f, -9f, -6f, -11f, -7f, -12f, -9f, -14f, -12f, -13f };
+        /// Boğazlar: x = orta z, y = uzunluk, z = duvar yarı aralığı.
+        public static readonly Vector3[] GorgePinches =
+        {
+            new Vector3(200f, 40f, 2.8f), new Vector3(420f, 50f, 2.6f), new Vector3(670f, 60f, 2.5f), new Vector3(910f, 50f, 2.4f),
+            new Vector3(1140f, 70f, 2.4f), new Vector3(1360f, 60f, 2.3f),
+        };
+        /// Kaya sütunları: x = z, y = vadi ortasına göre yanal yer.
+        public static readonly Vector2[] GorgePillars =
+        {
+            new Vector2(300f, 1.6f), new Vector2(520f, -1.7f), new Vector2(590f, 1.7f), new Vector2(760f, 0f), new Vector2(840f, -1.8f),
+            new Vector2(990f, 1.7f), new Vector2(1070f, -1.7f), new Vector2(1220f, 0f), new Vector2(1300f, 1.8f), new Vector2(1420f, -1.6f),
+        };
+        public const float GorgeWall = 4.3f;
+        /// Uçurumlar (kullanıcı 2026-10-23: "bazı yerlerde uçurumlar ve ince bir yol"): taban derin bir yarığa iner, üstünden
+        /// ince doğal kaya yol geçer (bazısı kıvrımlı). (orta z, açıklık, yolun vadi ortasına göre yeri).
+        public static readonly Vector3[] GorgeChasms = { new Vector3(470f, 22f, 0f), new Vector3(800f, 24f, -1.2f), new Vector3(1260f, 24f, 1.2f) };
+        public const float GorgeChasmDepth = 16f, GorgeLedgeHalfWidth = 0.85f;
+
+        public static TrackProfile Gorge()
+        {
+            var gp = Drawn(7, GorgeZ, GorgeR, GorgeChasms, GorgeChasmDepth, false);
+            // Taban duvarın biraz ötesine kadar düz; yamaç (yüksek plato) duvarın arkasında başlar.
+            var gt = gp.Build(Names[7], Lengths[7], 4.5f, 140f, 0f, 60f, 11, GorgeWall + 0.6f);
+            gt.noPath = true;
+            gt.bankScale = 2.5f;
+            gt.wallHalf = GorgeWall;
+            gt.pinches.AddRange(GorgePinches);
+            gt.ravineIsWater = false;
+            gt.fallText = "Fell into the gorge!";
+            gt.fragileBridges = true;
+            PlaceCreekBridges(gt, GorgeChasms, GorgeLedgeHalfWidth);
+            // Kaya yol tablası köprü tablası gibi (fizik), ama yarık yolun iki yanında: duvara kadar boşluk.
+            foreach (var r in GorgePillars)
+                gt.obstacles.Add(new Obstacle { x = gt.CenterX(r.x) + r.y, z = r.x, isRock = true, variant = 0,
+                                                             halfWidth = 0.65f, halfDepth = 0.65f, height = 3.2f });
+            return gt;
+        }
 
         public static TrackProfile Canyon()
         {

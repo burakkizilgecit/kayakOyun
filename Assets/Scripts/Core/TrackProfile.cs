@@ -62,6 +62,9 @@ namespace SledSurfers
     public struct Bump
     {
         public float z0, length, height, xc, halfWidth;
+        /// Rampa (hızlandırıcı rampası): simetrik kambur yerine yavaşça dikleşerek yükselir, dudaktan sonra keskin düşer;
+        /// yanları 1.2 m'de söner.
+        public bool ramp;
     }
 
     public struct Obstacle
@@ -111,6 +114,9 @@ namespace SledSurfers
         {
             public float z0, z1, r0, r1, x, y0, y1, hw, bend;
             public int shape;
+            /// Aynı derenin üstündeki yan köprü (kullanıcı 2026-10-23: derede 1-3 köprü; biri düz, ötekiler S ve üstünde
+            /// coin/elmas): riskli ama ödüllü yol.
+            public bool bonus;
             public float HalfWidth => hw > 0f ? hw : BridgeHalfWidth;
 
             /// Tablanın z'deki orta çizgisi.
@@ -133,6 +139,49 @@ namespace SledSurfers
             public float SlopeAt(float z) => (XAt(z + 0.25f) - XAt(z - 0.25f)) * 2f;
         }
         public readonly List<Bridge> bridges = new List<Bridge>();
+
+        /// Dar kanyon duvarları (kullanıcı 2026-10-23): wallHalf > 0 ise vadi ortasından bu uzaklıkta dik kaya duvar; kızak
+        /// (gövdesiyle) değerse düşer. pinches: duvarın daraldığı boğazlar (x = orta z, y = uzunluk, z = en dar yarı aralık).
+        public float wallHalf;
+
+        /// Çöken kaya köprü (kullanıcı 2026-10-23: "yavaş geçiyorsa köprü taşımasın, çöksün"): kızak tablaya basınca taş
+        /// çatlar; CollapseDelay s sonra çöküş, girişten itibaren CollapseSpeed m/s ile kızağın arkasından ilerler (çatlağın
+        /// kayada yayılma hızı). Ondan hızlı giden kızak karşıya geçer; yavaş giden ya da duranın altındaki taş çöker.
+        /// 24 m'lik köprüde en düşük ortalama hız ~ 24 / (24/8 + 0.6) ≈ 6.7 m/s (24 km/s).
+        public bool fragileBridges;
+        public const float CollapseDelay = 0.6f, CollapseSpeed = 8f;
+        public readonly List<Vector3> pinches = new List<Vector3>();
+        public const float WallTop = 14f;
+
+        public float WallHalfAt(float z)
+        {
+            float w = wallHalf;
+            foreach (var p in pinches)
+            {
+                // Boğazın ortasındaki yarısı tam dar, kenarlarda yumuşakça açılır.
+                float q = p.y * 0.25f;
+                float d = (Mathf.Abs(z - p.x) - q) / q;
+                if (d < 1f) w = Mathf.Min(w, Mathf.Lerp(p.z, wallHalf, Mathf.SmoothStep(0f, 1f, Mathf.Max(0f, d))));
+            }
+            return w;
+        }
+
+        /// Hızlandırıcı yüzey (kullanıcı 2026-10-23, 3. parkurdan itibaren): yerde parlak gümüş levha, üstünde yanıp sönen
+        /// kırmızı ok başları. Üstünden geçen kızak hafifçe sıçrar ve hızlanır (SledPhysics). x: levhanın ortası (z boyunca düz).
+        public struct Boost { public float z0, z1, x; public bool ramp; }
+        public readonly List<Boost> boosts = new List<Boost>();
+        public const float BoostHalfWidth = 1.3f, BoostLength = 7f;
+
+        /// (x, z) hangi hızlandırıcının üstünde (yoksa -1)?
+        public int BoostAt(float x, float z)
+        {
+            for (int i = 0; i < boosts.Count; i++)
+            {
+                var b = boosts[i];
+                if (z >= b.z0 && z <= b.z1 && Mathf.Abs(x - b.x) <= BoostHalfWidth) return i;
+            }
+            return -1;
+        }
         /// Tablanın yarı genişliği (kızağın ortası bu aralıkta kalmalı; kızak 0.76 m genişliğinde). 0.6'da simdeki
         /// ortalama oyuncu Kanyon ve Karlı Dağ'ın ilk köprüsünden hep düşüyordu (yol haritası aşama 3).
         public const float BridgeHalfWidth = 1.0f;   // 2026-10-23: 0.8 -> 1.0 (otomatik hizalama kalkınca düz köprüler çok affetmezdi; yön yine tamamen oyuncuda)
@@ -476,9 +525,15 @@ namespace SledSurfers
         /// Köprülü derenin üstünde ama tablanın dışında mı (kızak dereye düşer)?
         public bool OverRavine(float x, float z)
         {
+            // Derede birden çok köprü olabilir: herhangi birinin tablasındaysa düşmez.
+            bool over = false;
             foreach (var b in bridges)
-                if (z > b.r0 && z < b.r1 && Mathf.Abs(x - b.XAt(z)) > b.HalfWidth) return true;
-            return false;
+                if (z > b.r0 && z < b.r1)
+                {
+                    if (Mathf.Abs(x - b.XAt(z)) <= b.HalfWidth) return false;
+                    over = true;
+                }
+            return over;
         }
 
         /// z'nin önündeki (range metre içinde başlayan) köprü; tablanın üstündeyken değil.
@@ -497,6 +552,21 @@ namespace SledSurfers
                 if (z >= b.z0 - 0.5f && z <= b.z1 + 0.5f) { bridge = b; return true; }
             bridge = default;
             return false;
+        }
+
+        /// z'deki köprülerden x'e (tabla orta çizgisine) en yakını.
+        public bool BridgeAt(float z, float x, out Bridge bridge)
+        {
+            bool found = false;
+            bridge = default;
+            float best = float.MaxValue;
+            foreach (var b in bridges)
+                if (z >= b.z0 - 0.5f && z <= b.z1 + 0.5f)
+                {
+                    float d = Mathf.Abs(x - b.XAt(z));
+                    if (d < best) { best = d; bridge = b; found = true; }
+                }
+            return found;
         }
 
         /// Tümsek listesini z kovalarına dizer (her yükseklik sorgusu yalnızca yakındaki tümseklere bakar).
@@ -532,10 +602,17 @@ namespace SledSurfers
                 {
                     if (float.IsNaN(center)) center = CenterX(z);
                     float d = Mathf.Abs(x - center - b.xc) - b.halfWidth;
-                    if (d >= 3f) continue;
-                    if (d > 0f) side = 1f - Mathf.SmoothStep(0f, 1f, d / 3f);
+                    float fall = b.ramp ? 1.2f : 3f;
+                    if (d >= fall) continue;
+                    if (d > 0f) side = 1f - Mathf.SmoothStep(0f, 1f, d / fall);
                 }
-                h += b.height * side * 0.5f * (1f - Mathf.Cos(u * 6.2832f));
+                if (b.ramp)
+                {
+                    const float Lip = 0.78f;   // 0.85'te dudak çok keskindi: kızak yatarak havalanıyor, süt bir anda dökülüyordu
+                    float r = u < Lip ? (u / Lip) * (u / Lip) : 1f - Mathf.SmoothStep(0f, 1f, (u - Lip) / (1f - Lip));
+                    h += b.height * side * r;
+                }
+                else h += b.height * side * 0.5f * (1f - Mathf.Cos(u * 6.2832f));
             }
             return h;
         }

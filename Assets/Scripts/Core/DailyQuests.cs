@@ -30,12 +30,12 @@ namespace SledSurfers
         public bool perfect, finished;
     }
 
-    /// Günlük görevler (kullanıcı isteği 2026-10-09): her gün 3 görev, oyuncunun bulunduğu parkura göre çeşitlenir
+    /// Günlük görevler (kullanıcı isteği 2026-10-09; 2026-10-23'ten beri 5): her gün PerDay görev, oyuncunun bulunduğu parkura göre çeşitlenir
     /// (buzlu pistte buz görevi, köprülü pistte köprü görevi; hedefler parkur uzunluğuna göre). Görev listesi gün ve
     /// parkurdan türetilir (aynı gün aynı parkurda hep aynı liste); ilerleme ve alınan ödüller kayıtta tutulur.
     public static class DailyQuests
     {
-        public const int PerDay = 3;
+        public const int PerDay = 5;   // kullanıcı 2026-10-23: "günlük en az 5 görev"
 
         public struct Quest
         {
@@ -96,12 +96,12 @@ namespace SledSurfers
                 int k = rnd.Next(pool.Count);
                 var kind = pool[k];
                 pool.RemoveAt(k);
-                // Üçüncü görev daha zor (ödülü elmas da içerir).
-                float hard = i == 2 ? 1.5f : 1f;
+                // İlk ikisi kolay, üçüncüsü orta, son ikisi zor; elmas yalnız orta ve son görevde (elmas kıtlığı bilinçli).
+                float hard = i >= 3 ? 1.5f : i == 2 ? 1.2f : 1f;
                 list[i] = Make(kind, track, L, hard, rnd);
                 int baseCoins = Mathf.RoundToInt(Mathf.Max(50f, 60f * pay) * hard / 10f) * 10;
                 list[i].coins = baseCoins;
-                list[i].gems = i == 2 ? 3 + track : i == 1 ? 1 : 0;
+                list[i].gems = i == 4 ? 3 + track : i == 2 ? 1 : 0;
             }
             return list;
         }

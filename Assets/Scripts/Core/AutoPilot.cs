@@ -91,7 +91,9 @@ namespace SledSurfers
             float target = track.PathX(aheadZ) + cacheOffset;
             // İnce köprüye yaklaşırken ve üstündeyken: tablanın ortasına kısa bakışla hizalan (düz git).
             for (float d = 0f; d <= 30f; d += 3f)
-                if (track.BridgeAt(sled.position.z + d, out var br))
+                // Derede birden çok köprü olabilir: kızağın gittiği yere en yakın tablaya bağlı kal (hedef yandaki köprüye
+                // atlayınca tablanın üstünde direksiyon kırıp dereye düşüyordu).
+                if (track.BridgeAt(sled.position.z + d, sled.position.x + sled.velocity.x * d / Mathf.Max(sled.velocity.z, 1f), out var br))
                 {
                     aheadZ = sled.position.z + Mathf.Max(5f, sled.Speed * 0.35f);
                     target = br.XAt(aheadZ);
@@ -103,6 +105,13 @@ namespace SledSurfers
                 float dz = track.rocketPickup.z - sled.position.z;
                 if (dz > 0f && dz < 50f) target = track.rocketPickup.x;
             }
+            // Test çekimi: önündeki rampaya git (AutoShot "ramp").
+            if (ChaseRamps)
+                foreach (var bo in track.boosts)
+                {
+                    float dz = bo.z0 - sled.position.z;
+                    if (bo.ramp && bo.z1 > sled.position.z && dz < 60f) { target = bo.x; break; }
+                }
             // Havada: önündeki kuş sürüsünün geleceği yerden kaç.
             if (!sled.grounded)
                 foreach (var f in track.flocks)
@@ -131,6 +140,8 @@ namespace SledSurfers
         /// göre kaydırılarak ileriye doğru puanlanır (patika kıvrılsa da aday çizgisi onu izler).
         static readonly float[] Margins = { -0.6f, 0.6f };
 
+        public static bool ChaseRamps;
+
         static float BestLane(TrackProfile track, SledPhysics sled, float atZ)
         {
             float look = Mathf.Max(20f, sled.Speed * 2f);
@@ -148,13 +159,16 @@ namespace SledSurfers
                 {
                     float zz = atZ + d, x = track.PathX(zz) + off;
                     // İnce köprü: tablanın dışı dere; tablanın tam ortası en güvenli çizgi.
-                    if (track.BridgeAt(zz, out var br))
+                    if (track.BridgeAt(zz, x, out var br))
                     {
                         float bo = Mathf.Abs(x - br.XAt(zz));
                         if (bo > br.HalfWidth - 0.15f) { score -= 60f; continue; }
                         score -= bo * 8f;
+                        if (br.bonus) score -= 2f;   // ortalama oyuncu çoğunlukla düz köprüyü seçer (S köprü riskli ödül)
                     }
                     if (Mathf.Abs(x - track.CenterX(zz)) > track.halfWidth) { score -= 1f; continue; }
+                    // Kanyon duvarı: kızak kenarı + pay
+                    if (track.wallHalf > 0f && Mathf.Abs(x - track.CenterX(zz)) > track.WallHalfAt(zz) - 0.9f) { score -= 60f; continue; }
                     var type = track.SurfaceAt(zz, x);
                     score += type == Surface.Ice ? 1f : type == Surface.Puddle ? -8f : type == Surface.Mud ? -9f : track.NearRoute(zz, x) ? 0.3f : 0f;   // su/çamur ~1 m enerji/m
                     // Kenarına sürtmesin: su/çamurun 0.6 m yakını da cezalı (yanal kayma ve dönüş gecikmesi payı)
@@ -165,7 +179,9 @@ namespace SledSurfers
                             if (near == Surface.Puddle || near == Surface.Mud) { score -= 3f; break; }
                         }
                     if (!track.OnPath(zz, x) && track.ForkWeight(zz) > 0.3f) score -= 1f;   // çatal sırtına çıkma: erkenden şeridini seç
-                    score -= track.BumpHeight(x, zz) * 0.12f;   // tümsek az kaybettirir (inişte geri gelir); çamurdan hafif
+                    score -= track.BumpHeight(x, zz) * 0.12f;
+                    // Hızlandırıcı: tabandaysa hafifçe tercih edilir (yamaçtakine tırmanmak hız ve süt yer; engel cezası üstün).
+                    if (track.boosts.Count > 0 && Mathf.Abs(x - track.CenterX(zz)) < track.halfWidth && track.BoostAt(x, zz) >= 0) score += 1.5f;   // tümsek az kaybettirir (inişte geri gelir); çamurdan hafif
                 }
                 // Engelin içinden geçen çizgi elenir.
                 foreach (var o in track.obstacles)

@@ -263,6 +263,18 @@ namespace SledSurfers
             foreach (var b in track.bridges) if (b.shape != 0 && i-- == 0) return b.r0;
             return -1f;
         }
+        public float DebugBonusBridgeZ(int i) { if (track == null) return -1f; foreach (var b in track.bridges) if (b.bonus && i-- == 0) return b.r0; return -1f; }
+        public float DebugRampZ(int i) { if (track == null) return -1f; foreach (var b in track.boosts) if (b.ramp && i-- == 0) return b.z0; return -1f; }
+        /// Test: kızağın hızını en çok max m/s'ye indirir (çöken köprüyü yavaş geçiş çekimi).
+        public void DebugCapSpeed(float max)
+        {
+            if (sled == null || sled.collapsing || !sled.grounded) return;
+            if (sled.Speed > max) sled.velocity = sled.velocity.normalized * max;
+        }
+        public string DebugLedge => sled == null ? "" : "z " + sled.position.z.ToString("F1") + " r0 " + sled.ledgeR0.ToString("F1") + " front " + sled.CollapseFront.ToString("F1")
+                                                       + " collapsing " + sled.collapsing + " onDeck " + track.OnDeck(sled.position.x, sled.position.z) + " grounded " + sled.grounded;
+        public float DebugBridgeZ(int i) => track != null && i < track.bridges.Count ? track.bridges[i].r0 : -1f;
+        public float DebugBoostZ(int i) => track != null && i < track.boosts.Count ? track.boosts[i].z0 : -1f;
         public float DebugUpdraftZ(int i) => track != null && i < track.updrafts.Count ? track.updrafts[i].x : -1f;
         public float DebugGapZ(int i) => track != null && i < track.water.Count ? track.water[i].x : -1f;
 
@@ -639,6 +651,8 @@ namespace SledSurfers
             ui.ShowRun();
             if (perfect) ui.Toast("PERFECT LAUNCH!");
             hintedRocket = hintedNose = hintedBridge = hintedFork = false;
+            shownBoosts = 0;
+            wasGrounded = true;
             ShowHint(Hint.Steer, IconKind.Swap, input.TouchMode ? "Drag left-right: steer" : "A / D: steer", 3);
         }
 
@@ -887,6 +901,7 @@ namespace SledSurfers
             if (rider.Crashing) loot.HideAround(rider.CrashFocus, 7f);
             if (sled.end == RunEnd.None) preCrashVelocity = sled.velocity;
             world.AnimateBirds(sled.clock, Time.time);
+            world.UpdateLedges(sled, Time.deltaTime);
             // Su birikintisi: raylardan su sıçrar, ilk girişte büyük sıçrama ve ses.
             var underSled = state == State.Run && sled.grounded && sled.Speed > 0.8f
                             ? track.SurfaceAt(sled.position.z, sled.position.x) : Surface.Ground;
@@ -1089,6 +1104,11 @@ namespace SledSurfers
         }
 
         bool hintedRocket, hintedNose, hintedBridge, hintedFork;
+        int shownBoosts;
+        /// Hava numarası eşiği (m/s; ~65 km/s) ve iki numara arası en az süre (s).
+        const float TrickSpeed = 18f, TrickCooldown = 3.5f;
+        bool wasGrounded = true;
+        float lastTrick = -99f;
 
         /// Aşamalı öğretim: ipucu, oyuncu o anı ilk birkaç kez yaşarken gösterilir (yol haritası aşama 5).
         void ShowHint(Hint h, IconKind icon, string text, int times)
@@ -1115,7 +1135,25 @@ namespace SledSurfers
             if (!hintedBridge && track.BridgeAt(sled.position.z + 30f, out _))
             {
                 hintedBridge = true;
-                ShowHint(Hint.Bridge, IconKind.Runners, "Narrow bridge! Go straight down the middle", 3);
+                ShowHint(Hint.Bridge, IconKind.Runners, track.fragileBridges ? "Crumbling rock bridge! Cross it fast"
+                                                                             : "Narrow bridges! Curvy ones hold coins", 3);
+            }
+            // Hava numarası: hızlı kalkışta (rampa dudağı, yükselen hava, uçuş) ve yeterince havada kalacaksa; her kalkışta değil.
+            if (wasGrounded && !sled.grounded && !rider.Tricking && Time.time - lastTrick > TrickCooldown && sled.Speed > TrickSpeed
+                && (sled.velocity.y > 3.5f || (cfg.wingArea > 0f && (sled.velocity.y > 1f || track.UpdraftAt(sled.position.z) > 1f))))
+            {
+                lastTrick = Time.time;
+                var kind = (RiderView.Trick)Random.Range(0, 4);
+                rider.StartTrick(kind);
+                ui.Toast(kind == RiderView.Trick.Backflip ? "BACKFLIP!" : kind == RiderView.Trick.Frontflip ? "FRONTFLIP!"
+                         : kind == RiderView.Trick.BarrelRoll ? "BARREL ROLL!" : "360 SPIN!");
+                sfx.Pop();
+            }
+            wasGrounded = sled.grounded;
+            if (sled.stats.boosts != shownBoosts)
+            {
+                shownBoosts = sled.stats.boosts;
+                if (shownBoosts > 0) { ui.Toast("BOOST!"); sfx.Twang(0.6f); }
             }
             if (!hintedFork && track.ForkAt(sled.position.z + 25f, out _))
             {
@@ -1312,7 +1350,9 @@ namespace SledSurfers
             float kick = sinceLaunch < 1.2f ? Mathf.Sin(Mathf.Clamp01(sinceLaunch / 0.2f) * Mathf.PI * 0.5f) * Mathf.Exp(-sinceLaunch * 2.5f) : 0f;
             float speedFov = state == State.Run ? Mathf.Clamp(sled.Speed - 8f, 0f, 20f) * 0.45f : 0f;
             float baseFov = state == State.Hub ? 55f : 70f;
-            cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, baseFov + speedFov + kick * 14f, 1f - Mathf.Exp(-10f * dt));
+            // Hızlandırıcı: itiş sürerken görüş açısı açılır (fırlatılma hissi; kızak havalanmaz, süt dökülmesin).
+            float boostFov = state == State.Run && sled.Boosting ? 9f : 0f;
+            cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, baseFov + speedFov + kick * 14f + boostFov, 1f - Mathf.Exp(-10f * dt));
 
             // Sarsıntı
             if (shakeAmount > 0.001f)
@@ -1545,11 +1585,15 @@ namespace SledSurfers
                 sfx.Deny();
                 return;
             }
-            // Ödül açılmış en ileri parkura göre büyür; arada bir pembe elmas çıkar.
-            int tier = save.unlocked + 1;
-            pendingChestCoins = 60 * tier + Random.Range(0, 13) * 5 * tier;
+            // Ödül haritadaki ilerlemeyle büyür (kullanıcı 2026-10-23): parkurun kazanç ölçeği × (1 + açılan her parkur için
+            // %25 + en ileri parkurdaki ilerlemenin yarısı). Elmas şansı ve adedi de ilerledikçe artar.
+            int front = Mathf.Clamp(save.unlocked, 0, TrackLibrary.Count - 1);
+            float frontProgress = Mathf.Clamp01(save.bests[front] / TrackLibrary.Lengths[front]);
+            float pay = TrackLibrary.PayFactors[save.track] * TrackLibrary.CostScale[save.track];
+            float grow = 1f + 0.25f * save.unlocked + 0.5f * frontProgress;
+            pendingChestCoins = Mathf.RoundToInt(40f * pay * grow * Random.Range(0.9f, 1.3f) / 5f) * 5;
             if (save.Perk == Perk.Chest) pendingChestCoins = Mathf.RoundToInt(pendingChestCoins * 1.25f / 5f) * 5;
-            pendingChestGems = Random.value < 0.35f ? 1 : 0;
+            pendingChestGems = Random.value < 0.3f + 0.06f * save.unlocked ? 1 + save.unlocked / 3 : 0;
             sfx.Coin();
             ui.ShowChest(pendingChestCoins, pendingChestGems);
         }

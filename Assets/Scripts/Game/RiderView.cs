@@ -926,10 +926,43 @@ namespace SledSurfers
             }
         }
 
+        /// Hava numaraları (kullanıcı 2026-10-23): rampadan ya da uçuşa hızlı geçişte takla, fıçı dönüşü ya da kendi
+        /// etrafında 360°. Yalnız görünüş: fizik ve bardak (sled.Orientation) etkilenmez. Gövdenin ortası (TrickPivot)
+        /// etrafında döner; erken inişte kalan dönüş hızla tamamlanır.
+        public enum Trick { Backflip, Frontflip, BarrelRoll, Spin }
+        public const float TrickDuration = 0.95f;
+        static readonly Vector3 TrickPivot = new Vector3(0f, 0.55f, 0f);
+        float trickT = -1f;
+        Trick trick;
+        public bool Tricking => trickT >= 0f;
+
+        public void StartTrick(Trick kind)
+        {
+            trick = kind;
+            trickT = 0f;
+        }
+
+        Quaternion TrickRotation(bool grounded, float dt)
+        {
+            if (trickT < 0f) return Quaternion.identity;
+            trickT += dt / TrickDuration * (grounded ? 4f : 1f);
+            if (trickT >= 1f) { trickT = -1f; return Quaternion.identity; }
+            float a = 360f * Mathf.SmoothStep(0f, 1f, trickT);
+            switch (trick)
+            {
+                case Trick.Backflip: return Quaternion.Euler(-a, 0f, 0f);
+                case Trick.Frontflip: return Quaternion.Euler(a, 0f, 0f);
+                case Trick.BarrelRoll: return Quaternion.Euler(0f, 0f, a);
+                default: return Quaternion.Euler(0f, a, 0f);
+            }
+        }
+
         public void Sync(SledPhysics sled, LiquidSim liquid, float glassPitch, float glassRoll,
                          float torsoPitch, float torsoRoll, Vector3 shake)
         {
-            root.SetPositionAndRotation(sled.position + shake, sled.Orientation);
+            var trickRot = TrickRotation(sled.grounded, Time.deltaTime);
+            var rot = sled.Orientation * trickRot;
+            root.SetPositionAndRotation(sled.position + shake + sled.Orientation * TrickPivot - rot * TrickPivot, rot);
             // Hover aracı yerin biraz üstünde hafifçe salınır.
             if (shownVehicle == VehicleKind.Hover && vehicles.TryGetValue(VehicleKind.Hover, out var hv))
                 hv.root.localPosition = new Vector3(0f, 0.05f + 0.02f * Mathf.Sin(Time.time * 4f), 0f);

@@ -77,6 +77,20 @@ namespace SledSurfers
         public float launchBoost = 1f;
         public const float PerfectLaunchBoost = 1.06f;
 
+        /// Hızlandırıcı: kızak ileri doğru BoostKick m/s kazanır (BoostDuration boyunca yayılır: 0.45 s'de
+        /// verilen hız simde ortalama oyuncunun sütünü boşaltıyordu). Fırlatma hissi kamerada (GameController).
+        /// 2026-10-23 (kullanıcı: "bir roket kadar hız kazandırmalı"): ~10 m/s, 1.2 s'ye yayılır (~0.85 g, roketin ivmesi kadar).
+        public static float BoostKick = 10f;
+        public const float BoostDuration = 1.2f;
+        int lastBoost = -1;
+        /// Çöken köprü: kızağın bastığı köprünün başlangıcı (r0) ve basış anı (clock); yoksa NaN.
+        public float ledgeR0 = float.NaN, ledgeR1, ledgeEnter;
+        /// Çöküş cephesi (z): bunun gerisindeki taş düşmüştür (görünüş de bunu izler). Köprüye basılmadıysa -inf.
+        public float CollapseFront => float.IsNaN(ledgeR0) ? float.NegativeInfinity
+                                    : ledgeR0 + Mathf.Max(0f, clock - ledgeEnter - TrackProfile.CollapseDelay) * TrackProfile.CollapseSpeed;
+        float boostTime;
+        public bool Boosting => boostTime > 0f;
+
         float bankRoll;                  // rad, yamaçta gövdenin yana yatışı (sağ taraf yukarı +)
         float stillTime;
         float landHold;                  // inişten hemen sonra kızak zemine bastırılır (aynı tümsekte tekrar seğmez)
@@ -133,6 +147,10 @@ namespace SledSurfers
             clock = 0f;
             sinceLanding = 9f;
             launchBoost = 1f;
+            lastBoost = -1;
+            boostTime = 0f;
+            ledgeR0 = float.NaN;
+            collapsing = false;
             stats.Reset();
         }
 
@@ -173,8 +191,27 @@ namespace SledSurfers
                 airTime = 0f;
                 velocity += track.Normal(position.x, position.z) * 2.2f;
             }
+            if (track.fragileBridges) FragileBridge();
+            int boost = grounded && !launching ? track.BoostAt(position.x, position.z) : -1;
+            if (boost >= 0 && boost != lastBoost)
+            {
+                lastBoost = boost;
+                boostTime = BoostDuration;
+                stats.boosts++;
+                // Sıçrama yok: kızağı havaya atınca iniş darbesi simde ortalama oyuncunun sütünü her levhada %10-30 döküyordu.
+            }
             if (grounded) StepGround(steer, dt);
             else StepAir(steer, pitchInput, dt);
+            // Kanatsız kızakta itiş yalnız yerde: ağırlıksız sıçramada ileri itiş sütü bardaktan geri döküyordu. Kanatlı
+            // kızak (taşıma bardağa "aşağı" hissi verir) rampadan sonra da itilir: rampadan uçuşa güçlü geçiş.
+            if (!grounded && cfg.wingArea <= 0f) boostTime = 0f;
+            if (boostTime > 0f && end == RunEnd.None)
+            {
+                var flat = new Vector3(velocity.x, 0f, velocity.z);
+                // Yerçekimiyle ölçekli: Mars'ta aynı hız artışı düşük sürtünmeyle çok uzun sürüyor, parkur 2 atışta bitiyordu.
+                if (flat.sqrMagnitude > 0.01f) velocity += flat.normalized * (BoostKick * (Gravity / EarthGravity) / BoostDuration * Mathf.Min(dt, boostTime));
+                boostTime -= dt;
+            }
 
             if (end == RunEnd.None)
             {
@@ -189,8 +226,10 @@ namespace SledSurfers
             {
                 maxDistance = Mathf.Max(maxDistance, position.z);
                 topSpeed = Mathf.Max(topSpeed, velocity.magnitude);
+                // Aynı derenin yan köprüleri tek geçiş sayılır.
+                float counted = float.NaN;
                 foreach (var b in track.bridges)
-                    if (zBefore < b.r1 && position.z >= b.r1) stats.bridgesCrossed++;
+                    if (zBefore < b.r1 && position.z >= b.r1 && b.r1 != counted) { stats.bridgesCrossed++; counted = b.r1; }
                 // Çatalın ortasından geçerken hangi şeritte (altınlı mı) olduğu (günlük görevler)
                 foreach (var f in track.forks)
                 {
@@ -515,13 +554,13 @@ namespace SledSurfers
 
             float ground = track.Height(position.x, position.z);
             // Tabladan düşüp altına girmiş kızak tablaya alttan konamaz: zemini derenin kendisidir.
-            bool underDeck = track.OnDeck(position.x, position.z) && position.y < ground - 0.3f;
+            bool underDeck = track.OnDeck(position.x, position.z) && (position.y < ground - 0.3f || collapsing);
             if (underDeck) ground = track.TerrainHeight(position.x, position.z);
             if ((underDeck || track.OverRavine(position.x, position.z)) && position.y <= ground + 0.9f)
             {
                 velocity = Vector3.zero;
                 stats.fellInRavine = true;
-                ForceEnd(RunEnd.Crashed, track.fallText, CrashCause.Ravine);
+                ForceEnd(RunEnd.Crashed, collapsing ? "The rock bridge collapsed!" : track.fallText, CrashCause.Ravine);
                 return;
             }
             if (position.y <= ground) Land(ground);
@@ -600,10 +639,44 @@ namespace SledSurfers
 
         /// Yan yamaçta görünmez duvar yok: yamacın tepesini aşıp pistin dışına çıkan kızak orada düşer
         /// (kullanıcı kararı 2026-10-08). Tepeye çıkmak için yamaca hızla, dik açıyla sürmek gerekir.
+        void FragileBridge()
+        {
+            // Yeni köprüye basış: çatlama başlar (önceki köprünün kaydı unutulur).
+            if (grounded && track.OnDeck(position.x, position.z) && track.BridgeAt(position.z, position.x, out var b)
+                && b.r0 != ledgeR0 && position.z > b.r0 - 0.5f)
+            {
+                ledgeR0 = b.r0;
+                ledgeR1 = b.r1;
+                ledgeEnter = clock;
+            }
+            if (float.IsNaN(ledgeR0) || end != RunEnd.None) return;
+            // Kızak çöken kısmın üstünde (yarığın içinde, yerde ya da alçakta): taş altından gider.
+            // Kızak çöken kısmın üstünde: taşla birlikte yarığa düşer (yere değince koşu biter, StepAir).
+            if (!collapsing && position.z > ledgeR0 && position.z < ledgeR1 && position.z < CollapseFront
+                && track.OnDeck(position.x, position.z))
+            {
+                collapsing = true;
+                stats.collapsed = true;
+                grounded = false;
+                airTime = 0f;
+                velocity.y = Mathf.Min(velocity.y, -1f);
+            }
+        }
+
+        /// Altındaki kaya köprü çöktü, kızak yarığa düşüyor.
+        public bool collapsing;
+
         void OffTrack()
         {
             float dx = Mathf.Abs(position.x - track.CenterX(position.z)) - track.halfWidth;
             if (dx > TrackProfile.BankRim) ForceEnd(RunEnd.Crashed, WentOffTrack, CrashCause.OffTrack);
+            // Dar kanyon: kızağın kenarı duvara değerse düşer.
+            if (track.wallHalf > 0f && position.y < track.Height(position.z) + TrackProfile.WallTop
+                && Mathf.Abs(position.x - track.CenterX(position.z)) + HalfWidth > track.WallHalfAt(position.z))
+            {
+                velocity = Vector3.zero;
+                ForceEnd(RunEnd.Crashed, "Hit the canyon wall!", CrashCause.Wall);
+            }
         }
 
         void CheckObstacles()

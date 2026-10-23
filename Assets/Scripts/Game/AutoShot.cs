@@ -259,7 +259,7 @@ namespace SledSurfers
                 yield return new WaitForSeconds(1.5f);
                 yield return Shot("s3_heroes");
                 game.DebugHub();
-                game.DebugQuests(new[] { 99999, 11, 0 });
+                game.DebugQuests(new[] { 99999, 11, 0, 3, 0 });
                 yield return new WaitForSeconds(1.2f);
                 yield return Shot("s4_quests");
                 game.DebugHub();
@@ -321,6 +321,125 @@ namespace SledSurfers
                 yield return new WaitForSeconds(1.2f);
                 yield return Shot("login_day7");
                 SaveData.ClearAll();   // yalnız test önekli kayıt (gerçek kayıt korunur)
+                Application.Quit();
+                yield break;
+            }
+            if (mode == "collapse")
+            {
+                // Çöken kaya köprü: hızlı geçiş (sağlam kalır) ve yavaş geçiş (arkadan çöker, kızak düşer).
+                game.DebugHideTutorial();
+                game.debugAutopilot = true;
+                foreach (bool slow in new[] { false, true })
+                {
+                    game.DebugReset(new[] { 25, 25, 20, 25, 20 }, 0);
+                    game.DebugTrack(7, 7);
+                    yield return new WaitForSeconds(1.5f);
+                    float cbz0 = game.DebugBridgeZ(0);
+                    game.DebugAim();
+                    yield return new WaitForSeconds(0.5f);
+                    game.DebugLaunch(1f);
+                    float wt = 0f;
+                    while (!game.DebugInResult && game.DebugDistance < cbz0 - 8f && wt < 150f) { wt += Time.deltaTime; yield return null; }
+                    string tag = slow ? "slow" : "fast";
+                    float t0 = Time.time;
+                    var marks = new[] { 0.6f, 1.6f, 2.4f, 3.2f, 4.2f };
+                    int m = 0;
+                    while (m < marks.Length && Time.time - t0 < 8f)
+                    {
+                        if (slow) game.DebugCapSpeed(3.5f);
+                        if (Time.time - t0 >= marks[m]) { Debug.Log("[AUTOSHOT] ledge " + tag + m + " " + game.DebugLedge); yield return Shot("c" + tag + "_" + m); m++; }
+                        else yield return null;
+                    }
+                }
+                SaveData.ClearAll();
+                Application.Quit();
+                yield break;
+            }
+            if (mode == "ramp")
+            {
+                // Hızlandırıcı rampası: yaklaşma, rampada, dudaktan sonra (uçuş ve hava numarası).
+                game.DebugHideTutorial();
+                game.debugAutopilot = true;
+                AutoPilot.ChaseRamps = true;
+                foreach (int tr in new[] { 3, 4, 5 })
+                {
+                    game.DebugReset(new[] { 25, 25, 20, 25, 20 }, 0);
+                    game.DebugTrack(tr, tr);
+                    yield return new WaitForSeconds(1.5f);
+                    float rz = game.DebugRampZ(0);
+                    Debug.Log("[AUTOSHOT] ramp t" + tr + " z=" + rz);
+                    if (rz < 0f) continue;
+                    game.DebugAim();
+                    yield return new WaitForSeconds(0.5f);
+                    game.DebugLaunch(1f);
+                    float wt = 0f;
+                    foreach (var mk in new (float d, string n)[] { (-9f, "a"), (3f, "b"), (11f, "c"), (17f, "d"), (24f, "e") })
+                    {
+                        while (!game.DebugInResult && game.DebugDistance < rz + mk.d && wt < 150f) { wt += Time.deltaTime; yield return null; }
+                        if (game.DebugInResult) break;
+                        yield return Shot("r" + tr + "_" + mk.n);
+                    }
+                }
+                SaveData.ClearAll();
+                Application.Quit();
+                yield break;
+            }
+            if (mode == "gorge")
+            {
+                // Canyon Run: duvarlar, boğaz, kaya sütunları; ayrıca yamaçlı pistte genişleyen taban.
+                game.DebugHideTutorial();
+                game.debugAutopilot = true;
+                foreach (int tr in new[] { 7 })
+                {
+                    game.DebugReset(new[] { 25, 25, 20, 25, 20 }, 0);
+                    game.DebugTrack(tr, tr);
+                    yield return new WaitForSeconds(1.5f);
+                    yield return Shot("g" + tr + "_start");
+                    game.DebugAim();
+                    yield return new WaitForSeconds(0.5f);
+                    game.DebugLaunch(1f);
+                    float wt = 0f;
+                    foreach (float gz2 in new[] { 120f, 296f, 445f, 465f, 650f, 795f })
+                    {
+                        while (!game.DebugInResult && game.DebugDistance < gz2 && wt < 150f) { wt += Time.deltaTime; yield return null; }
+                        if (game.DebugInResult) break;
+                        yield return Shot("g" + tr + "_" + (int)gz2);
+                    }
+                    if (game.DebugInResult) { yield return new WaitForSeconds(1.5f); yield return Shot("g" + tr + "_result"); }
+                }
+                SaveData.ClearAll();
+                Application.Quit();
+                yield break;
+            }
+            if (mode == "boost")
+            {
+                // Hızlandırıcı (yaklaşma, üstünde, sonrası) ve çoklu köprülü dere (yaklaşma, tablada).
+                game.DebugHideTutorial();
+                game.debugAutopilot = true;
+                foreach (int tr in new[] { 2, 4, 7 })
+                {
+                    foreach (bool bridge in new[] { false, true })
+                    {
+                        game.DebugReset(new[] { 25, 25, 20, 25, 20 }, 0);
+                        game.DebugTrack(tr, tr);
+                        yield return new WaitForSeconds(1.5f);
+                        float tz = bridge ? game.DebugBonusBridgeZ(0) : game.DebugBoostZ(0);
+                        Debug.Log("[AUTOSHOT] " + (bridge ? "bridge" : "boost") + " t" + tr + " z=" + tz);
+                        if (tz < 0f) continue;
+                        game.DebugAim();
+                        yield return new WaitForSeconds(0.5f);
+                        game.DebugLaunch(1f);
+                        float wt = 0f;
+                        var marks = bridge ? new (float d, string n)[] { (-14f, "a"), (4f, "b") } : new (float d, string n)[] { (-10f, "a"), (2f, "b"), (12f, "c") };
+                        foreach (var mk in marks)
+                        {
+                            while (!game.DebugInResult && game.DebugDistance < tz + mk.d && wt < 150f) { wt += Time.deltaTime; yield return null; }
+                            if (game.DebugInResult) break;
+                            yield return Shot((bridge ? "br" : "bo") + tr + "_" + mk.n);
+                        }
+                    }
+                }
+                SaveData.ClearAll();
                 Application.Quit();
                 yield break;
             }

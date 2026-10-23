@@ -96,7 +96,7 @@ namespace SledSurfers
         {
             new Color32(0x5C, 0xC4, 0x5A, 0xFF), new Color32(0x2E, 0x8B, 0x57, 0xFF), new Color32(0xE8, 0x74, 0x3B, 0xFF),
             new Color32(0x4F, 0x9F, 0xE0, 0xFF), new Color32(0xE8, 0xB9, 0x3B, 0xFF), new Color32(0xD8, 0x3A, 0x2A, 0xFF),
-            new Color32(0xB8, 0x5A, 0x3C, 0xFF),
+            new Color32(0xB8, 0x5A, 0x3C, 0xFF), new Color32(0xC0, 0x62, 0x2E, 0xFF),
         };
         static readonly IconKind[] UpgradeIcons =
             { IconKind.Slingshot, IconKind.Runners, IconKind.Glass, IconKind.Income, IconKind.Rocket };
@@ -2088,7 +2088,7 @@ namespace SledSurfers
             questCard.style.borderBottomColor = WoodDark;
             questCard.style.borderTopLeftRadius = questCard.style.borderTopRightRadius = 44;
             questCard.style.borderBottomLeftRadius = questCard.style.borderBottomRightRadius = 44;
-            questCard.style.marginTop = 120;
+            questCard.style.marginTop = 110;
             // İpler (panonun üstünden ekranın tepesine)
             for (int r = 0; r < 2; r++)
             {
@@ -2176,8 +2176,8 @@ namespace SledSurfers
                 int index = i;
                 var row = E("row");
                 row.style.alignSelf = Align.Stretch;
-                row.style.marginTop = 18;
-                row.style.paddingTop = row.style.paddingBottom = 16;
+                row.style.marginTop = 12;
+                row.style.paddingTop = row.style.paddingBottom = 10;
                 row.style.paddingLeft = 18; row.style.paddingRight = 18;
                 row.style.alignItems = Align.Center;
                 row.style.backgroundColor = Color.white;
@@ -2186,7 +2186,7 @@ namespace SledSurfers
                 row.style.borderBottomWidth = 8;
                 row.style.borderBottomColor = (Color)new Color32(0xE6, 0xD3, 0xB0, 0xFF);
                 questIcons[i] = E("center");
-                questIcons[i].style.width = questIcons[i].style.height = 124;
+                questIcons[i].style.width = questIcons[i].style.height = 104;
                 questIcons[i].style.flexShrink = 0;
                 questIcons[i].style.marginRight = 20;
                 questIcons[i].style.borderTopLeftRadius = questIcons[i].style.borderTopRightRadius = 32;
@@ -2197,13 +2197,13 @@ namespace SledSurfers
                 row.Add(questIcons[i]);
                 var col = E("grow");
                 questTexts[i] = L("", "heavy");
-                questTexts[i].style.fontSize = 34;
+                questTexts[i].style.fontSize = 31;
                 questTexts[i].style.whiteSpace = WhiteSpace.Normal;
                 col.Add(questTexts[i]);
                 // Kalın ilerleme çubuğu, sayaç içinde
                 var bar = E();
-                bar.style.marginTop = 8;
-                bar.style.height = 44;
+                bar.style.marginTop = 6;
+                bar.style.height = 38;
                 bar.style.backgroundColor = (Color)new Color32(0xEC, 0xE3, 0xD2, 0xFF);
                 bar.style.borderTopWidth = bar.style.borderBottomWidth = bar.style.borderLeftWidth = bar.style.borderRightWidth = 4;
                 bar.style.borderTopColor = bar.style.borderBottomColor = bar.style.borderLeftColor = bar.style.borderRightColor = (Color)new Color32(0xC9, 0xB4, 0x90, 0xFF);
@@ -2233,7 +2233,7 @@ namespace SledSurfers
                 col.Add(bar);
                 // Ödül çipleri
                 var chips = E("row");
-                chips.style.marginTop = 8;
+                chips.style.marginTop = 6;
                 var coinChip = RewardChip(IconKind.Coin, coinCol, out questRewards[i]);
                 chips.Add(coinChip);
                 questGemChips[i] = RewardChip(IconKind.Gem, (Color)new Color32(0xD0, 0x3F, 0x93, 0xFF), out questGemTexts[i]);
@@ -2267,7 +2267,7 @@ namespace SledSurfers
             close.name = "home-quests-close";
             close.text = "CLOSE";
             close.style.alignSelf = Align.Stretch;
-            close.style.marginTop = 26;
+            close.style.marginTop = 18;
             questCard.Add(close);
             safe.Add(questModal);
         }
@@ -2335,7 +2335,7 @@ namespace SledSurfers
                 if (questIcons[i].userData == null || (QuestKind)questIcons[i].userData != q.kind)
                 {
                     questIcons[i].Clear();
-                    questIcons[i].Add(new Icon(kindIcon, 78));
+                    questIcons[i].Add(new Icon(kindIcon, 66));
                     questIcons[i].style.backgroundColor = kindColor;
                     questIcons[i].style.borderBottomColor = Color.Lerp(kindColor, Color.black, 0.25f);
                     questIcons[i].userData = q.kind;
@@ -3032,7 +3032,7 @@ namespace SledSurfers
                 var pic = E();
                 pic.style.width = 600;
                 pic.style.height = 270;
-                pic.style.backgroundImage = Background.FromTexture2D(Resources.Load<Texture2D>("UI/MapThumbs/" + theme.slug));
+                pic.style.backgroundImage = Background.FromTexture2D(Resources.Load<Texture2D>("UI/MapThumbs/" + (i == 7 ? "gorge" : theme.slug)));
                 pic.style.backgroundSize = new BackgroundSize(BackgroundSizeType.Cover);
                 pic.style.backgroundColor = theme.panel;
                 pic.style.borderTopLeftRadius = pic.style.borderTopRightRadius = 70;

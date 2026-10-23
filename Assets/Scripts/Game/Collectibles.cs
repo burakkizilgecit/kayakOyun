@@ -108,6 +108,21 @@ namespace SledSurfers
             int bridgeSide = 1;
             foreach (var b in track.bridges)
             {
+                // Yan (S) köprü: tablanın orta çizgisinde coin dizisi, ortasında elmas (riskli yolun ödülü). Aynı deredeki
+                // düz köprüye ödül konmaz.
+                if (b.bonus)
+                {
+                    int m = Mathf.Max(4, Mathf.RoundToInt((b.r1 - b.r0) / 2.4f));
+                    for (int k = 0; k <= m; k++)
+                    {
+                        float zb = Mathf.Lerp(b.r0, b.r1, (float)k / m);
+                        bool mid = k == m / 2;
+                        Add(new Vector3(b.XAt(zb), TrackProfile.DeckHeight(b, zb) + (mid ? 0.7f : 0.5f), zb), mid);
+                        if (mid) items[items.Count - 1].small = true;
+                    }
+                    continue;
+                }
+                if (track.bridges.Exists(o => o.bonus && o.r0 == b.r0)) continue;
                 int n = Mathf.Max(3, Mathf.RoundToInt((b.r1 - b.r0) / 2.2f));
                 float zz = Mathf.Lerp(b.r0, b.r1, (float)(n / 2) / n);
                 Add(new Vector3(b.XAt(zz) + bridgeSide * (b.HalfWidth + 0.9f), TrackProfile.DeckHeight(b, zz) + 0.6f, zz), true);
@@ -145,7 +160,8 @@ namespace SledSurfers
                     float hump = track.Height(c) - 0.5f * (track.Height(c - 30f) + track.Height(c + 30f));
                     if (hump > best) { best = hump; z = c; }
                 }
-                float gx = track.bankScale > 0f ? track.CenterX(z) + gemSide * (track.halfWidth + 4f)
+                float gx = track.wallHalf > 0f ? track.CenterX(z) + gemSide * (track.WallHalfAt(z) - 0.9f)   // kanyonda duvar dibinde
+                         : track.bankScale > 0f ? track.CenterX(z) + gemSide * (track.halfWidth + 4f)
                                                 : track.PathX(z) + gemSide * 5.5f;
                 foreach (var o in track.obstacles)
                     if (Mathf.Abs(o.z - z) < 3f && Mathf.Abs(o.x - gx) < o.halfWidth + 1.5f) gx -= gemSide * 2.5f;

@@ -31,7 +31,9 @@ namespace SledSurfers
             new Palette("winter", new Color32(12, 71, 112, 255), new Color32(140, 221, 251, 255), new Color32(255, 191, 43, 255)),
             new Palette("desert", new Color32(107, 70, 34, 255), new Color32(245, 209, 134, 255), new Color32(255, 186, 62, 255)),
             new Palette("volcano", new Color32(49, 35, 44, 255), new Color32(233, 107, 68, 255), new Color32(255, 154, 50, 255)),
-            new Palette("mars", new Color32(54, 45, 69, 255), new Color32(214, 131, 100, 255), new Color32(111, 221, 226, 255))
+            new Palette("mars", new Color32(54, 45, 69, 255), new Color32(214, 131, 100, 255), new Color32(111, 221, 226, 255)),
+            // Canyon Run: Sunset Canyon'un görselleri (aynı klasör), daha koyu kızıl panel
+            new Palette("canyon", new Color32(96, 38, 22, 255), new Color32(232, 132, 78, 255), new Color32(255, 190, 70, 255))
         };
 
         static readonly string[] files = { "track-plaque", "play-button", "upgrade-panel" };

@@ -72,6 +72,11 @@ namespace SledSurfers.EditorTools
             foreach (var arg in System.Environment.GetCommandLineArgs())
             {
                 if (arg.StartsWith("track=")) track = int.Parse(arg.Substring(6));
+                if (arg == "noboost") TrackLibrary.BoostsOn = false;
+                if (arg == "chaseramps") AutoPilot.ChaseRamps = true;
+                if (arg.StartsWith("boostkick=")) SledPhysics.BoostKick = ParseF(arg.Substring(10));
+                if (arg.StartsWith("boostgap=")) TrackLibrary.BoostSpacing = ParseF(arg.Substring(9));
+                if (arg == "nosidebridge") TrackLibrary.SideBridgesOn = false;
                 if (arg.StartsWith("levels=")) levels = System.Array.ConvertAll(arg.Substring(7).Split(','), int.Parse);
                 if (arg.StartsWith("range=")) range = System.Array.ConvertAll(arg.Substring(6).Split(','), ParseF);   // profil: z0,z1
             }
@@ -103,6 +108,11 @@ namespace SledSurfers.EditorTools
             bool gems = false;
             foreach (var arg in System.Environment.GetCommandLineArgs())
             {
+                if (arg == "noboost") TrackLibrary.BoostsOn = false;
+                if (arg == "chaseramps") AutoPilot.ChaseRamps = true;
+                if (arg.StartsWith("boostkick=")) SledPhysics.BoostKick = ParseF(arg.Substring(10));
+                if (arg.StartsWith("boostgap=")) TrackLibrary.BoostSpacing = ParseF(arg.Substring(9));
+                if (arg == "nosidebridge") TrackLibrary.SideBridgesOn = false;
                 if (arg.StartsWith("base=")) Upgrades.baseCosts = System.Array.ConvertAll(arg.Substring(5).Split(','), int.Parse);
                 if (arg.StartsWith("growth=")) Upgrades.growth = System.Array.ConvertAll(arg.Substring(7).Split(','), ParseF);
                 if (arg.StartsWith("scale=")) TrackLibrary.CostScale = System.Array.ConvertAll(arg.Substring(6).Split(','), ParseF);
@@ -266,6 +276,11 @@ namespace SledSurfers.EditorTools
             foreach (var arg in System.Environment.GetCommandLineArgs())
             {
                 if (arg.StartsWith("track=")) track = int.Parse(arg.Substring(6));
+                if (arg == "noboost") TrackLibrary.BoostsOn = false;
+                if (arg == "chaseramps") AutoPilot.ChaseRamps = true;
+                if (arg.StartsWith("boostkick=")) SledPhysics.BoostKick = ParseF(arg.Substring(10));
+                if (arg.StartsWith("boostgap=")) TrackLibrary.BoostSpacing = ParseF(arg.Substring(9));
+                if (arg == "nosidebridge") TrackLibrary.SideBridgesOn = false;
                 if (arg.StartsWith("sets=")) sets = arg.Substring(5);
                 if (arg.StartsWith("player=")) ladderKind = SimPlayer.Parse(arg.Substring(7));
                 if (arg.StartsWith("seeds=")) ladderSeeds = int.Parse(arg.Substring(6));
@@ -571,6 +586,11 @@ namespace SledSurfers.EditorTools
             foreach (var arg in System.Environment.GetCommandLineArgs())
             {
                 if (arg.StartsWith("track=")) track = int.Parse(arg.Substring(6));
+                if (arg == "noboost") TrackLibrary.BoostsOn = false;
+                if (arg == "chaseramps") AutoPilot.ChaseRamps = true;
+                if (arg.StartsWith("boostkick=")) SledPhysics.BoostKick = ParseF(arg.Substring(10));
+                if (arg.StartsWith("boostgap=")) TrackLibrary.BoostSpacing = ParseF(arg.Substring(9));
+                if (arg == "nosidebridge") TrackLibrary.SideBridgesOn = false;
                 if (arg.StartsWith("sets=")) sets = arg.Substring(5);
                 if (arg.StartsWith("bumpy=")) TrackLibrary.MeadowBumpy = ParseF(arg.Substring(6));
                 if (arg.StartsWith("average=")) spillAverage = int.Parse(arg.Substring(8));   // ortalama oyuncu tohum sayısı
@@ -582,6 +602,7 @@ namespace SledSurfers.EditorTools
             }
             var t = TrackLibrary.Get(track);
             var sb = new StringBuilder("[SIM] Döküm analizi " + TrackLibrary.Names[track] + "\n");
+            sb.AppendLine("  hızlandırıcılar z: " + string.Join(", ", t.boosts.ConvertAll(b => b.z0.ToString("F0"))));
             foreach (var set in sets.Split(';'))
                 for (int skilled = 0; skilled < 2 + spillAverage; skilled++)
                 {
@@ -1070,6 +1091,11 @@ namespace SledSurfers.EditorTools
             foreach (var arg in System.Environment.GetCommandLineArgs())
             {
                 if (arg.StartsWith("track=")) track = int.Parse(arg.Substring(6));
+                if (arg == "noboost") TrackLibrary.BoostsOn = false;
+                if (arg == "chaseramps") AutoPilot.ChaseRamps = true;
+                if (arg.StartsWith("boostkick=")) SledPhysics.BoostKick = ParseF(arg.Substring(10));
+                if (arg.StartsWith("boostgap=")) TrackLibrary.BoostSpacing = ParseF(arg.Substring(9));
+                if (arg == "nosidebridge") TrackLibrary.SideBridgesOn = false;
                 if (arg.StartsWith("levels=")) lv = System.Array.ConvertAll(arg.Substring(7).Split(','), int.Parse);
                 if (arg.StartsWith("player=")) kind = SimPlayer.Parse(arg.Substring(7));
             }
@@ -1108,7 +1134,9 @@ namespace SledSurfers.EditorTools
                     }
                     time += Dt;
                 }
-                line.AppendFormat("  → {0:F0} m {1}", sled.maxDistance, sled.endReason);
+                line.AppendFormat("  → {0:F0} m {1}  (x {2:F2} y {3:F2} zemin {4:F2} arazi {5:F2} tabla {6} vy {7:F1})", sled.maxDistance, sled.endReason,
+                                  sled.position.x, sled.position.y, t.Height(sled.position.x, sled.position.z),
+                                  t.TerrainHeight(sled.position.x, sled.position.z), t.OnDeck(sled.position.x, sled.position.z), sled.velocity.y);
                 sb.AppendLine(line.ToString());
             }
             Debug.Log(sb.ToString());

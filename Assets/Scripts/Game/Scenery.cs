@@ -174,6 +174,16 @@ namespace SledSurfers
                         nearHeight = new Vector2(0.3f, 1f), midHeight = new Vector2(3f, 7f), farHeight = new Vector2(5f, 11f),
                         nearChance = 0.25f, midStep = 14f, farStep = 30f,
                     };
+                case 7:   // Canyon Run: Sunset Canyon'un kayaları, daha yüksek güneş (dar boğaz karanlık kalmasın), kısa sis
+                {
+                    var g = Get(2);
+                    g.sunEuler = new Vector3(48f, 150f, 0f);
+                    g.sunIntensity = 1.3f;
+                    g.fogStart = 40f;
+                    g.fogEnd = 220f;
+                    g.rock = new Color(0.66f, 0.38f, 0.26f);
+                    return g;
+                }
                 default:  // Çayır: parlak öğle, meşeler, çiçekler
                     return new TrackTheme
                     {
@@ -411,6 +421,7 @@ namespace SledSurfers
             BuildSurfaces();
             BuildTerrain();
             BuildWater();
+            BuildCanyonWalls();
             BuildBridges();
             BuildVegetation();
             BuildObstacles();
@@ -546,6 +557,7 @@ namespace SledSurfers
                         int j = k < ValleyCols.Length ? ValleyCols.Length - 1 - k : k - ValleyCols.Length + 1;
                         float side = k < ValleyCols.Length ? -1f : 1f;
                         float off = ValleyCols[j];
+                        if (off < 0f) off *= hw / 6.5f;   // taban içi sütunlar vadi genişliğiyle ölçeklenir
                         float x = c + side * (hw + off);
                         if (j == 0) x = c + side * 0f;   // orta çizgi
                         verts.Add(new Vector3(x, track.TerrainHeight(x, z), z));
@@ -886,6 +898,133 @@ namespace SledSurfers
 
         // ---------------------------------------------------------------- arazi
 
+        /// Dar kanyonun duvarları (Canyon Run; kullanıcı 2026-10-23: "duvarlar çok düz, arada kayalar, kanyon hissi"):
+        /// iç yüz tabandan dik çıkar, katman katman (her katmanın altında içe giren saçak, üstünde raf) dışa açılarak
+        /// arkadaki yüksek platoya bağlanır. Katmanlar iki tonlu kaya; yüzey z boyunca girintili çıkıntılı, yer yer
+        /// büyük kaya burunları öne çıkar. Dipte ve raflarda kaya blokları. Fizikteki duvar iç yüzün kendisi (WallHalfAt).
+        void BuildCanyonWalls()
+        {
+            if (track.wallHalf <= 0f) return;
+            var rockA = Textured(resources.Solid(theme.rock, 0.12f), TextureKit.Rock());
+            var rockB = Textured(resources.Solid(Color.Lerp(theme.rock, new Color(0.92f, 0.72f, 0.52f), 0.35f), 0.1f), TextureKit.Rock());
+            // (dışa, yukarı) profil: katmanlar (dik yüz + raf); her noktanın katmanı (renk) ve girinti genliği
+            Vector2[] prof =
+            {
+                new Vector2(-0.05f, -0.6f), new Vector2(0f, 1.6f), new Vector2(-0.15f, 2.2f), new Vector2(0.55f, 2.5f),
+                new Vector2(0.6f, 4.6f), new Vector2(0.45f, 5.1f), new Vector2(1.4f, 5.4f), new Vector2(1.5f, 7.8f),
+                new Vector2(1.3f, 8.3f), new Vector2(2.6f, 8.7f), new Vector2(2.8f, 11.4f), new Vector2(2.6f, 11.9f),
+                new Vector2(4.2f, 12.3f), new Vector2(4.5f, 14.6f), new Vector2(6.5f, 16f),
+            };
+            int[] band = { 0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0 };
+            float[] jagAmp = { 0f, 0.25f, 0.3f, 0.4f, 0.45f, 0.5f, 0.55f, 0.6f, 0.65f, 0.7f, 0.75f, 0.8f, 0.8f, 0.9f, 0.6f };
+            int first = Mathf.FloorToInt(track.startZ) - 10, last = Mathf.CeilToInt(track.EndZ) + 10;
+            for (int side = -1; side <= 1; side += 2)
+                for (int c0 = first; c0 < last; c0 += 150)
+                {
+                    int c1 = Mathf.Min(last, c0 + 150);
+                    var verts = new List<Vector3>();
+                    var uvs = new List<Vector2>();
+                    var trisA = new List<int>();
+                    var trisB = new List<int>();
+                    int cols = prof.Length + 1;
+                    float seed = side * 37.1f;
+                    for (int z = c0; z <= c1; z++)
+                    {
+                        float c = track.CenterX(z), w = track.WallHalfAt(z);
+                        float floor = track.Height(z);
+                        // Büyük kaya burnu: ~25-40 m'de bir, birkaç metre boyunca duvar öne/arkaya kabarır (alt kısım fiziğe dokunmaz)
+                        float bulge = Mathf.Max(0f, Mathf.Sin(z * 0.19f + seed) * Mathf.Sin(z * 0.047f + seed * 0.3f)) * 1.1f;
+                        for (int k = 0; k < prof.Length; k++)
+                        {
+                            float jag = jagAmp[k] * (0.6f * Mathf.Sin(z * 0.43f + k * 1.9f + seed) + 0.4f * Mathf.Sin(z * 0.11f + k * 0.7f + seed));
+                            float lift = k >= 3 ? bulge * Mathf.Clamp01((prof[k].y - 2f) / 4f) : 0f;
+                            float x = c + side * (w + prof[k].x + Mathf.Max(-0.1f, jag) * (k == 0 ? 0f : 1f) - lift);
+                            if (k <= 1) x = c + side * Mathf.Max(w, Mathf.Abs(x - c));   // alt kısım fizik duvarının içine taşmaz
+                            verts.Add(new Vector3(x, floor + prof[k].y + 0.25f * jag, z));
+                            uvs.Add(new Vector2(prof[k].y * 0.3f, z * 0.3f));
+                        }
+                        float xo = c + side * (track.halfWidth + TrackProfile.BankRim);
+                        verts.Add(new Vector3(xo, Mathf.Max(track.TerrainHeight(xo, z), floor + 16f) - 0.2f, z));
+                        uvs.Add(new Vector2(5f, z * 0.3f));
+                        if (z > c0)
+                        {
+                            int b = verts.Count - 2 * cols;
+                            for (int k = 0; k < cols - 1; k++)
+                            {
+                                int a = b + k;
+                                var tl = k < band.Length && band[k] == 1 ? trisB : trisA;
+                                if (side < 0) tl.AddRange(new[] { a, a + 1, a + cols, a + 1, a + cols + 1, a + cols });
+                                else tl.AddRange(new[] { a, a + cols, a + 1, a + 1, a + cols, a + cols + 1 });
+                            }
+                        }
+                    }
+                    var mesh = resources.Own(new Mesh { indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 });
+                    mesh.SetVertices(verts);
+                    mesh.SetUVs(0, uvs);
+                    mesh.subMeshCount = 2;
+                    mesh.SetTriangles(trisA, 0);
+                    mesh.SetTriangles(trisB, 1);
+                    mesh.RecalculateNormals();
+                    mesh.RecalculateBounds();
+                    var go = new GameObject("Canyon Wall");
+                    go.transform.SetParent(root, false);
+                    go.AddComponent<MeshFilter>().sharedMesh = mesh;
+                    go.AddComponent<MeshRenderer>().sharedMaterials = new[] { rockA, rockB };
+                }
+
+            // Kaya blokları: duvar dibinde (oyun alanına taşmadan) ve raflarda
+            string[] rocks = { "Nature/rock_largeA", "Nature/rock_largeB", "Nature/rock_largeC", "Nature/rock_largeD", "Nature/rock_tallA", "Nature/rock_tallB" };
+            for (float z = track.startZ + 20f; z < track.EndZ; z += R(5f, 11f))
+            {
+                if (track.BridgeAt(z, out _)) continue;
+                int side = R() < 0.5f ? -1 : 1;
+                float c = track.CenterX(z), w = track.WallHalfAt(z), floor = track.Height(z);
+                if (R() < 0.6f)
+                {
+                    float hgt = R(1f, 2.4f);
+                    PlaceHeight(rocks[rng.Next(rocks.Length)], new Vector3(c + side * (w + hgt * 0.35f), floor - 0.2f, z), hgt, R(0f, 360f));
+                }
+                else
+                {
+                    // Rafta: 2.5 / 5.4 / 8.7 m katmanlarının üstünde
+                    var shelf = prof[new[] { 3, 6, 9 }[rng.Next(3)]];
+                    float hgt = R(0.8f, 1.8f);
+                    PlaceHeight(rocks[rng.Next(rocks.Length)], new Vector3(c + side * (w + shelf.x + 0.6f), floor + shelf.y - 0.1f, z), hgt, R(0f, 360f));
+                }
+            }
+        }
+
+        /// Uçurumun üstündeki ince doğal kaya yol (Canyon Run): tabla boyunca kalın kaya dilimleri, altında aşağı sarkan
+        /// sivri kaya; korkuluk yok.
+        void BuildStoneLedge(TrackProfile.Bridge b)
+        {
+            var rockA = Textured(resources.Solid(theme.rock, 0.12f), TextureKit.Rock());
+            var rockB = Textured(resources.Solid(Color.Lerp(theme.rock, new Color(0.92f, 0.72f, 0.52f), 0.35f), 0.1f), TextureKit.Rock());
+            var go = new GameObject("Stone Ledge").transform;
+            go.SetParent(root, false);
+            Vector3 At(float z) => new Vector3(b.XAt(z), TrackProfile.DeckHeight(b, z), z);
+            float z0 = b.z0 - 0.3f, len = b.z1 - b.z0 + 0.6f;
+            int n = Mathf.Max(3, Mathf.RoundToInt(len / 1.8f));   // uzun, düzensiz dilimler (kısa dilimler tahta köprü gibi görünüyordu)
+            for (int k = 0; k < n; k++)
+            {
+                float z = z0 + (k + 0.5f) * len / n;
+                var dir = Quaternion.LookRotation(At(z + 0.2f) - At(z - 0.2f));
+                float thick = 1.1f + 0.4f * Mathf.Sin(z * 1.3f);
+                Mats.Prim(PrimitiveType.Cube, "Ledge", go, At(z) + Vector3.down * (thick * 0.5f + 0.02f),
+                          new Vector3(b.HalfWidth * 2f + R(0.1f, 0.4f), thick, len / n + 0.5f), rockA,
+                          dir * Quaternion.Euler(R(-1f, 1f), R(-4f, 4f), R(-2f, 2f)));
+                // Kenarlarda yuvarlak kaya topakları (doğal kenar)
+                for (int e = -1; e <= 1; e += 2)
+                    Mats.Prim(PrimitiveType.Sphere, "Ledge Edge", go, At(z) + dir * Vector3.right * (e * b.HalfWidth * 0.95f) + Vector3.down * 0.32f,
+                              new Vector3(R(0.28f, 0.42f), R(0.25f, 0.35f), len / n * R(0.4f, 0.7f)), rockA, dir);
+                {
+                    float hang = R(2f, 6f);
+                    Mats.Prim(PrimitiveType.Cube, "Ledge Root", go, At(z) + Vector3.down * (thick + hang * 0.5f),
+                              new Vector3(b.HalfWidth * R(0.8f, 1.6f), hang, R(0.4f, 0.9f)), rockA, dir * Quaternion.Euler(0f, R(0f, 40f), R(-6f, 6f)));
+                }
+            }
+        }
+
         void BuildTerrain()
         {
             const float step = 2.5f;
@@ -1043,6 +1182,7 @@ namespace SledSurfers
             var beam = resources.Solid(new Color(0.38f, 0.25f, 0.14f), 0.1f);
             foreach (var b in track.bridges)
             {
+                if (track.wallHalf > 0f) { BuildStoneLedge(b); continue; }
                 float hwB = b.HalfWidth;
                 var go = new GameObject("Bridge").transform;
                 go.SetParent(root, false);
