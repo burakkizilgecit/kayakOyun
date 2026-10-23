@@ -105,13 +105,14 @@ namespace SledSurfers
             }
         }
 
-        public const float BoostRampHeight = 0.9f, BoostRampLength = 11f;
+        public const float BoostRampHeight = 0.9f, BoostRampLength = 11f, RampClearance = 320f;
 
         /// Rampadan sonraki uçuş yolu: köprü, dere, çatal ve rota engeli yok.
         static bool RampClear(TrackProfile t, float z)
         {
-            foreach (var b in t.bridges) if (b.z1 > z && b.z0 < z + FlightClear) return false;
-            foreach (var w in t.water) if (w.y > z && w.x < z + FlightClear) return false;
+            // Kanatlı kızak itişle rampadan ~250 m süzülür (2026-10-23: 220 m'de Frostpeak'te dereye iniyordu).
+            foreach (var b in t.bridges) if (b.z1 > z && b.z0 < z + RampClearance) return false;
+            foreach (var w in t.water) if (w.y > z && w.x < z + RampClearance) return false;
             foreach (var f in t.forks) if (f.z1 > z && f.z0 < z + 120f) return false;
             // Roket tepesinin önünde ve düşük yerçekiminde rampa yok: Mars'ta rampadan süzülen kızak roket duvarını aşıp
             // parkuru 6 atışta bitiriyordu (2026-10-23).

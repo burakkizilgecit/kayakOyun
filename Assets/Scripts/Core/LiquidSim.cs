@@ -46,12 +46,21 @@ namespace SledSurfers
         /// 0.38 g'ye göre büyük kalıp sütü döküyordu; Dünya'da aynı itiş ağırlıksızlık sayılır.
         static float GRef => Mathf.Max(SledPhysics.Gravity, SledPhysics.EarthGravity);
 
+        public const float AirBrace = 0.33f;
+
         public static float HolderPull => Mathf.Max(0f, 0.85f * (SledPhysics.EarthGravity - SledPhysics.Gravity));   // 2026-10-19: 0.65 -> 0.85 (Mars çatalında şerit değiştirmek sütün %50-76sını döküyordu)
 
         /// anchorAccel: elin (kızağın) dünya ivmesi. glassRotation: bardağın dünya yönelimi.
         public void Step(Vector3 anchorAccel, Quaternion glassRotation, float dt)
         {
             anchorAccel = Vector3.ClampMagnitude(anchorAccel, MaxAccel * 10f);
+            // Havada bardağı göğse bastırır (kullanıcı 2026-10-23): "aşağı" hissi azaldıkça (serbest düşüş, az taşıyan uçuş)
+            // yatay ivmenin yalnız üçte biri sıvıya geçer. Yoksa havada ateşlenen roket (aşağı hissi yokken ileri itiş)
+            // sütün %50-80'ini bir anda geri döküyordu. Yerde (aşağı hissi tam) değişmez.
+            float down = (SledPhysics.Gravity + anchorAccel.y) / Mathf.Max(SledPhysics.Gravity, 0.1f);
+            float brace = Mathf.Lerp(AirBrace, 1f, Mathf.Clamp01(down / 0.6f));
+            anchorAccel.x *= brace;
+            anchorAccel.z *= brace;
             // Ağırlıksızlık ham ivmeyle anlaşılır: kızak havalandığı an sıvı asılı kalır (süspansiyon gecikmesi
             // yüzünden havada dökülmesin).
             bool rawWeightless = (new Vector3(0f, -SledPhysics.Gravity, 0f) - anchorAccel).magnitude < 0.35f * GRef;
