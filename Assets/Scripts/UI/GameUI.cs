@@ -469,6 +469,9 @@ namespace SledSurfers
 
         // ================================================================ dışarıya açık
 
+        /// Açılış ekranı (logo ve animasyonlu arka plan) her şeyin üstünde; dokununca ya da ~2.8 s sonra kaybolur.
+        public void ShowSplash(Action onPop) => root.Add(new SplashScreen(onPop, null));
+
         public Page Current => page;
 
         /// The controller freezes gameplay; the modal only blocks input and offers an explicit resume.

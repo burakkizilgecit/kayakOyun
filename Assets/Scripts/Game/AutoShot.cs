@@ -19,6 +19,17 @@ namespace SledSurfers
         /// Oyun otomatik test için mi başlatıldı ("-autoshot <klasör>")? Kayıt yüklenmeden önce sorulur.
         public static bool Requested => System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-autoshot") >= 0;
 
+        /// "-shots <mod>" değeri (yoksa boş): açılış ekranı yalnız "splash" modunda gösterilir, diğer çekimleri örtmesin.
+        public static string RequestedMode
+        {
+            get
+            {
+                var args = System.Environment.GetCommandLineArgs();
+                for (int j = 0; j < args.Length - 1; j++) if (args[j] == "-shots") return args[j + 1];
+                return "";
+            }
+        }
+
         public static void AttachIfRequested(GameController game)
         {
             var args = System.Environment.GetCommandLineArgs();
@@ -44,6 +55,18 @@ namespace SledSurfers
         {
             SaveData.ClearAll();   // yalnız test önekli kayıt (gerçek kayıt korunur)
             float t;
+            if (mode == "splash")
+            {
+                // Açılış ekranı: logonun büyümesi, oturması, süzülmesi ve kapanış.
+                foreach (var (wait, n) in new[] { (0.35f, "a"), (0.4f, "b"), (0.6f, "c"), (1.2f, "d"), (1.3f, "e") })
+                {
+                    yield return new WaitForSeconds(wait);
+                    yield return Shot("sp_" + n);
+                }
+                SaveData.ClearAll();
+                Application.Quit();
+                yield break;
+            }
             if (mode == "equipment")
             {
                 homeTesting = true; homeDeadline = Time.realtimeSinceStartup + 150f;

@@ -102,6 +102,8 @@ namespace SledSurfers
             WireUi();
             EnterHub();
             SnapCamera();
+            // Açılış ekranı (Sling Riders logosu); otomatik testlerde yalnız kendi modunda (öteki çekimleri örtmesin)
+            if (!AutoShot.Requested || AutoShot.RequestedMode == "splash") ui.ShowSplash(() => sfx.Pop());
             AutoShot.AttachIfRequested(this);
         }
 
