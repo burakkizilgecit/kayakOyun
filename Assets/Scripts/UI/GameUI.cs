@@ -3160,7 +3160,7 @@ namespace SledSurfers
                 }
                 else if (open)
                 {
-                    c.status.text = save.bests[i] > 0 ? "Best " + TrackLibrary.Show(save.bests[i]) + " m · " + Mathf.FloorToInt(progress * 100f) + "%" : "New! Try it now";
+                    c.status.text = save.bests[i] > 0 ? "Best " + TrackLibrary.Show(save.bests[i]) + " m · " + Mathf.FloorToInt(progress * 100f) + "%" : "Unlocked · 0%";
                     c.status.style.color = (Color)new Color32(0xFF, 0xC9, 0x3C, 0xFF);
                 }
                 else
