@@ -107,10 +107,11 @@ namespace SledSurfers
             return Mathf.Max(5, Mathf.RoundToInt(price / 5f) * 5);
         }
 
-        /// Kademe elmasla alınırsa fiyatı (kullanıcı kararı 2026-10-09): coin fiyatıyla logaritmik büyür, en az 2.
-        /// ~70 coin → 2, 1 bin → 5, 10 bin → 8, 100 bin → 11, 500 bin → 14 elmas.
-        public static int GemCost(int type, int level) =>
-            Mathf.Max(2, 2 + Mathf.FloorToInt(Mathf.Log(Mathf.Max(Cost(type, level), 1) / 100f, 2f)));
+        /// Elmasla yükseltme (kullanıcı kararı 2026-10-24: "elması olan sürekli geliştirme yapamamalı"): yalnız aşamanın son
+        /// kademesi (aracı yeni görünüme geçiren) coin yetmezse GemUpgradePrice elmasla alınabilir; diğer kademeler yalnız coin.
+        public const int GemUpgradePrice = 2;
+        public static bool GemPayable(int level) => level % StageSize == StageSize - 1;
+        public static int GemCost(int type, int level) => GemPayable(level) ? GemUpgradePrice : 0;
 
         public static float IncomeMultiplier(int level) => 1f + 0.1f * level;   // 25 kademede ×3.5 (eski 20 × 0.125 ile aynı)
 

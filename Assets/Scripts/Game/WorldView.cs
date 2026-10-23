@@ -227,6 +227,94 @@ namespace SledSurfers
 
         public Transform Root => root;
 
+        // ---------------------------------------------------------------- sürpriz engeller
+        /// Görünüşler: kartopu (yuvarlanır), düşüş gölgesi / meteor halkası (büyür, nabız), düşen kaya / alevli meteor.
+        class HazardView { public Transform body, marker, trail; public Material markerMat; }
+        HazardView[] hazardViews = new HazardView[0];
+        HazardState[] shownHazards;
+        Material snowMat, rockMat, meteorMat, flameMat;
+
+        public void UpdateHazards(SledPhysics sled)
+        {
+            if (sled.hazards.Length == 0) return;
+            if (!ReferenceEquals(shownHazards, sled.hazards))
+            {
+                shownHazards = sled.hazards;
+                if (hazardViews.Length != sled.hazards.Length) BuildHazardViews(sled.hazards);
+                foreach (var v in hazardViews) { v.body.gameObject.SetActive(false); v.marker.gameObject.SetActive(false); if (v.trail) v.trail.gameObject.SetActive(false); }
+            }
+            for (int i = 0; i < sled.hazards.Length; i++)
+            {
+                var h = sled.hazards[i];
+                var v = hazardViews[i];
+                bool live = h.phase == 1 || h.phase == 2 || (h.phase == 3 && h.kind != HazardKind.Snowball && h.pos.z > sled.position.z - 30f);
+                if (h.kind == HazardKind.Snowball)
+                {
+                    v.body.gameObject.SetActive(h.phase == 1 || h.hit);
+                    if (!v.body.gameObject.activeSelf) continue;
+                    v.body.position = h.pos;
+                    v.body.localScale = Vector3.one * h.radius * 2f;
+                    v.body.rotation = Quaternion.Euler(-(h.t * HazardState.SnowballSpeed) / h.radius * Mathf.Rad2Deg, 0f, 0f);
+                    continue;
+                }
+                v.body.gameObject.SetActive(live);
+                bool falling = h.phase == 1;
+                v.marker.gameObject.SetActive(falling);
+                if (v.trail) v.trail.gameObject.SetActive(falling && h.kind == HazardKind.Meteor);
+                if (!live) continue;
+                float u = Mathf.Clamp01(h.t / h.FallDuration);
+                if (falling)
+                {
+                    // Gölge / halka: büyür, meteorda kırmızı nabız
+                    float k = Mathf.Lerp(0.35f, 1.15f, u);
+                    v.marker.position = h.pos + Vector3.up * 0.06f;
+                    v.marker.localScale = new Vector3(h.radius * 2.2f * k, 0.01f, h.radius * 2.2f * k);
+                    float pulse = 0.5f + 0.5f * Mathf.Sin(Time.time * 14f);
+                    v.markerMat.color = h.kind == HazardKind.Meteor ? new Color(1f, 0.12f, 0.08f, 0.35f + 0.4f * pulse * u)
+                                                                    : new Color(0f, 0f, 0f, 0.15f + 0.4f * u);
+                }
+                // Gövde: gökten iner (ivmelenerek); meteor çaprazdan, arkasında alev izi
+                float drop = 28f * (1f - u * u);
+                // Meteor yandan çapraz iner: arkadan bakan kamerada alev izi ekranda eğik bir çizgi olur (önden gelince iz kameraya
+                // doğru uzanıp turuncu bir leke gibi görünüyordu).
+                Vector3 from = h.kind == HazardKind.Meteor ? new Vector3(-1f, 0f, 0.25f).normalized * drop : Vector3.up * drop;
+                v.body.position = h.pos + Vector3.up * (h.radius * 0.7f) + (falling ? from + Vector3.up * drop * (h.kind == HazardKind.Meteor ? 0.9f : 0f) : Vector3.zero);
+                v.body.localScale = h.kind == HazardKind.Meteor ? Vector3.one * h.radius * 0.9f
+                                                                : new Vector3(h.radius * 2f, h.radius * 1.6f, h.radius * 1.8f);
+                if (v.trail && falling)
+                {
+                    // İnce alev izi: gövdenin arkasında (geldiği yöne doğru) uzanır
+                    var dir = (v.body.position - (h.pos + Vector3.up * h.radius * 0.7f)).normalized;
+                    v.trail.position = v.body.position + dir * 2f;
+                    v.trail.rotation = Quaternion.LookRotation(dir);
+                    v.trail.localScale = new Vector3(h.radius * 0.35f, h.radius * 0.35f, 4f);
+                }
+            }
+        }
+
+        void BuildHazardViews(HazardState[] hs)
+        {
+            snowMat ??= resources.Solid(new Color(0.95f, 0.97f, 1f), 0.35f);
+            rockMat ??= resources.Solid(Color.Lerp(theme.rock, Color.black, 0.15f), 0.15f);
+            meteorMat ??= resources.Glow(new Color(0.22f, 0.1f, 0.08f), new Color(0.9f, 0.25f, 0.05f), 0.2f);   // kor gibi koyu kaya
+            flameMat ??= resources.Own(new Material(Shader.Find("Sprites/Default")) { color = new Color(1f, 0.6f, 0.2f, 0.45f) });
+            hazardViews = new HazardView[hs.Length];
+            for (int i = 0; i < hs.Length; i++)
+            {
+                var v = new HazardView();
+                var mat = hs[i].kind == HazardKind.Snowball ? snowMat : hs[i].kind == HazardKind.Meteor ? meteorMat : rockMat;
+                v.body = Mats.Prim(PrimitiveType.Sphere, "Hazard", root, Vector3.zero, Vector3.one, mat);
+                v.markerMat = resources.Own(new Material(Shader.Find("Sprites/Default")) { color = new Color(0f, 0f, 0f, 0.3f) });
+                v.marker = Mats.Prim(PrimitiveType.Cylinder, "Hazard Marker", root, Vector3.zero, Vector3.one, v.markerMat);
+                if (hs[i].kind == HazardKind.Meteor)
+                    v.trail = Mats.Prim(PrimitiveType.Sphere, "Meteor Trail", root, Vector3.zero, Vector3.one, flameMat);
+                v.body.gameObject.SetActive(false);
+                v.marker.gameObject.SetActive(false);
+                if (v.trail) v.trail.gameObject.SetActive(false);
+                hazardViews[i] = v;
+            }
+        }
+
         /// Çöken kaya köprünün parçaları: çöküş cephesinin gerisinde kalanlar düşer, önündeki 3 m titrer (çatlama).
         class LedgePiece { public Transform t; public Vector3 pos, vel; public Quaternion rot; public Vector3 spin; public bool falling; }
         readonly List<LedgePiece> ledgePieces = new List<LedgePiece>();

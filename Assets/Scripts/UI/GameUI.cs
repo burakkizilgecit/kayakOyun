@@ -1275,7 +1275,7 @@ namespace SledSurfers
                 bool afford = !maxed && !tierLocked && save.money >= cost;
                 // Coin yetmiyorsa ama elmas yetiyorsa seviye elmasla alınabilir.
                 int gemCost = maxed || tierLocked ? 0 : Upgrades.GemCost(i, lvl);
-                bool gemPay = !afford && !maxed && !tierLocked && save.gems >= gemCost;
+                bool gemPay = !afford && !maxed && !tierLocked && gemCost > 0 && save.gems >= gemCost;
 
                 c.coin.style.display = !maxed && !tierLocked && !gemPay ? DisplayStyle.Flex : DisplayStyle.None;
                 c.gem.style.display = gemPay ? DisplayStyle.Flex : DisplayStyle.None;
@@ -1692,7 +1692,7 @@ namespace SledSurfers
             freeBtn.Add(shopFreeLabel);
             freeBtn.style.width = 340;
             free.Add(freeBtn);
-            shopBody.Add(free);
+            // 2026-10-24: reklamla ücretsiz elmas kaldırıldı (elmas yalnız satın alınır); satır kurulur ama gösterilmez.
             shopBody.Add(Grid(GemPacks, GemPrices, IconKind.Gem, "gems_", new[] { -1, -1, 2, -1, -1, 5 }, new[] { "POPULAR", "BEST VALUE" }));
 
             // Fırlatma hakkı
@@ -2491,14 +2491,13 @@ namespace SledSurfers
                     left.Add(day);
                     left.Add(loginAmounts[d]);
                     body.Add(left);
-                    var gems = E("row");
-                    var g1 = new Icon(IconKind.Gem, 130);
-                    var g2 = new Icon(IconKind.Gem, 110);
-                    g2.style.marginLeft = -34;
-                    g2.style.marginTop = 30;
-                    gems.Add(g1);
-                    gems.Add(g2);
-                    body.Add(gems);
+                    var prize = E("row");
+                    prize.style.alignItems = Align.FlexEnd;
+                    prize.Add(new Icon(IconKind.Chest, 130));
+                    var pile = CoinPile(90);
+                    pile.style.marginLeft = -20;
+                    prize.Add(pile);
+                    body.Add(prize);
                 }
                 else
                 {

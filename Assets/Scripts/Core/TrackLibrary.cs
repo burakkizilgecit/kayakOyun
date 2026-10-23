@@ -20,7 +20,7 @@ namespace SledSurfers
         public static readonly float[] MilkHeadroomScale = { 1f, 1f, 1f, 1f, 1f, 1f, 1.8f, 1f };
         public static float[] PowerStart = { 0f, 5f, 7f, 8f, 9f, 10f, 10f, 8f };
         public static float[] PowerEnd = { 15f, 18f, 21f, 23f, 24f, 25f, 25f, 23f };
-        public static float[] CostScale = { 0.62f, 1.25f, 1.4f, 1.45f, 3.4f, 3.4f, 9f, 2f };   // 2026-10-23: hızlandırıcı, rampa, geniş vadi, çoklu köprü sonrası yeniden (sim 430 atış)   // 2026-10-18: sim artık pistteki gerçek (sınırlı) altını sayıyor; geç pistler hedef atış sayısına geri çekildi   // 2026-10-10: referans fiyat eğrisi (5×aşama, 1.4→1.24) ile
+        public static float[] CostScale = { 0.7f, 1.25f, 2.6f, 1.15f, 3.4f, 3.4f, 5.3f, 2f };   // 2026-10-24: elmas kıtlığı, geniş yol, az uçuş ve sürpriz engeller sonrası (sim ~510 atış)   // 2026-10-18: sim artık pistteki gerçek (sınırlı) altını sayıyor; geç pistler hedef atış sayısına geri çekildi   // 2026-10-10: referans fiyat eğrisi (5×aşama, 1.4→1.24) ile
         /// Pistin aracı: son üç haritada aracın şekli tamamen değişir.
         public static readonly VehicleKind[] Vehicles =
             { VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sandboard, VehicleKind.Bobsled, VehicleKind.Hover, VehicleKind.Sled };
@@ -54,6 +54,7 @@ namespace SledSurfers
             ClearFlightZones(t);
             SideBridges(t, index);
             AddBoosts(t, index);
+            AddHazards(t, index);
             return t;
         }
 
@@ -89,7 +90,7 @@ namespace SledSurfers
                 if (t.bankScale <= 0.2f && t.wallHalf <= 0f) x = Mathf.Clamp(x, t.CenterX(z) - t.halfWidth + 1.5f, t.CenterX(z) + t.halfWidth - 1.5f);
                 // Rampa versiyonu (kullanıcı 2026-10-23): her ikinci hızlandırıcı hafif rampa; kanatlı hızlı kızak dudaktan
                 // uçuşa geçer. Önünde uçuş için temiz alan ister (köprü/dere/çatal yok), yoksa düz levha kalır.
-                bool ramp = t.boosts.Count % 2 == 1 && t.wallHalf <= 0f && RampClear(t, z);
+                bool ramp = t.boosts.Count % 3 == 2 && t.wallHalf <= 0f && RampClear(t, z);   // her üçüncüsü (2026-10-24: uçuş daha seyrek)
                 // Rampa yamaçta değil, geniş tabanın kenarında (rotadan sapmak gerekir, uçuşa düz zeminden çıkılır).
                 if (ramp && t.bankScale > 0.2f) x = t.CenterX(z) + side * (t.halfWidth - 2f);
                 float len = ramp ? BoostRampLength : TrackProfile.BoostLength;
@@ -131,6 +132,53 @@ namespace SledSurfers
             if (t.hasRocketPickup && Mathf.Abs(t.rocketPickup.z - z) < 60f) return false;
             foreach (var p in t.pinches) if (Mathf.Abs(p.x - z) < p.y * 0.5f + 25f) return false;
             foreach (var o in t.obstacles) if (o.z > z - 5f && o.z < z + 30f && t.wallHalf > 0f) return false;   // kanyonda sütunlar kalır
+            return true;
+        }
+
+        /// Sürpriz engeller (kullanıcı 2026-10-24, önerilen ilk üç): Frostpeak'te kartopu, Mars'ta meteor, Canyon Run'da kaya
+        /// düşmesi. Pistin %20-90'ı arasında yaklaşık eşit aralıkla; köprü, dere, uçurum, çatal, yükselen hava, rampa ve roket
+        /// tepesine yakın değil (kaçacak yer ve dikkat olsun).
+        public static bool HazardsOn = true;
+
+        static void AddHazards(TrackProfile t, int track)
+        {
+            if (!HazardsOn) return;
+            HazardKind kind;
+            int count;
+            switch (track)
+            {
+                case 3: kind = HazardKind.Snowball; count = 4; break;
+                case 6: kind = HazardKind.Meteor; count = 5; break;
+                case 7: kind = HazardKind.Rockfall; count = 6; break;
+                default: return;
+            }
+            float a = t.finishZ * 0.2f, b = t.finishZ * 0.9f;
+            for (int k = 0; k < count; k++)
+            {
+                float target = Mathf.Lerp(a, b, (k + 0.5f) / count);
+                // En yakın uygun yer (±60 m)
+                for (float d = 0f; d <= 90f; d += 4f)
+                {
+                    float z = HazardClear(t, target + d, kind) ? target + d : HazardClear(t, target - d, kind) ? target - d : float.NaN;
+                    if (float.IsNaN(z)) continue;
+                    t.hazards.Add(new Hazard { kind = kind, z = z });
+                    break;
+                }
+            }
+        }
+
+        static bool HazardClear(TrackProfile t, float z, HazardKind kind)
+        {
+            // Etkili bölge: kartopu tetikten +55 m ileride doğar ve geri yuvarlanır; kaya/meteor ~1.3 s ileriye (~25-35 m) düşer.
+            float z0 = z - (kind == HazardKind.Snowball ? 10f : 5f), z1 = z + (kind == HazardKind.Snowball ? 70f : 40f);
+            foreach (var br in t.bridges) if (br.z1 > z0 && br.z0 < z1) return false;
+            foreach (var w in t.water) if (w.y > z0 && w.x < z1) return false;
+            foreach (var f in t.forks) if (f.z1 > z0 && f.z0 < z1) return false;
+            foreach (var u in t.updrafts) if (u.y > z0 - 40f && u.x < z1) return false;
+            foreach (var bo in t.boosts) if (bo.z1 > z0 - 20f && bo.z0 < z1) return false;
+            foreach (float h in t.rocketHills) if (Mathf.Abs(h - z) < 90f) return false;
+            foreach (var p in t.pinches) if (p.x + p.y * 0.5f > z0 && p.x - p.y * 0.5f < z1) return false;
+            foreach (var o in t.obstacles) if (o.z > z0 && o.z < z1 && t.wallHalf > 0f) return false;   // kanyonda sütun yanında olmasın
             return true;
         }
 
@@ -568,7 +616,7 @@ namespace SledSurfers
         public static string ApproachLog = "";   // test: hangi köprüye hangi yaklaşım tipi (pist:tip@z)
         /// Köprünün kıvrımlı olma olasılığı (ilk köprü hariç); geç pistlerde daha sık.
         /// Yükselen hava: rampadan sonra (olasılık, boy m, güç m/s²). Kuşlar BirdsFrom pistinden itibaren.
-        public static float[] UpdraftChance = { 0.6f, 0f, 0.5f, 0.5f, 0.7f, 0.75f, 0.7f, 0f };
+        public static float[] UpdraftChance = { 0.4f, 0f, 0.5f, 0.35f, 0.45f, 0.5f, 0.45f, 0f };   // 2026-10-24: uçuş daha seyrek
         public const float UpdraftLength = 40f, UpdraftPower = 6f;   // 55 m / 9 m/s²: kızak 27 m yükselip 175 m uçuyor, dereye iniyordu
         public const int BirdsFrom = 2;
         public const float CurvedBridgeHalfWidth = 1.05f;
@@ -1375,7 +1423,7 @@ namespace SledSurfers
         /// Uçurum kenarları (yuvarlak tepenin bitişi, dudak): yumuşatma silmesin, iniş alanında vadi düz.
         static readonly Vector2[] CanyonEdges = { new Vector2(216f, 224f), new Vector2(500f, 508f), new Vector2(860f, 868f), new Vector2(1130f, 1138f) };
         /// Dar köprülü dereler: yokuş çıkışlarında (kızak yerde, yavaşlıyor), köprü patikada.
-        static readonly Vector3[] CanyonCreeks = { new Vector3(392f, 14f, 0f), new Vector3(800f, 14f, 0f), new Vector3(1030f, HardBridgeSpan, 0f) };
+        static readonly Vector3[] CanyonCreeks = { new Vector3(392f, 14f, 0f), new Vector3(800f, 14f, 0f), new Vector3(980f, HardBridgeSpan, 0f) };   // 2026-10-24: son dere 1030 (yokuş yukarı, kızak köprüde duruyordu) -> 980 (iniş)
         /// Çatallar yatık platolarda (z başı, tip, altınlı şerit): kenardan inişten ve köprüden uzakta.
         static readonly Vector3[] CanyonForks = { new Vector3(430f, 1f, 1f), new Vector3(1062f, 2f, -1f) };
 
@@ -1443,8 +1491,9 @@ namespace SledSurfers
                 // Kanyonun köprüsü dar kalır (ormandakinden dar), ama 0.8'de gecikmeli oyuncu yokuş çıkarken yavaşken bile
                 // düşüyordu.
                 PlaceCreekBridges(gt, CanyonCreeks, 1.05f);
-                // Her uçurum kenarının ardında yükselen hava; ikinci ve dördüncüsünde içinde salınan kuş sürüsü (2026-10-19).
-                foreach (int ei in new[] { 0, 1, 2, 3 })
+                // İkinci ve dördüncü uçurum kenarının ardında yükselen hava, içinde salınan kuş sürüsü (2026-10-19). 2026-10-24
+                // (kullanıcı videosu: "oyun uçuş oyunu gibi olmuş"): birinci ve üçüncü kenardaki yükselen hava kaldırıldı.
+                foreach (int ei in new[] { 1, 3 })
                 {
                     float lip = CanyonEdges[ei].y;
                     gt.updrafts.Add(new Vector3(lip - 1f, lip - 1f + UpdraftLength, UpdraftPower));

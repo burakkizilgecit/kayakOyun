@@ -50,6 +50,30 @@ namespace SledSurfers
         }
     }
 
+    /// Sürpriz engeller (kullanıcı 2026-10-24): kızak tetik noktasına (z) gelince başlar.
+    /// Snowball: önde, kızağın hizasında belirip karşıdan yuvarlanan dev kartopu. Rockfall / Meteor: kızağın birazdan
+    /// varacağı yere önce gölge (meteorda kırmızı halka) düşer, gölge büyür, sonra kaya / meteor iner ve yolda kalır.
+    public enum HazardKind { Snowball, Rockfall, Meteor }
+
+    public struct Hazard
+    {
+        public HazardKind kind;
+        public float z;   // tetik
+    }
+
+    /// Bir atıştaki engel durumu (SledPhysics yürütür, görünüş ve pilot okur).
+    public class HazardState
+    {
+        public HazardKind kind;
+        public int phase;          // 0 bekliyor, 1 uyarı / yuvarlanıyor, 2 yolda kaya, 3 bitti
+        public float t;            // başladığından beri (s)
+        public Vector3 pos;        // kartopu merkezi ya da düşüş noktası (yerde)
+        public float radius;
+        public bool hit;           // kızağa çarptı
+        public const float FallTime = 1.3f, MeteorFallTime = 1.5f, SnowballSpeed = 9f, SnowballLead = 55f;
+        public float FallDuration => kind == HazardKind.Meteor ? MeteorFallTime : FallTime;
+    }
+
     /// Havadaki engel: vadi atlayışında süzülme yüksekliğinde sağa sola salınan kuş sürüsü.
     public struct Flock
     {
@@ -139,6 +163,7 @@ namespace SledSurfers
             public float SlopeAt(float z) => (XAt(z + 0.25f) - XAt(z - 0.25f)) * 2f;
         }
         public readonly List<Bridge> bridges = new List<Bridge>();
+        public readonly List<Hazard> hazards = new List<Hazard>();
 
         /// Dar kanyon duvarları (kullanıcı 2026-10-23): wallHalf > 0 ise vadi ortasından bu uzaklıkta dik kaya duvar; kızak
         /// (gövdesiyle) değerse düşer. pinches: duvarın daraldığı boğazlar (x = orta z, y = uzunluk, z = en dar yarı aralık).
@@ -274,7 +299,7 @@ namespace SledSurfers
 
         /// Su birikintisinde sürtünmeye eklenen katsayı; buzda ve çimende sürtünme çarpanı.
         public const float PuddleDrag = 0.4f, MudDrag = 0.45f, IceFactor = 0.25f, GrassFactor = 1.2f;
-        public const float PathHalfWidth = 1.7f;
+        public const float PathHalfWidth = 2.4f;   // 2026-10-24: 1.7 -> 2.4 (geniş vadide oyuncu yolu tutamıyor, çimende yüzlerce metre kaybediyordu)
         /// Yamaç: tabanın kenarından itibaren BankCurve·d² yükselir (d ≤ BankFlex), sonra aynı eğimle sürer.
         /// BankLimit: yamaçta kaya ve bitki yerleşiminin sınırı. BankRim: yamacın tepesi (taban kenarından); ötesi
         /// düzlüktür ve pistin dışıdır: oraya çıkan kızak düşer (görünmez duvar yok, kullanıcı kararı 2026-10-08).

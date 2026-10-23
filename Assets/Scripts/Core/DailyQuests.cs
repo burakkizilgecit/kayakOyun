@@ -60,7 +60,8 @@ namespace SledSurfers
             int[] baseCoins = { 100, 150, 200, 250, 300, 400, 800 };
             coins = Mathf.RoundToInt(baseCoins[Mathf.Clamp(day - 1, 0, 6)] * pay / 4f / 10f) * 10;
             coins = Mathf.Max(coins, baseCoins[Mathf.Clamp(day - 1, 0, 6)]);
-            gems = day == 7 ? 15 : day == 3 ? 3 : day == 5 ? 5 : 0;
+            // 2026-10-24 (kullanıcı: "günlük ödülle elmas olmamalı"): elmas yok; 7. gün büyük coin ödülü.
+            gems = 0;
         }
 
         public static TimeSpan UntilReset => DateTime.Today.AddDays(1) - DateTime.Now;
@@ -101,7 +102,7 @@ namespace SledSurfers
                 list[i] = Make(kind, track, L, hard, rnd);
                 int baseCoins = Mathf.RoundToInt(Mathf.Max(50f, 60f * pay) * hard / 10f) * 10;
                 list[i].coins = baseCoins;
-                list[i].gems = i == 4 ? 3 + track : i == 2 ? 1 : 0;
+                list[i].gems = 0;   // 2026-10-24: görevlerden elmas çıkmaz (elmas satılır)
             }
             return list;
         }

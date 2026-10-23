@@ -84,7 +84,7 @@ namespace SledSurfers
         }
 
         /// Mağazada reklamla ücretsiz elmas: günde en çok FreeGemsPerDay (kullanıcı kararı 2026-10-11).
-        public const int FreeGemsPerDay = 2;
+        public const int FreeGemsPerDay = 0;   // 2026-10-24: reklamla elmas yok
         public int adGemDay, adGemCount;
         public int FreeGemsLeft => adGemDay == DailyQuests.Today ? Mathf.Max(0, FreeGemsPerDay - adGemCount) : FreeGemsPerDay;
         public void UseFreeGem()

@@ -349,6 +349,35 @@ namespace SledSurfers
                 Application.Quit();
                 yield break;
             }
+            if (mode == "hazards")
+            {
+                // Sürpriz engeller: Frostpeak kartopu, Mars meteor, Canyon Run kaya düşmesi; ilk engel tetiklenince zamanla.
+                game.DebugHideTutorial();
+                game.debugAutopilot = true;
+                foreach (int tr in new[] { 3, 6, 7 })
+                {
+                    game.DebugReset(new[] { 25, 25, 20, 25, 20 }, 0);
+                    game.DebugTrack(tr, tr);
+                    yield return new WaitForSeconds(1.5f);
+                    float hzz = game.DebugHazardZ(0);
+                    Debug.Log("[AUTOSHOT] hazard t" + tr + " z=" + hzz);
+                    if (hzz < 0f) continue;
+                    game.DebugAim();
+                    yield return new WaitForSeconds(0.5f);
+                    game.DebugLaunch(1f);
+                    float wt = 0f;
+                    while (!game.DebugInResult && game.DebugDistance < hzz && wt < 150f) { wt += Time.deltaTime; yield return null; }
+                    float t0 = Time.time;
+                    foreach (var (at, n) in new[] { (0.25f, "a"), (0.8f, "b"), (1.35f, "c"), (2.2f, "d") })
+                    {
+                        while (Time.time - t0 < at) yield return null;
+                        yield return Shot("h" + tr + "_" + n);
+                    }
+                }
+                SaveData.ClearAll();
+                Application.Quit();
+                yield break;
+            }
             if (mode == "collapse")
             {
                 // Çöken kaya köprü: hızlı geçiş (sağlam kalır) ve yavaş geçiş (arkadan çöker, kızak düşer).

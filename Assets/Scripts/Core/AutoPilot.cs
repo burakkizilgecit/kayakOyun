@@ -105,6 +105,21 @@ namespace SledSurfers
                 float dz = track.rocketPickup.z - sled.position.z;
                 if (dz > 0f && dz < 50f) target = track.rocketPickup.x;
             }
+            // Sürpriz engelden kaç: karşıdan gelen kartopu ya da düşüş gölgesi yolun üstündeyse, yer olan yana.
+            foreach (var h in sled.hazards)
+            {
+                if (h.phase != 1 && h.phase != 2) continue;
+                float dz = h.pos.z - sled.position.z;
+                if (dz < -1f || dz > 45f) continue;
+                if (Mathf.Abs(h.pos.x - sled.position.x) > h.radius + 1.3f) continue;
+                float c = track.CenterX(h.pos.z);
+                float room = track.wallHalf > 0f ? track.WallHalfAt(h.pos.z) - 0.6f : track.halfWidth;
+                float right = h.pos.x + h.radius + 1.4f, left = h.pos.x - h.radius - 1.4f;
+                bool goRight = right < c + room && (h.pos.x <= sled.position.x || left < c - room);
+                target = goRight ? right : left;
+                aheadZ = sled.position.z + Mathf.Max(6f, Mathf.Min(dz, sled.Speed * 0.6f));
+                break;
+            }
             // Test çekimi: önündeki rampaya git (AutoShot "ramp").
             if (ChaseRamps)
                 foreach (var bo in track.boosts)

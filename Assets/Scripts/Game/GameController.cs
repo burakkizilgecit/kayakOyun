@@ -276,6 +276,7 @@ namespace SledSurfers
         public string DebugLedge => sled == null ? "" : "z " + sled.position.z.ToString("F1") + " r0 " + sled.ledgeR0.ToString("F1") + " front " + sled.CollapseFront.ToString("F1")
                                                        + " collapsing " + sled.collapsing + " onDeck " + track.OnDeck(sled.position.x, sled.position.z) + " grounded " + sled.grounded;
         public float DebugBridgeZ(int i) => track != null && i < track.bridges.Count ? track.bridges[i].r0 : -1f;
+        public float DebugHazardZ(int i) => track != null && i < track.hazards.Count ? track.hazards[i].z : -1f;
         public float DebugBoostZ(int i) => track != null && i < track.boosts.Count ? track.boosts[i].z0 : -1f;
         public float DebugUpdraftZ(int i) => track != null && i < track.updrafts.Count ? track.updrafts[i].x : -1f;
         public float DebugGapZ(int i) => track != null && i < track.water.Count ? track.water[i].x : -1f;
@@ -654,6 +655,7 @@ namespace SledSurfers
             if (perfect) ui.Toast("PERFECT LAUNCH!");
             hintedRocket = hintedNose = hintedBridge = hintedFork = false;
             shownBoosts = 0;
+            warnedHazard = -1;
             wasGrounded = true;
             ShowHint(Hint.Steer, IconKind.Swap, input.TouchMode ? "Drag left-right: steer" : "A / D: steer", 3);
         }
@@ -904,6 +906,16 @@ namespace SledSurfers
             if (sled.end == RunEnd.None) preCrashVelocity = sled.velocity;
             world.AnimateBirds(sled.clock, Time.time);
             world.UpdateLedges(sled, Time.deltaTime);
+            world.UpdateHazards(sled);
+            // Sürpriz engel başladı: uyarı
+            for (int i = 0; i < sled.hazards.Length; i++)
+                if (sled.hazards[i].phase == 1 && sled.hazards[i].t < 0.05f && state == State.Run && warnedHazard != i)
+                {
+                    warnedHazard = i;
+                    var hk = sled.hazards[i].kind;
+                    ui.Toast(hk == HazardKind.Snowball ? "SNOWBALL!" : hk == HazardKind.Meteor ? "METEOR!" : "ROCKFALL!");
+                    sfx.Thud(6f);
+                }
             // Su birikintisi: raylardan su sıçrar, ilk girişte büyük sıçrama ve ses.
             var underSled = state == State.Run && sled.grounded && sled.Speed > 0.8f
                             ? track.SurfaceAt(sled.position.z, sled.position.x) : Surface.Ground;
@@ -1107,6 +1119,7 @@ namespace SledSurfers
 
         bool hintedRocket, hintedNose, hintedBridge, hintedFork;
         int shownBoosts;
+        int warnedHazard = -1;
         /// Hava numarası eşiği (m/s; ~65 km/s) ve iki numara arası en az süre (s).
         const float TrickSpeed = 18f, TrickCooldown = 3.5f;
         bool wasGrounded = true;
@@ -1540,7 +1553,7 @@ namespace SledSurfers
             int cost = Upgrades.Cost(i, lvl);
             int gemCost = Upgrades.GemCost(i, lvl);
             if (save.money >= cost) save.money -= cost;
-            else if (save.gems >= gemCost) save.gems -= gemCost;   // coin yetmezse elmasla
+            else if (gemCost > 0 && save.gems >= gemCost) save.gems -= gemCost;   // coin yetmezse elmasla (yalnız aşama sonu)
             else
             {
                 ui.Deny(i);
@@ -1595,7 +1608,7 @@ namespace SledSurfers
             float grow = 1f + 0.25f * save.unlocked + 0.5f * frontProgress;
             pendingChestCoins = Mathf.RoundToInt(40f * pay * grow * Random.Range(0.9f, 1.3f) / 5f) * 5;
             if (save.Perk == Perk.Chest) pendingChestCoins = Mathf.RoundToInt(pendingChestCoins * 1.25f / 5f) * 5;
-            pendingChestGems = Random.value < 0.3f + 0.06f * save.unlocked ? 1 + save.unlocked / 3 : 0;
+            pendingChestGems = 0;   // 2026-10-24: ücretsiz sandıktan elmas çıkmaz (elmas satılır)
             sfx.Coin();
             ui.ShowChest(pendingChestCoins, pendingChestGems);
         }

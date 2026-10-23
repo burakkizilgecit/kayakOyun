@@ -83,6 +83,8 @@ namespace SledSurfers
         public static float BoostKick = 10f;
         public const float BoostDuration = 1.2f;
         int lastBoost = -1;
+        /// Bu atıştaki sürpriz engeller (TrackProfile.hazards sırasıyla).
+        public HazardState[] hazards = new HazardState[0];
         /// Çöken köprü: kızağın bastığı köprünün başlangıcı (r0) ve basış anı (clock); yoksa NaN.
         public float ledgeR0 = float.NaN, ledgeR1, ledgeEnter;
         /// Çöküş cephesi (z): bunun gerisindeki taş düşmüştür (görünüş de bunu izler). Köprüye basılmadıysa -inf.
@@ -149,6 +151,10 @@ namespace SledSurfers
             launchBoost = 1f;
             lastBoost = -1;
             boostTime = 0f;
+            hazards = new HazardState[track.hazards.Count];
+            for (int i = 0; i < hazards.Length; i++)
+                hazards[i] = new HazardState { kind = track.hazards[i].kind,
+                                               radius = track.hazards[i].kind == HazardKind.Snowball ? 1.6f : track.hazards[i].kind == HazardKind.Meteor ? 1.4f : 1.2f };
             ledgeR0 = float.NaN;
             collapsing = false;
             stats.Reset();
@@ -218,6 +224,7 @@ namespace SledSurfers
                 OffTrack();
                 CheckObstacles();
                 CheckRocketPickup();
+                UpdateHazards(dt);
             }
 
             acceleration = (velocity - before) / dt;
@@ -639,6 +646,65 @@ namespace SledSurfers
 
         /// Yan yamaçta görünmez duvar yok: yamacın tepesini aşıp pistin dışına çıkan kızak orada düşer
         /// (kullanıcı kararı 2026-10-08). Tepeye çıkmak için yamaca hızla, dik açıyla sürmek gerekir.
+        void UpdateHazards(float dt)
+        {
+            for (int i = 0; i < hazards.Length && end == RunEnd.None; i++)
+            {
+                var h = hazards[i];
+                if (h.phase == 3) continue;
+                if (h.phase == 0)
+                {
+                    if (position.z < track.hazards[i].z || launching) continue;
+                    h.phase = 1;
+                    h.t = 0f;
+                    float cx = track.CenterX(position.z);
+                    if (h.kind == HazardKind.Snowball)
+                    {
+                        // Önde, kızağın şimdiki hizasında belirir (yana kaçmak gerekir).
+                        float z = position.z + HazardState.SnowballLead;
+                        float x = Mathf.Clamp(position.x, track.CenterX(z) - track.halfWidth + h.radius, track.CenterX(z) + track.halfWidth - h.radius);
+                        h.pos = new Vector3(x, track.TerrainHeight(x, z) + h.radius, z);
+                    }
+                    else
+                    {
+                        // Kızağın düşüş süresi sonra varacağı yer (şimdiki hızla); yanda duvar/yamaç içine düşmez.
+                        float T = h.FallDuration;
+                        float z = position.z + Mathf.Max(velocity.z, 4f) * T;
+                        float half = (track.wallHalf > 0f ? track.WallHalfAt(z) : track.halfWidth) - h.radius - 0.2f;
+                        float x = Mathf.Clamp(position.x + velocity.x * T * 0.5f, track.CenterX(z) - half, track.CenterX(z) + half);
+                        h.pos = new Vector3(x, track.TerrainHeight(x, z), z);
+                    }
+                    continue;
+                }
+                h.t += dt;
+                if (h.kind == HazardKind.Snowball)
+                {
+                    h.pos.z -= HazardState.SnowballSpeed * dt;
+                    h.pos.y = track.TerrainHeight(h.pos.x, h.pos.z) + h.radius;
+                    if (h.pos.z < position.z - 12f || h.t > 14f) { h.phase = 3; continue; }
+                    Vector2 d = new Vector2(position.x - h.pos.x, position.z - h.pos.z);
+                    if (d.magnitude < h.radius + HalfWidth && position.y < h.pos.y + h.radius * 0.8f) Hit(h, "Hit by a snowball!");
+                    continue;
+                }
+                if (h.phase == 1 && h.t >= h.FallDuration) h.phase = 2;   // indi: yolda kaya
+                if (h.phase == 2)
+                {
+                    if (position.z > h.pos.z + h.radius + 2f) { h.phase = 3; continue; }
+                    Vector2 d = new Vector2(position.x - h.pos.x, position.z - h.pos.z);
+                    float top = h.pos.y + h.radius * 1.4f;
+                    if (d.magnitude < h.radius + HalfWidth && position.y < top)
+                        Hit(h, h.kind == HazardKind.Meteor ? "Hit by a meteor!" : "Hit by a falling rock!");
+                }
+            }
+        }
+
+        void Hit(HazardState h, string text)
+        {
+            h.hit = true;
+            velocity = Vector3.zero;
+            ForceEnd(RunEnd.Crashed, text, CrashCause.Obstacle);
+        }
+
         void FragileBridge()
         {
             // Yeni köprüye basış: çatlama başlar (önceki köprünün kaydı unutulur).

@@ -117,7 +117,7 @@ namespace SledSurfers
                     {
                         float zb = Mathf.Lerp(b.r0, b.r1, (float)k / m);
                         bool mid = k == m / 2;
-                        Add(new Vector3(b.XAt(zb), TrackProfile.DeckHeight(b, zb) + (mid ? 0.7f : 0.5f), zb), mid);
+                        Add(new Vector3(b.XAt(zb), TrackProfile.DeckHeight(b, zb) + (mid ? 0.7f : 0.5f), zb), false);   // 2026-10-24: elmas yerine coin
                         if (mid) items[items.Count - 1].small = true;
                     }
                     continue;
@@ -125,7 +125,7 @@ namespace SledSurfers
                 if (track.bridges.Exists(o => o.bonus && o.r0 == b.r0)) continue;
                 int n = Mathf.Max(3, Mathf.RoundToInt((b.r1 - b.r0) / 2.2f));
                 float zz = Mathf.Lerp(b.r0, b.r1, (float)(n / 2) / n);
-                Add(new Vector3(b.XAt(zz) + bridgeSide * (b.HalfWidth + 0.9f), TrackProfile.DeckHeight(b, zz) + 0.6f, zz), true);
+                Add(new Vector3(b.XAt(zz) + bridgeSide * (b.HalfWidth + 0.9f), TrackProfile.DeckHeight(b, zz) + 0.6f, zz), false);   // 2026-10-24: coin
                 items[items.Count - 1].small = true;
                 bridgeSide = -bridgeSide;
             }
@@ -144,10 +144,12 @@ namespace SledSurfers
                     float t = (float)k / n;
                     float zz = Mathf.Lerp(z0, z1, t);
                     float y = Mathf.Lerp(h0, h1, t) + 1.4f + lift * Mathf.Sin(t * Mathf.PI);
-                    Add(new Vector3(track.CenterX(zz), y, zz), k == n / 2);
+                    Add(new Vector3(track.CenterX(zz), y, zz), false);   // 2026-10-24: çukur üstünde coin
                 }
             }
 
+            // Elmas kıtlığı (kullanıcı 2026-10-24: "haritalarda çok elmas kazanılıyor, elmas satamayız"): pistte yalnız
+            // bu iki zor ulaşılan elmas kalır; köprü ve çukur elmasları coin oldu.
             // 4) Pistin %45 ve %82'si civarında, bir tepenin üstünde ve rotanın yanında (sırayla sağ, sol): yan yamaçlı
             // pistte yamacın üstünde (tırmanmak hız yer), düz ormanda tepede rotadan 5-6 m açıkta (sapmak yol uzatır).
             int gemSide = 1;
