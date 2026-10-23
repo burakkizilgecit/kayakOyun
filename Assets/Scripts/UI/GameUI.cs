@@ -423,7 +423,7 @@ namespace SledSurfers
             click = clickSound;
             var doc = host.AddComponent<UIDocument>();
             doc.panelSettings = Resources.Load<PanelSettings>("UI/PanelSettings");
-            if (doc.panelSettings == null) Debug.LogError("[UI] Resources/UI/PanelSettings bulunamadı (Sled Surfers > Arayüz Varlıklarını Kur)");
+            if (doc.panelSettings == null) Debug.LogError("[UI] Resources/UI/PanelSettings bulunamadı (Sling Riders > Arayüz Varlıklarını Kur)");
 
             root = doc.rootVisualElement;
             root.style.position = Position.Absolute;

@@ -20,7 +20,7 @@ namespace SledSurfers.EditorTools
         public const string SourceDir = "Assets/Art/Meshy";
         public const string TargetDir = "Assets/Resources/Avatars/Meshy";
 
-        [MenuItem("Sled Surfers/Karakter Kliplerini Çıkar")]
+        [MenuItem("Sling Riders/Karakter Kliplerini Çıkar")]
         public static void Ensure()
         {
             if (!Directory.Exists(SourceDir)) return;

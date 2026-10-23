@@ -1,4 +1,4 @@
-/* Sled Surfers arayüz stili. Ölçüler 1080x1920 referans çözünürlüğüne göredir. */
+/* Sling Riders arayüz stili. Ölçüler 1080x1920 referans çözünürlüğüne göredir. */
 
 :root {
     --ink: #2B2340;

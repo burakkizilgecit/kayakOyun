@@ -78,7 +78,7 @@ namespace SledSurfers.EditorTools
             };
         }
 
-        [MenuItem("Sled Surfers/Çevre Varlıklarını Kur")]
+        [MenuItem("Sling Riders/Çevre Varlıklarını Kur")]
         public static void Ensure()
         {
             if (AssetDatabase.LoadAssetAtPath<Material>(SkyPath) == null)

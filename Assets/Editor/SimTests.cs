@@ -5,7 +5,7 @@ using UnityEngine;
 namespace SledSurfers.EditorTools
 {
     /// Oyunu açmadan fizik ayarını doğrulamak için otomatik oyuncuyla simülasyon.
-    /// Menü: Sled Surfers > Fizik Testleri  (sonuç Console'a yazılır)
+    /// Menü: Sling Riders > Fizik Testleri  (sonuç Console'a yazılır)
     public static class SimTests
     {
         const float Dt = 1f / 240f;
@@ -16,7 +16,7 @@ namespace SledSurfers.EditorTools
         enum GlassPlayer { Fixed, Skilled }
 
         // Seviye sırası: sapan, kızak, kanat, bardak, gelir, roket
-        [MenuItem("Sled Surfers/Fizik Testleri")]
+        [MenuItem("Sling Riders/Fizik Testleri")]
         public static void RunAll()
         {
             var sb = new StringBuilder("[SIM] Fizik testleri (sapan/kızak/kanat/bardak/gelir/roket)\n");
@@ -62,7 +62,7 @@ namespace SledSurfers.EditorTools
             Debug.Log(sb.ToString());
         }
 
-        [MenuItem("Sled Surfers/Fizik Teşhis")]
+        [MenuItem("Sling Riders/Fizik Teşhis")]
         public static void Diagnose()
         {
             var sb = new StringBuilder("[SIM] Teşhis\n");
@@ -99,7 +99,7 @@ namespace SledSurfers.EditorTools
         /// Oyuncu benzetimi: her atıştan sonra kazancı hesaplar (gerçek yerleşimden sonlu altın stoku,
         /// tahmini toplama şansı), parası yettikçe kademe sınırı içindeki en ucuz yükseltmeyi alır.
         /// Her parkurun kaç atışta bittiğini ve mesafenin atış atış nasıl arttığını yazar.
-        [MenuItem("Sled Surfers/İlerleme Testi")]
+        [MenuItem("Sling Riders/İlerleme Testi")]
         public static void Progression()
         {
             // Fiyat tablosu denemesi: base=a,b,c,d,e growth=... later=... (sapan/kızak/bardak/gelir/roket)
@@ -267,7 +267,7 @@ namespace SledSurfers.EditorTools
         /// rh=çayırRoket,ormanRoket,kanyonRoket,kanyonNet,gapRun,gapMargin  ·  gaps=g:genişlik:derinlik,...
         /// (o parkurun vadi listesinde g. vadiyi ayarlar; derinlik eksi değil, metre) · sweep=g:d1,d2,... (g. vadinin
         /// derinliğini sırayla dener).
-        [MenuItem("Sled Surfers/Merdiven Testi")]
+        [MenuItem("Sling Riders/Merdiven Testi")]
         public static void Ladder()
         {
             int track = 0;
@@ -419,7 +419,7 @@ namespace SledSurfers.EditorTools
 
         /// Süzülme testi: dudaktan (6° yukarı, hız v) kalkan kızağın 15 m alçaktaki karşı kıyı hizasına inene kadar
         /// aldığı yatay yol, kızak seviyesine ve hıza göre (vadi genişliklerini ayarlamak için).
-        [MenuItem("Sled Surfers/Süzülme Testi")]
+        [MenuItem("Sling Riders/Süzülme Testi")]
         public static void GlideTest()
         {
             float depth = 15f;
@@ -506,7 +506,7 @@ namespace SledSurfers.EditorTools
 
         /// Yamaç fiziği: kızak yamaca doğru fırlatılır, direksiyon yok. Yamaca tırmanıp yavaşlamalı, geri kayıp
         /// vadide salınmalı; mekanik enerji (½v² + g·y) hiç artmamalı; gövde yamacın eğimiyle yana yatmalı.
-        [MenuItem("Sled Surfers/Yamaç Testi")]
+        [MenuItem("Sling Riders/Yamaç Testi")]
         public static void BankTest()
         {
             var sb = new StringBuilder("[SIM] Yamaç testi\n");
@@ -578,7 +578,7 @@ namespace SledSurfers.EditorTools
 
         static int spillAverage;
 
-        [MenuItem("Sled Surfers/Döküm Analizi")]
+        [MenuItem("Sling Riders/Döküm Analizi")]
         public static void Spill()
         {
             int track = 0;
@@ -698,7 +698,7 @@ namespace SledSurfers.EditorTools
         }
 
         /// Bounded regression entry point for Editor or batch mode. No PlayerPrefs, scene loading or assets written.
-        [MenuItem("Sled Surfers/Quick Regression")]
+        [MenuItem("Sling Riders/Quick Regression")]
         public static void SmokeRegression()
         {
             int oldTrack = Upgrades.Track, oldParts = Upgrades.PartTier;

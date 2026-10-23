@@ -7,10 +7,10 @@ $u = "C:\Program Files\Unity\Hub\Editor\6000.6.3f1\Editor\Unity.exe"
 $log = "$sp\apk.log"
 & $u -batchmode -quit -projectPath $dst -buildTarget Android -executeMethod SledSurfers.EditorTools.BuildTools.BuildAndroidTest -logFile $log | Out-Null
 Select-String -Path $log -Pattern "error CS|\[ANDROID BUILD\]|Android APK build failed|BuildFailedException|Android SDK|JDK|NDK.*not" | Select-Object -First 12 | ForEach-Object { $_.Line }
-$apk = "$dst\Builds\Android\SledSurfers-test.apk"
+$apk = "$dst\Builds\Android\SlingRiders-test.apk"
 if (Test-Path $apk) {
   New-Item -ItemType Directory -Force "$src\Builds\Android" | Out-Null
-  Copy-Item $apk "$src\Builds\Android\SledSurfers-test.apk" -Force
-  $f = Get-Item "$src\Builds\Android\SledSurfers-test.apk"
+  Copy-Item $apk "$src\Builds\Android\SlingRiders-test.apk" -Force
+  $f = Get-Item "$src\Builds\Android\SlingRiders-test.apk"
   "APK: $($f.FullName)  $([math]::Round($f.Length / 1MB, 1)) MB  $($f.LastWriteTime)"
 } else { "APK üretilmedi"; exit 1 }

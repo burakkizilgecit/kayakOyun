@@ -6,7 +6,7 @@ namespace SledSurfers.EditorTools
 {
     public static class BuildTools
     {
-        [MenuItem("Sled Surfers/Build Android Test APK")]
+        [MenuItem("Sling Riders/Build Android Test APK")]
         public static void BuildAndroidTest()
         {
             UiAssets.Ensure();
@@ -23,7 +23,7 @@ namespace SledSurfers.EditorTools
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
                 scenes = new[] { "Assets/Scenes/Main.unity" },
-                locationPathName = "Builds/Android/SledSurfers-test.apk",
+                locationPathName = "Builds/Android/SlingRiders-test.apk",
                 target = BuildTarget.Android,
                 options = BuildOptions.Development,
             });

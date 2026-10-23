@@ -8,12 +8,12 @@ using UnityEngine.SceneManagement;
 namespace SledSurfers.EditorTools
 {
     /// Sahneyi, malzeme şablonlarını ve oyuncu ayarlarını oluşturur.
-    /// Menü: Sled Surfers > Projeyi Kur
+    /// Menü: Sling Riders > Projeyi Kur
     public static class ProjectSetup
     {
         const string ScenePath = "Assets/Scenes/Main.unity";
 
-        [MenuItem("Sled Surfers/Projeyi Kur")]
+        [MenuItem("Sling Riders/Projeyi Kur")]
         public static void Setup()
         {
             Directory.CreateDirectory("Assets/Resources");
@@ -21,8 +21,8 @@ namespace SledSurfers.EditorTools
             CreateMaterials();
             CreateScene();
 
-            PlayerSettings.companyName = "SledSurfers";
-            PlayerSettings.productName = "Sled Surfers";
+            PlayerSettings.companyName = "SlingRiders";
+            PlayerSettings.productName = "Sling Riders";
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
