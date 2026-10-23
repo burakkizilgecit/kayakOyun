@@ -57,10 +57,12 @@ namespace SledSurfers
             float t;
             if (mode == "splash")
             {
-                // Açılış ekranı: logonun büyümesi, oturması, süzülmesi ve kapanış.
-                foreach (var (wait, n) in new[] { (0.35f, "a"), (0.4f, "b"), (0.6f, "c"), (1.2f, "d"), (1.3f, "e") })
+                // Stüdyo logosu (zemin, simge, RALP, GAMES, sabit, geçiş) ve oyunun açılış ekranı.
+                float start = Time.time;
+                foreach (var (at, n) in new[] { (0.15f, "a"), (0.55f, "b"), (0.95f, "c"), (1.35f, "d"), (2.0f, "e"), (2.55f, "f"),
+                                                 (3.1f, "g"), (3.8f, "h"), (6.2f, "i") })
                 {
-                    yield return new WaitForSeconds(wait);
+                    while (Time.time - start < at) yield return null;
                     yield return Shot("sp_" + n);
                 }
                 SaveData.ClearAll();

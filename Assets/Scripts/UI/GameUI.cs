@@ -469,8 +469,14 @@ namespace SledSurfers
 
         // ================================================================ dışarıya açık
 
-        /// Açılış ekranı (logo ve animasyonlu arka plan) her şeyin üstünde; dokununca ya da ~2.8 s sonra kaybolur.
-        public void ShowSplash(Action onPop) => root.Add(new SplashScreen(onPop, null));
+        /// Açılış: önce RALP GAMES stüdyo logosu (~2.65 s), solmaya başlayınca altında oyunun açılış ekranı (Sling Riders
+        /// logosu, ~2.8 s ya da dokununca). İkisi de her şeyin üstünde.
+        public void ShowSplash(Action onPop)
+        {
+            StudioIntro studio = null;
+            studio = new StudioIntro(() => root.Insert(root.IndexOf(studio), new SplashScreen(onPop, null)), null);
+            root.Add(studio);
+        }
 
         public Page Current => page;
 
