@@ -285,7 +285,7 @@ namespace SledSurfers
         class MapCard
         {
             public Button root;
-            public VisualElement badge, fill, island, lockDisc;
+            public VisualElement badge, fill, island, lockDisc, pic, bar;
             public Label number, status, wallet, lockName;
             public Icon lockIcon;
         }
@@ -1488,6 +1488,8 @@ namespace SledSurfers
         RewardConfetti chestConfetti;
 
         /// Test: açık bütün pencereleri (görev, ödül, sandık, fırsat...) kapatır.
+        public void DebugScrollMapEnd() => mapScroll.ScrollTo(mapCards[TrackLibrary.Count - 1].root);
+
         public void DebugCloseModals()
         {
             foreach (var child in safe.Children())
@@ -2072,105 +2074,192 @@ namespace SledSurfers
 
         void BuildQuests()
         {
-            // 2026-10-23 (örnek görsele göre): tepeden iplerle sarkan tahta tabela, tahta kurdele başlık, renkli görev ikonları.
+            // 2026-10-23 (örnek görsele göre; kullanıcı: "daily quest hala çok sade"): pencerenin kendisi iplerle sarkan
+            // tahta pano; tepede çivili, damarlı tahta başlık; saatli sayaç hapı; her görev renkli kenarlı beyaz satır,
+            // parlak ikon kutusu, içinde sayaç yazan kalın ilerleme çubuğu ve coin/gem ödül çipleri.
             questModal = Modal(out questCard, "DAILY QUESTS", Wood, WoodDark);
             questModal.name = "home-quests-modal";
-            var sign = E("col");
-            sign.pickingMode = PickingMode.Ignore;
-            sign.style.position = Position.Absolute;
-            sign.style.top = 0;
-            sign.style.left = Length.Percent(12);
-            sign.style.right = Length.Percent(12);
-            sign.style.alignItems = Align.Center;
-            var ropes = E("row");
-            ropes.style.width = Length.Percent(78);
-            ropes.style.justifyContent = Justify.SpaceBetween;
+            questCard.RemoveAt(0);   // standart kurdele yerine tahta başlık
+            questCard.style.overflow = Overflow.Visible;
+            questCard.style.backgroundColor = (Color)new Color32(0xFF, 0xF1, 0xD6, 0xFF);
+            questCard.style.borderTopWidth = questCard.style.borderLeftWidth = questCard.style.borderRightWidth = 18;
+            questCard.style.borderBottomWidth = 28;
+            questCard.style.borderTopColor = questCard.style.borderLeftColor = questCard.style.borderRightColor = Wood;
+            questCard.style.borderBottomColor = WoodDark;
+            questCard.style.borderTopLeftRadius = questCard.style.borderTopRightRadius = 44;
+            questCard.style.borderBottomLeftRadius = questCard.style.borderBottomRightRadius = 44;
+            questCard.style.marginTop = 120;
+            // İpler (panonun üstünden ekranın tepesine)
             for (int r = 0; r < 2; r++)
             {
                 var rope = E();
-                rope.style.width = 12;
-                rope.style.height = 150;
-                rope.style.backgroundColor = (Color)new Color32(0xC9, 0x9A, 0x5A, 0xFF);
-                rope.style.borderLeftWidth = rope.style.borderRightWidth = 2;
+                rope.pickingMode = PickingMode.Ignore;
+                rope.style.position = Position.Absolute;
+                rope.style.width = 14;
+                rope.style.top = -420;
+                rope.style.height = 440;
+                if (r == 0) rope.style.left = Length.Percent(16); else rope.style.right = Length.Percent(16);
+                rope.style.backgroundColor = (Color)new Color32(0xD8, 0xAE, 0x6A, 0xFF);
+                rope.style.borderLeftWidth = rope.style.borderRightWidth = 3;
                 rope.style.borderLeftColor = rope.style.borderRightColor = (Color)new Color32(0x8A, 0x60, 0x2E, 0xFF);
-                ropes.Add(rope);
+                questCard.Add(rope);
             }
-            sign.Add(ropes);
-            var plank = E("row");
+            // Tahta başlık: damar çizgileri, iki uçta çivi
+            var plank = E("center");
+            plank.pickingMode = PickingMode.Ignore;
             plank.style.alignSelf = Align.Stretch;
-            plank.style.justifyContent = Justify.Center;
+            plank.style.marginLeft = plank.style.marginRight = -46;
+            plank.style.marginTop = -96;
             plank.style.height = 150;
-            plank.style.alignItems = Align.Center;
-            plank.style.backgroundColor = Wood;
-            plank.style.borderBottomWidth = 14;
+            plank.style.backgroundColor = (Color)new Color32(0xC2, 0x7A, 0x3C, 0xFF);
+            plank.style.borderBottomWidth = 16;
             plank.style.borderBottomColor = WoodDark;
-            plank.style.borderTopLeftRadius = plank.style.borderTopRightRadius = plank.style.borderBottomLeftRadius = plank.style.borderBottomRightRadius = 24;
+            plank.style.borderTopWidth = 5;
+            plank.style.borderTopColor = (Color)new Color32(0xE2, 0xA2, 0x5E, 0xFF);
+            plank.style.borderTopLeftRadius = plank.style.borderTopRightRadius = plank.style.borderBottomLeftRadius = plank.style.borderBottomRightRadius = 26;
+            float[] grain = { 0.24f, 0.46f, 0.7f };
+            for (int g = 0; g < grain.Length; g++)
+            {
+                var line = E();
+                line.pickingMode = PickingMode.Ignore;
+                line.style.position = Position.Absolute;
+                line.style.top = Length.Percent(grain[g] * 100f);
+                line.style.left = Length.Percent(6 + g * 9);
+                line.style.right = Length.Percent(4 + (2 - g) * 11);
+                line.style.height = 5;
+                line.style.borderTopLeftRadius = line.style.borderTopRightRadius = line.style.borderBottomLeftRadius = line.style.borderBottomRightRadius = 3;
+                line.style.backgroundColor = new Color(0.43f, 0.24f, 0.09f, 0.35f);
+                plank.Add(line);
+            }
+            for (int n = 0; n < 2; n++)
+            {
+                var nail = E();
+                nail.pickingMode = PickingMode.Ignore;
+                nail.style.position = Position.Absolute;
+                nail.style.width = nail.style.height = 30;
+                nail.style.top = 52;
+                if (n == 0) nail.style.left = 26; else nail.style.right = 26;
+                nail.style.borderTopLeftRadius = nail.style.borderTopRightRadius = nail.style.borderBottomLeftRadius = nail.style.borderBottomRightRadius = 15;
+                nail.style.backgroundColor = (Color)new Color32(0xC9, 0xCC, 0xD6, 0xFF);
+                nail.style.borderBottomWidth = 6;
+                nail.style.borderBottomColor = (Color)new Color32(0x6E, 0x72, 0x80, 0xFF);
+                plank.Add(nail);
+            }
             var signText = L("DAILY QUESTS", "heavy");
-            signText.style.fontSize = 84;
+            signText.style.fontSize = 80;
             signText.style.color = Color.white;
-            signText.style.unityTextOutlineWidth = 8;
+            signText.style.unityTextOutlineWidth = 9;
             signText.style.unityTextOutlineColor = WoodDark;
             plank.Add(signText);
-            sign.Add(plank);
-            questModal.Insert(0, sign);
+            questCard.Add(plank);
+
+            // Sayaç hapı
             var timerRow = E("row");
             timerRow.style.alignSelf = Align.Center;
             timerRow.style.alignItems = Align.Center;
-            timerRow.style.marginTop = 14;
-            timerRow.Add(new Icon(IconKind.Flag, 40, (Color)new Color32(0xE8, 0x9A, 0x1A, 0xFF)));
+            timerRow.style.marginTop = 18;
+            timerRow.style.paddingLeft = 14; timerRow.style.paddingRight = 28;
+            timerRow.style.paddingTop = timerRow.style.paddingBottom = 6;
+            timerRow.style.backgroundColor = (Color)new Color32(0x6E, 0x3E, 0x18, 0xFF);
+            timerRow.style.borderTopLeftRadius = timerRow.style.borderTopRightRadius = timerRow.style.borderBottomLeftRadius = timerRow.style.borderBottomRightRadius = 34;
+            timerRow.Add(new ClockIcon(56));
             questTimer = L("", "heavy");
             questTimer.style.fontSize = 34;
-            questTimer.style.color = (Color)new Color32(0x7A, 0x5A, 0x3A, 0xFF);
+            questTimer.style.color = Color.white;
             questTimer.style.marginLeft = 10;
             timerRow.Add(questTimer);
             questCard.Add(timerRow);
+
+            var coinCol = (Color)new Color32(0xD8, 0x8A, 0x0A, 0xFF);
             for (int i = 0; i < DailyQuests.PerDay; i++)
             {
                 int index = i;
-                var row = E("card", "row");
+                var row = E("row");
                 row.style.alignSelf = Align.Stretch;
                 row.style.marginTop = 18;
                 row.style.paddingTop = row.style.paddingBottom = 16;
-                row.style.paddingLeft = row.style.paddingRight = 20;
+                row.style.paddingLeft = 18; row.style.paddingRight = 18;
                 row.style.alignItems = Align.Center;
+                row.style.backgroundColor = Color.white;
+                row.style.borderTopLeftRadius = row.style.borderTopRightRadius = row.style.borderBottomLeftRadius = row.style.borderBottomRightRadius = 30;
+                row.style.borderLeftWidth = 14;
+                row.style.borderBottomWidth = 8;
+                row.style.borderBottomColor = (Color)new Color32(0xE6, 0xD3, 0xB0, 0xFF);
                 questIcons[i] = E("center");
-                questIcons[i].style.width = questIcons[i].style.height = 118;
+                questIcons[i].style.width = questIcons[i].style.height = 124;
                 questIcons[i].style.flexShrink = 0;
                 questIcons[i].style.marginRight = 20;
-                questIcons[i].style.borderTopLeftRadius = questIcons[i].style.borderTopRightRadius = 28;
-                questIcons[i].style.borderBottomLeftRadius = questIcons[i].style.borderBottomRightRadius = 28;
-                questIcons[i].style.borderBottomWidth = 8;
+                questIcons[i].style.borderTopLeftRadius = questIcons[i].style.borderTopRightRadius = 32;
+                questIcons[i].style.borderBottomLeftRadius = questIcons[i].style.borderBottomRightRadius = 32;
+                questIcons[i].style.borderTopWidth = questIcons[i].style.borderLeftWidth = questIcons[i].style.borderRightWidth = 5;
+                questIcons[i].style.borderTopColor = questIcons[i].style.borderLeftColor = questIcons[i].style.borderRightColor = Color.white;
+                questIcons[i].style.borderBottomWidth = 10;
                 row.Add(questIcons[i]);
                 var col = E("grow");
                 questTexts[i] = L("", "heavy");
                 questTexts[i].style.fontSize = 34;
                 questTexts[i].style.whiteSpace = WhiteSpace.Normal;
                 col.Add(questTexts[i]);
-                var barRow = E("row");
-                barRow.style.marginTop = 8;
-                var bar = E("bar", "grow");
-                bar.style.height = 30;
-                questFills[i] = E("bar-fill");
+                // Kalın ilerleme çubuğu, sayaç içinde
+                var bar = E();
+                bar.style.marginTop = 8;
+                bar.style.height = 44;
+                bar.style.backgroundColor = (Color)new Color32(0xEC, 0xE3, 0xD2, 0xFF);
+                bar.style.borderTopWidth = bar.style.borderBottomWidth = bar.style.borderLeftWidth = bar.style.borderRightWidth = 4;
+                bar.style.borderTopColor = bar.style.borderBottomColor = bar.style.borderLeftColor = bar.style.borderRightColor = (Color)new Color32(0xC9, 0xB4, 0x90, 0xFF);
+                bar.style.borderTopLeftRadius = bar.style.borderTopRightRadius = bar.style.borderBottomLeftRadius = bar.style.borderBottomRightRadius = 22;
+                bar.style.overflow = Overflow.Hidden;
+                questFills[i] = E();
+                questFills[i].style.position = Position.Absolute;
+                questFills[i].style.left = questFills[i].style.top = questFills[i].style.bottom = 0;
+                questFills[i].style.borderTopLeftRadius = questFills[i].style.borderTopRightRadius = questFills[i].style.borderBottomLeftRadius = questFills[i].style.borderBottomRightRadius = 18;
+                var shine = E();
+                shine.style.position = Position.Absolute;
+                shine.style.left = 10; shine.style.right = 10; shine.style.top = 4;
+                shine.style.height = 9;
+                shine.style.borderTopLeftRadius = shine.style.borderTopRightRadius = shine.style.borderBottomLeftRadius = shine.style.borderBottomRightRadius = 5;
+                shine.style.backgroundColor = new Color(1f, 1f, 1f, 0.4f);
+                questFills[i].Add(shine);
                 bar.Add(questFills[i]);
-                barRow.Add(bar);
                 questCounts[i] = L("", "heavy");
+                questCounts[i].style.position = Position.Absolute;
+                questCounts[i].style.left = questCounts[i].style.right = questCounts[i].style.top = questCounts[i].style.bottom = 0;
+                questCounts[i].style.unityTextAlign = TextAnchor.MiddleCenter;
                 questCounts[i].style.fontSize = 28;
-                questCounts[i].style.marginLeft = 12;
-                questCounts[i].style.minWidth = 110;
-                barRow.Add(questCounts[i]);
-                col.Add(barRow);
-                questRewards[i] = L("", "heavy");
-                questRewards[i].style.fontSize = 30;
-                questRewards[i].style.color = (Color)new Color32(0xD8, 0x8A, 0x0A, 0xFF);
-                questRewards[i].style.marginTop = 4;
-                col.Add(questRewards[i]);
+                questCounts[i].style.color = Color.white;
+                questCounts[i].style.unityTextOutlineWidth = 5;
+                questCounts[i].style.unityTextOutlineColor = (Color)new Color32(0x4A, 0x2A, 0x12, 0xFF);
+                bar.Add(questCounts[i]);
+                col.Add(bar);
+                // Ödül çipleri
+                var chips = E("row");
+                chips.style.marginTop = 8;
+                var coinChip = RewardChip(IconKind.Coin, coinCol, out questRewards[i]);
+                chips.Add(coinChip);
+                questGemChips[i] = RewardChip(IconKind.Gem, (Color)new Color32(0xD0, 0x3F, 0x93, 0xFF), out questGemTexts[i]);
+                questGemChips[i].style.marginLeft = 10;
+                chips.Add(questGemChips[i]);
+                col.Add(chips);
                 row.Add(col);
                 questClaims[i] = B(() => ClaimQuest?.Invoke(index), "btn", "btn-mid");
                 questClaims[i].text = "CLAIM";
-                questClaims[i].style.width = 210;
+                questClaims[i].style.width = 200;
                 questClaims[i].style.fontSize = 40;
                 questClaims[i].style.marginLeft = 16;
                 row.Add(questClaims[i]);
+                // Alındı damgası
+                questStamps[i] = E("center");
+                questStamps[i].pickingMode = PickingMode.Ignore;
+                questStamps[i].style.position = Position.Absolute;
+                questStamps[i].style.right = 30;
+                questStamps[i].style.width = questStamps[i].style.height = 120;
+                questStamps[i].style.borderTopLeftRadius = questStamps[i].style.borderTopRightRadius = questStamps[i].style.borderBottomLeftRadius = questStamps[i].style.borderBottomRightRadius = 60;
+                questStamps[i].style.backgroundColor = (Color)new Color32(0x3F, 0xD1, 0x5B, 0xFF);
+                questStamps[i].style.borderBottomWidth = 8;
+                questStamps[i].style.borderBottomColor = (Color)new Color32(0x22, 0x9A, 0x3C, 0xFF);
+                questStamps[i].style.rotate = new Rotate(-12f);
+                questStamps[i].Add(new Icon(IconKind.Check, 74, Color.white));
+                row.Add(questStamps[i]);
                 questRows[i] = row;
                 questCard.Add(row);
             }
@@ -2182,6 +2271,27 @@ namespace SledSurfers
             questCard.Add(close);
             safe.Add(questModal);
         }
+
+        /// Küçük ödül çipi: krem hap içinde ikon ve "+N".
+        VisualElement RewardChip(IconKind kind, Color textColor, out Label text)
+        {
+            var chip = E("row");
+            chip.style.alignItems = Align.Center;
+            chip.style.paddingLeft = 6; chip.style.paddingRight = 16;
+            chip.style.paddingTop = chip.style.paddingBottom = 2;
+            chip.style.backgroundColor = (Color)new Color32(0xFF, 0xF1, 0xC8, 0xFF);
+            chip.style.borderTopLeftRadius = chip.style.borderTopRightRadius = chip.style.borderBottomLeftRadius = chip.style.borderBottomRightRadius = 22;
+            chip.Add(new Icon(kind, 40));
+            text = L("", "heavy");
+            text.style.fontSize = 30;
+            text.style.marginLeft = 6;
+            text.style.color = textColor;
+            chip.Add(text);
+            return chip;
+        }
+
+        readonly VisualElement[] questGemChips = new VisualElement[DailyQuests.PerDay], questStamps = new VisualElement[DailyQuests.PerDay];
+        readonly Label[] questGemTexts = new Label[DailyQuests.PerDay];
 
         static readonly Color Wood = new Color32(0xB0, 0x6A, 0x32, 0xFF), WoodDark = new Color32(0x6E, 0x3E, 0x18, 0xFF);
         readonly VisualElement[] questIcons = new VisualElement[DailyQuests.PerDay];
@@ -2219,7 +2329,8 @@ namespace SledSurfers
                 questTexts[i].text = q.text;
                 questCounts[i].text = p + "/" + q.target;
                 questFills[i].style.width = Length.Percent(100f * p / Mathf.Max(1, q.target));
-                questFills[i].style.backgroundColor = done ? (Color)new Color32(0x3F, 0xD1, 0x5B, 0xFF) : (Color)new Color32(0xFF, 0xA1, 0x1F, 0xFF);
+                questFills[i].style.backgroundColor = done ? (Color)new Color32(0x3F, 0xD1, 0x5B, 0xFF) : (Color)new Color32(0xFF, 0x9A, 0x1F, 0xFF);
+                questFills[i].style.display = p > 0 ? DisplayStyle.Flex : DisplayStyle.None;
                 var (kindIcon, kindColor) = QuestLook(q.kind);
                 if (questIcons[i].userData == null || (QuestKind)questIcons[i].userData != q.kind)
                 {
@@ -2228,16 +2339,29 @@ namespace SledSurfers
                     questIcons[i].style.backgroundColor = kindColor;
                     questIcons[i].style.borderBottomColor = Color.Lerp(kindColor, Color.black, 0.25f);
                     questIcons[i].userData = q.kind;
+                    questRows[i].style.borderLeftColor = kindColor;
+                    var gloss = E();
+                    gloss.pickingMode = PickingMode.Ignore;
+                    gloss.style.position = Position.Absolute;
+                    gloss.style.left = 10; gloss.style.right = 10; gloss.style.top = 6;
+                    gloss.style.height = 30;
+                    gloss.style.borderTopLeftRadius = gloss.style.borderTopRightRadius = gloss.style.borderBottomLeftRadius = gloss.style.borderBottomRightRadius = 15;
+                    gloss.style.backgroundColor = new Color(1f, 1f, 1f, 0.28f);
+                    questIcons[i].Insert(0, gloss);
                 }
                 bool ready = done && !got;
                 questClaims[i].style.backgroundColor = ready ? (Color)new Color32(0xFF, 0xC9, 0x3C, 0xFF) : (Color)new Color32(0xC9, 0xC8, 0xCF, 0xFF);
                 questClaims[i].style.borderBottomColor = ready ? (Color)new Color32(0xD2, 0x86, 0x10, 0xFF) : (Color)new Color32(0xA3, 0xA2, 0xAA, 0xFF);
                 questClaims[i].style.color = ready ? (Color)new Color32(0x4A, 0x22, 0x0C, 0xFF) : Color.white;
-                questRewards[i].text = "+" + q.coins + " coins" + (q.gems > 0 ? "  ·  +" + q.gems + " gems" : "");
+                questRewards[i].text = "+" + q.coins.ToString("N0", Tr);
+                questGemTexts[i].text = "+" + q.gems;
+                questGemChips[i].style.display = q.gems > 0 ? DisplayStyle.Flex : DisplayStyle.None;
+                questStamps[i].style.display = got ? DisplayStyle.Flex : DisplayStyle.None;
+                questClaims[i].style.visibility = got ? Visibility.Hidden : Visibility.Visible;
                 questClaims[i].SetEnabled(done && !got);
                 questClaims[i].text = got ? "CLAIMED" : "CLAIM";
                 questClaims[i].style.opacity = 1f;
-                questRows[i].style.opacity = got ? 0.6f : 1f;
+                questRows[i].style.opacity = got ? 0.75f : 1f;
                 if (done && !got) any = true;
             }
             questDot.style.display = any ? DisplayStyle.Flex : DisplayStyle.None;
@@ -2898,79 +3022,106 @@ namespace SledSurfers
                 c.root.style.marginLeft = c.root.style.marginRight = 0;
                 c.root.style.translate = new Translate((i % 2 == 0 ? -1 : 1) * 70, 0);   // yol hafifçe kıvrılır
 
+                // Parkur manzarası (kullanıcı 2026-10-23: "görseller parkur teması olabilir; karlı, ağaçlık, Mars gibi"):
+                // her ada o parkurun menü manzarasından kırpılmış bir pencere; altta toprak kalınlığı, üstte ad şeridi.
+                // Kilitli parkur da manzarasını gösterir ama karartılır ve ortasında altın kilit durur.
+                var theme = HomeTrackTheme.Get(i);
                 c.island = E("col");
-                c.island.style.width = 580;
-                c.island.style.height = 230;
+                c.island.style.width = 600;
                 c.island.style.alignItems = Align.Center;
-                c.island.style.justifyContent = Justify.Center;
-                c.island.style.backgroundColor = TrackColors[i];
-                c.island.style.borderBottomWidth = 46;
-                c.island.style.borderBottomColor = (Color)new Color32(0x8A, 0x5A, 0x33, 0xFF);
-                c.island.style.borderTopLeftRadius = c.island.style.borderTopRightRadius = 140;
-                c.island.style.borderBottomLeftRadius = c.island.style.borderBottomRightRadius = 160;
-                // Çimen tümsekleri (yuvarlak çalılar)
-                for (int b = 0; b < 3; b++)
-                {
-                    var bush = E();
-                    bush.pickingMode = PickingMode.Ignore;
-                    bush.style.position = Position.Absolute;
-                    float bs = 70 - b * 12;
-                    bush.style.width = bush.style.height = bs;
-                    bush.style.top = -bs * 0.45f;
-                    bush.style.left = b == 0 ? 70 : b == 1 ? 410 : 470;
-                    bush.style.borderTopLeftRadius = bush.style.borderTopRightRadius = bush.style.borderBottomLeftRadius = bush.style.borderBottomRightRadius = bs * 0.5f;
-                    bush.style.backgroundColor = Color.Lerp(TrackColors[i], Color.black, 0.15f + 0.05f * b);
-                    c.island.Add(bush);
-                }
+                var pic = E();
+                pic.style.width = 600;
+                pic.style.height = 270;
+                pic.style.backgroundImage = Background.FromTexture2D(Resources.Load<Texture2D>("UI/MapThumbs/" + theme.slug));
+                pic.style.backgroundSize = new BackgroundSize(BackgroundSizeType.Cover);
+                pic.style.backgroundColor = theme.panel;
+                pic.style.borderTopLeftRadius = pic.style.borderTopRightRadius = 70;
+                pic.style.borderBottomLeftRadius = pic.style.borderBottomRightRadius = 90;
+                pic.style.borderTopWidth = pic.style.borderLeftWidth = pic.style.borderRightWidth = 8;
+                pic.style.borderBottomWidth = 34;
+                pic.style.borderTopColor = pic.style.borderLeftColor = pic.style.borderRightColor = Color.white;
+                pic.style.borderBottomColor = (Color)new Color32(0x8A, 0x5A, 0x33, 0xFF);
+                pic.style.overflow = Overflow.Hidden;
+                c.island.Add(pic);
+                c.pic = pic;
+                // Üst parlaklık şeridi
+                var gloss = E();
+                gloss.pickingMode = PickingMode.Ignore;
+                gloss.style.position = Position.Absolute;
+                gloss.style.left = 30; gloss.style.right = 30; gloss.style.top = 10;
+                gloss.style.height = 40;
+                gloss.style.borderTopLeftRadius = gloss.style.borderTopRightRadius = 30;
+                gloss.style.borderBottomLeftRadius = gloss.style.borderBottomRightRadius = 30;
+                gloss.style.backgroundColor = new Color(1f, 1f, 1f, 0.22f);
+                pic.Add(gloss);
+                // Kilit örtüsü
+                c.lockDisc = E("center");
+                c.lockDisc.pickingMode = PickingMode.Ignore;
+                c.lockDisc.style.position = Position.Absolute;
+                c.lockDisc.style.left = c.lockDisc.style.right = c.lockDisc.style.top = c.lockDisc.style.bottom = 0;
+                c.lockDisc.style.backgroundColor = new Color(0.08f, 0.06f, 0.16f, 0.4f);
+                var lockRing = E("center");
+                lockRing.style.width = lockRing.style.height = 130;
+                lockRing.style.borderTopLeftRadius = lockRing.style.borderTopRightRadius = 65;
+                lockRing.style.borderBottomLeftRadius = lockRing.style.borderBottomRightRadius = 65;
+                lockRing.style.backgroundColor = (Color)new Color32(0xB0, 0x7A, 0x45, 0xFF);
+                lockRing.style.borderBottomWidth = 10;
+                lockRing.style.borderBottomColor = (Color)new Color32(0x7A, 0x4A, 0x22, 0xFF);
+                c.lockIcon = new Icon(IconKind.Lock, 84, (Color)new Color32(0xFF, 0xC9, 0x3C, 0xFF));
+                lockRing.Add(c.lockIcon);
+                c.lockDisc.Add(lockRing);
+                pic.Add(c.lockDisc);
+
+                // Ad şeridi: resmin alt kenarına biner, parkurun renginde
+                var plate = E("col");
+                plate.style.alignItems = Align.Center;
+                plate.style.marginTop = -44;
+                plate.style.paddingLeft = plate.style.paddingRight = 34;
+                plate.style.paddingTop = 6; plate.style.paddingBottom = 12;
+                plate.style.backgroundColor = Color.Lerp(theme.panel, theme.edge, 0.3f);
+                plate.style.borderTopLeftRadius = plate.style.borderTopRightRadius = 26;
+                plate.style.borderBottomLeftRadius = plate.style.borderBottomRightRadius = 26;
+                plate.style.borderBottomWidth = 10;
+                plate.style.borderBottomColor = Color.Lerp(theme.panel, Color.black, 0.4f);
+                plate.style.borderTopWidth = plate.style.borderLeftWidth = plate.style.borderRightWidth = 4;
+                plate.style.borderTopColor = plate.style.borderLeftColor = plate.style.borderRightColor = Color.white;
                 var name = L(TrackLibrary.Names[i], "heavy");
-                name.style.fontSize = 60;
+                name.style.fontSize = 52;
                 name.style.color = Color.white;
                 name.style.unityTextOutlineWidth = 6;
                 name.style.unityTextOutlineColor = (Color)new Color32(0x2B, 0x23, 0x40, 0xFF);
-                c.island.Add(name);
+                plate.Add(name);
                 var slim = E("bar");
-                slim.style.width = 400;
-                slim.style.height = 30;
-                slim.style.marginTop = 8;
+                slim.style.width = 380;
+                slim.style.height = 26;
+                slim.style.marginTop = 2;
                 slim.style.borderTopWidth = slim.style.borderBottomWidth = slim.style.borderLeftWidth = slim.style.borderRightWidth = 4;
                 slim.style.borderTopColor = slim.style.borderBottomColor = slim.style.borderLeftColor = slim.style.borderRightColor = (Color)new Color32(0x2B, 0x23, 0x40, 0xFF);
                 slim.style.backgroundColor = (Color)new Color32(0x3A, 0x34, 0x55, 0xFF);
                 c.fill = E("bar-fill");
                 slim.Add(c.fill);
-                c.island.Add(slim);
+                plate.Add(slim);
+                c.bar = slim;
+                c.island.Add(plate);
                 c.root.Add(c.island);
+                c.lockName = new Label();
 
-                c.lockDisc = E("center");
-                c.lockDisc.style.width = 230;
-                c.lockDisc.style.height = 150;
-                c.lockDisc.style.backgroundColor = (Color)new Color32(0xB0, 0x7A, 0x45, 0xFF);
-                c.lockDisc.style.borderBottomWidth = 30;
-                c.lockDisc.style.borderBottomColor = (Color)new Color32(0x7A, 0x4A, 0x22, 0xFF);
-                c.lockDisc.style.borderTopLeftRadius = c.lockDisc.style.borderTopRightRadius = 115;
-                c.lockDisc.style.borderBottomLeftRadius = c.lockDisc.style.borderBottomRightRadius = 115;
-                c.lockIcon = new Icon(IconKind.Lock, 110, (Color)new Color32(0xFF, 0xC9, 0x3C, 0xFF));
-                c.lockIcon.style.marginTop = -50;
-                c.lockDisc.Add(c.lockIcon);
-                c.root.Add(c.lockDisc);
-                c.lockName = L(TrackLibrary.Names[i], "heavy");
-                c.lockName.style.fontSize = 32;
-                c.lockName.style.color = new Color(1f, 1f, 1f, 0.75f);
-                c.lockName.style.unityTextOutlineWidth = 4;
-                c.lockName.style.unityTextOutlineColor = new Color(0f, 0f, 0f, 0.4f);
-                c.root.Add(c.lockName);
-
+                // Durum ve kumbara: manzara üstünde okunsun diye yarı saydam koyu hap içinde
+                var info = E("col");
+                info.style.alignItems = Align.Center;
+                info.style.marginTop = 8;
+                info.style.paddingLeft = info.style.paddingRight = 26;
+                info.style.paddingTop = 4; info.style.paddingBottom = 6;
+                info.style.backgroundColor = new Color(0.1f, 0.08f, 0.2f, 0.62f);
+                info.style.borderTopLeftRadius = info.style.borderTopRightRadius = info.style.borderBottomLeftRadius = info.style.borderBottomRightRadius = 26;
                 c.status = L("", "heavy");
                 c.status.style.fontSize = 32;
-                c.status.style.marginTop = 6;
-                c.status.style.unityTextOutlineWidth = 4;
-                c.status.style.unityTextOutlineColor = new Color(1f, 1f, 1f, 0.85f);
-                c.root.Add(c.status);
+                info.Add(c.status);
                 c.wallet = L("", "heavy");
                 c.wallet.style.fontSize = 28;
-                c.wallet.style.color = Color.white;
-                c.wallet.style.unityTextOutlineWidth = 4;
-                c.wallet.style.unityTextOutlineColor = new Color(0f, 0f, 0f, 0.45f);
-                c.root.Add(c.wallet);
+                c.wallet.style.color = new Color(1f, 1f, 1f, 0.85f);
+                info.Add(c.wallet);
+                c.root.Add(info);
                 // Eski rozet alanları (ShowMap uyumu)
                 c.badge = new VisualElement();
                 c.number = new Label();
@@ -2989,13 +3140,13 @@ namespace SledSurfers
                 bool open = i <= save.unlocked;
                 bool done = save.Finished(i);
                 float progress = Mathf.Clamp01(save.bests[i] / TrackLibrary.Lengths[i]);
-                c.island.style.display = open ? DisplayStyle.Flex : DisplayStyle.None;
                 c.lockDisc.style.display = open ? DisplayStyle.None : DisplayStyle.Flex;
-                c.lockName.style.display = open ? DisplayStyle.None : DisplayStyle.Flex;
+                c.bar.style.display = open ? DisplayStyle.Flex : DisplayStyle.None;
                 // Güncel parkur: altın çerçeve ve hafif büyük
                 bool isCur = i == save.track;
-                c.island.style.borderTopWidth = c.island.style.borderLeftWidth = c.island.style.borderRightWidth = isCur ? 8 : 0;
-                c.island.style.borderTopColor = c.island.style.borderLeftColor = c.island.style.borderRightColor = (Color)new Color32(0xFF, 0xD8, 0x4A, 0xFF);
+                Color rim = isCur ? (Color)new Color32(0xFF, 0xD8, 0x4A, 0xFF) : Color.white;
+                c.pic.style.borderTopColor = c.pic.style.borderLeftColor = c.pic.style.borderRightColor = rim;
+                c.pic.style.borderTopWidth = c.pic.style.borderLeftWidth = c.pic.style.borderRightWidth = isCur ? 12 : 8;
                 c.root.style.scale = new Scale(isCur ? new Vector2(1.06f, 1.06f) : Vector2.one);
                 c.root.style.opacity = 1f;
                 c.wallet.text = open ? save.trackMoney[i].ToString("N0", Tr) + " coins saved here" : "";
@@ -3005,17 +3156,17 @@ namespace SledSurfers
                 if (done)
                 {
                     c.status.text = "Complete! · Best " + TrackLibrary.Show(save.bests[i]) + " m";
-                    c.status.style.color = (Color)new Color32(0x22, 0xA0, 0x3C, 0xFF);
+                    c.status.style.color = (Color)new Color32(0x7C, 0xF0, 0x8E, 0xFF);
                 }
                 else if (open)
                 {
                     c.status.text = save.bests[i] > 0 ? "Best " + TrackLibrary.Show(save.bests[i]) + " m · " + Mathf.FloorToInt(progress * 100f) + "%" : "New! Try it now";
-                    c.status.style.color = (Color)new Color32(0xD8, 0x62, 0x0A, 0xFF);
+                    c.status.style.color = (Color)new Color32(0xFF, 0xC9, 0x3C, 0xFF);
                 }
                 else
                 {
                     c.status.text = "Locked · finish " + TrackLibrary.Names[i - 1] + " first";
-                    c.status.style.color = Muted;
+                    c.status.style.color = new Color(1f, 1f, 1f, 0.8f);
                 }
             }
             SetPage(Page.Map);

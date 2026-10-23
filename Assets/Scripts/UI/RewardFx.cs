@@ -46,6 +46,51 @@ namespace SledSurfers
         }
     }
 
+    /// Küçük duvar saati ikonu (görev sayacı): krem kadran, koyu çerçeve, iki ibre ve tepede zil.
+    public class ClockIcon : VisualElement
+    {
+        public ClockIcon(float size)
+        {
+            pickingMode = PickingMode.Ignore;
+            style.width = style.height = size;
+            style.flexShrink = 0;
+            generateVisualContent += Draw;
+        }
+
+        void Draw(MeshGenerationContext ctx)
+        {
+            var r = contentRect;
+            var p = ctx.painter2D;
+            var c = r.center + new Vector2(0f, r.height * 0.05f);
+            float R = r.width * 0.42f;
+            var ink = new Color32(0x4A, 0x2A, 0x12, 0xFF);
+            p.fillColor = new Color32(0xFF, 0x7A, 0x3D, 0xFF);
+            for (int s = -1; s <= 1; s += 2)
+            {
+                p.BeginPath();
+                p.Arc(c + new Vector2(s * R * 0.72f, -R * 0.82f), R * 0.32f, 0f, 360f);
+                p.Fill();
+            }
+            p.fillColor = new Color32(0xFF, 0x7A, 0x3D, 0xFF);
+            p.BeginPath();
+            p.Arc(c, R, 0f, 360f);
+            p.Fill();
+            p.fillColor = new Color32(0xFF, 0xF6, 0xE0, 0xFF);
+            p.BeginPath();
+            p.Arc(c, R * 0.76f, 0f, 360f);
+            p.Fill();
+            p.strokeColor = ink;
+            p.lineCap = LineCap.Round;
+            p.lineWidth = R * 0.14f;
+            p.BeginPath();
+            p.MoveTo(c);
+            p.LineTo(c + new Vector2(0f, -R * 0.55f));
+            p.MoveTo(c);
+            p.LineTo(c + new Vector2(R * 0.4f, R * 0.12f));
+            p.Stroke();
+        }
+    }
+
     /// Ekranın üstünden dönerek düşen renkli kâğıt parçaları (sürekli döngü).
     public class RewardConfetti : VisualElement
     {

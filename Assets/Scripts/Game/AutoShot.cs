@@ -251,6 +251,9 @@ namespace SledSurfers
                 game.DebugMap();
                 yield return new WaitForSeconds(1f);
                 yield return Shot("s2_map");
+                game.DebugScrollMapEnd();
+                yield return new WaitForSeconds(0.5f);
+                yield return Shot("s2_map_b");
                 game.DebugHub();
                 game.DebugAvatars(2);
                 yield return new WaitForSeconds(1.5f);
