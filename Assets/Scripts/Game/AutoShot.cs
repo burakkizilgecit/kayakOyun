@@ -335,17 +335,35 @@ namespace SlingRiders
             }
             if (mode == "login")
             {
-                // Günlük ödül penceresi: seride 4. gün ve 7. gün
+                // Günlük ödül: 1. gün / 4. gün / 7. gün alınabilir, 4. gün alınmış; alım akışı (tek sefer).
                 game.DebugHideTutorial();
                 game.DebugHub();
-                game.DebugLogin(3);
+                foreach (var (streak, n) in new[] { (0, "day1"), (3, "day4"), (6, "day7") })
+                {
+                    game.DebugLogin(streak);
+                    yield return new WaitForSeconds(1.0f);
+                    yield return Shot("login_" + n);
+                    Debug.Log("[AUTOSHOT] " + game.DebugLoginLayoutText);
+                }
+                game.DebugLoginClaimed(4);
+                yield return new WaitForSeconds(1.0f);
+                yield return Shot("login_day4_claimed");
+                // Alım: hızlı iki dokunuş, jeton uçuşu, bakiye bir kez artar, yeniden açılmaz
+                game.DebugLogin(2);
+                yield return new WaitForSeconds(0.8f);
+                int before = game.DebugMoneyNow;
+                game.DebugClaimLogin();
+                game.DebugClaimLogin();
+                yield return new WaitForSeconds(0.3f);
+                yield return Shot("login_claim_fly");
                 yield return new WaitForSeconds(1.2f);
-                yield return Shot("login_day4");
-                game.DebugHub();
-                game.DebugLogin(6);
-                yield return new WaitForSeconds(1.2f);
-                yield return Shot("login_day7");
-                SaveData.ClearAll();   // yalnız test önekli kayıt (gerçek kayıt korunur)
+                int after = game.DebugMoneyNow;
+                game.DebugShowLoginNow();
+                yield return new WaitForSeconds(0.4f);
+                Debug.Log("[AUTOSHOT] login claim delta=" + (after - before) + " expected=" + DailyRewardConfig.Reward(3)
+                          + " streak=" + game.DebugLoginStreak + " pendingAfter=" + game.DebugLoginPending);
+                yield return Shot("login_after");
+                SaveData.ClearAll();
                 Application.Quit();
                 yield break;
             }

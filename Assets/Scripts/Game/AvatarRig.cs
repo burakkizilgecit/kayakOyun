@@ -408,6 +408,44 @@ namespace SlingRiders
         /// Gövdenin en alçak noktası (kemiklerin en alçağı eksi kalınlık payı): yuvarlanırken yere değme.
         public float LowestPoint() => Lowest(allBones) - 0.09f;
 
+        /// Gövdenin zemine en derin girdiği miktar (m; eksi = zeminin üstünde boşluk). Her kemik kendi altındaki zemine göre
+        /// (kalınlık payıyla) ölçülür: yalnız kalçanın altındaki zemine göre oturtunca yamaçta ve tümsekte baş/omuz zemine
+        /// gömülüyordu (kullanıcı 2026-10-24).
+        public float Penetration(System.Func<float, float, float> ground)
+        {
+            float worst = float.MinValue;
+            foreach (var b in allBones)
+            {
+                var p = b.position;
+                worst = Mathf.Max(worst, ground(p.x, p.z) + BodyPad - p.y);
+            }
+            return worst;
+        }
+
+        const float BodyPad = 0.1f;
+
+        /// Kalkıştan sonra kollar başın üstünde birleşmesin: yana-yukarı açık "merhaba" duruşu, bir el hafifçe sallanır
+        /// (kullanıcı 2026-10-24). k 0..1; t: sallanma zamanı. Klip örneklendikten sonra çağrılır.
+        public void OpenArms(float k, float t)
+        {
+            if (k <= 0f || torso == null) return;
+            Vector3 up = holder.up;
+            for (int s = 0; s < 2; s++)
+            {
+                if (upper[s] == null || fist[s] == null) continue;
+                Vector3 shoulder = upper[s].position;
+                Vector3 side = Vector3.ProjectOnPlane(shoulder - torso.position, up);
+                if (side.sqrMagnitude < 1e-6f) continue;
+                side.Normalize();
+                Vector3 now = fist[s].position - shoulder;
+                Vector3 want = (side * 0.85f + up * 0.55f).normalized;
+                // Sağ el selam sallar
+                if (s == 1) want = Quaternion.AngleAxis(14f * Mathf.Sin(t * 9f), holder.forward) * want;
+                var turn = Quaternion.FromToRotation(now.normalized, want);
+                upper[s].rotation = Quaternion.Slerp(Quaternion.identity, turn, k) * upper[s].rotation;
+            }
+        }
+
         /// Oturur dururken gerçek oturma yüzeyi (kızaktaki oturuşla aynı payla).
         public float SeatBottom() => Lowest(contact) - seatGap;
 

@@ -461,10 +461,10 @@ namespace SlingRiders
                 h.position += crashVel * dt;
                 h.RotateAround(c, spinAxis, spinRate * dt);
                 avatar.FlailPose(crashClock, Mathf.Clamp01(1.2f - crashClock * 0.35f));
-                float low = avatar.LowestPoint();
-                if (low < ground)
+                float pen = avatar.Penetration(groundHeight);
+                if (pen > 0f)
                 {
-                    h.position += Vector3.up * (ground - low);
+                    h.position += Vector3.up * pen;
                     if (crashVel.y < -1.2f) Dust(c, Mathf.Clamp01(-crashVel.y / 8f));
                     if (crashVel.y < 0f) crashVel.y = -crashVel.y * 0.38f;
                     crashVel.x *= 0.72f;
@@ -474,7 +474,7 @@ namespace SlingRiders
                     if (hv.sqrMagnitude > 0.2f) spinAxis = Vector3.Cross(Vector3.up, hv.normalized);
                     spinRate = Mathf.Min(spinRate * 0.8f, hv.magnitude / 0.35f * Mathf.Rad2Deg);
                 }
-                bool slow = crashVel.magnitude < 1.6f && low <= ground + 0.08f;
+                bool slow = crashVel.magnitude < 1.6f && pen > -0.08f;
                 if ((crashClock > 1.0f && slow) || crashClock > 2.2f)
                 {
                     crashPhase = 1;
@@ -490,7 +490,7 @@ namespace SlingRiders
                 float clipT = phaseClock * AriseSpeed;
                 h.rotation = Quaternion.Slerp(fromRot, face, Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(phaseClock / 0.15f)));
                 avatar.AriseFrame(clipT);
-                h.position += Vector3.up * (ground - avatar.LowestPoint());
+                h.position += Vector3.up * avatar.Penetration(groundHeight);
                 if (clipT >= avatar.AriseLength)
                 {
                     crashPhase = 2;
@@ -507,7 +507,7 @@ namespace SlingRiders
                 h.rotation = Quaternion.Slerp(fromRot, face, turn);
                 avatar.FlailPose(crashClock, 0.2f * (1f - turn));
                 if (rise > 0f) avatar.StandPose(rise);
-                h.position += Vector3.up * (ground - avatar.LowestPoint());
+                h.position += Vector3.up * avatar.Penetration(groundHeight);
                 if (phaseClock >= 1.0f)
                 {
                     crashPhase = 2;
@@ -523,9 +523,10 @@ namespace SlingRiders
                 h.rotation = Quaternion.Slerp(h.rotation, face, 3f * dt);
                 if (avatar.CheerFrame(phaseClock))
                 {
-                    // Meshy: sevinç klibi döngüde, üstüne hafif kafa sallama
+                    // Meshy: sevinç klibi döngüde, üstüne hafif kafa sallama; kollar açık selam
+                    avatar.OpenArms(Mathf.Clamp01(phaseClock / 0.35f), phaseClock);
                     avatar.Breathe(phaseClock);
-                    h.position += Vector3.up * (ground - avatar.LowestPoint());
+                    h.position += Vector3.up * avatar.Penetration(groundHeight);
                     return;
                 }
                 avatar.StandPose(1f);

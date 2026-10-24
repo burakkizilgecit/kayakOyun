@@ -103,8 +103,10 @@ namespace SlingRiders
             float kx = 0f, ky = 0f;
             if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow)) kx -= 1f;
             if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow)) kx += 1f;
-            if (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow)) ky -= 1f;
-            if (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow)) ky += 1f;
+            // Uçak kumandası gibi (kullanıcı 2026-10-24: "parmağını öne doğru itip dengeye getirmeli"): öne/yukarı = burun
+            // aşağı, geri/aşağı = burun yukarı.
+            if (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow)) ky += 1f;
+            if (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow)) ky -= 1f;
 
             float px = 0f, py = 0f;
             if (driving && pointerHeld)
@@ -113,7 +115,7 @@ namespace SlingRiders
                 float dead = DeadZone * Screen.width;
                 float dx = Mathf.Sign(d.x) * Mathf.Max(0f, Mathf.Abs(d.x) - dead);
                 px = Mathf.Clamp(dx / (SteerSpan[Mathf.Clamp(sensitivity, 0, 2)] * Screen.width), -1f, 1f);
-                py = Mathf.Clamp(d.y / (0.12f * Screen.height), -1f, 1f);
+                py = Mathf.Clamp(-d.y / (0.12f * Screen.height), -1f, 1f);
             }
             steer = Mathf.Abs(kx) > Mathf.Abs(px) ? kx : px;
             pitch = Mathf.Abs(ky) > Mathf.Abs(py) ? ky : py;

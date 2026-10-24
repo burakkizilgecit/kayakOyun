@@ -578,7 +578,7 @@ namespace SlingRiders
             int day = save.PendingLoginDay();
             if (day <= 0) return;
             var coins = LoginCoins(out var gems);
-            ui.ShowLogin(day, coins, gems);
+            ui.ShowLogin(day, coins, false);
         }
 
         void ClaimLoginReward()
@@ -606,6 +606,19 @@ namespace SlingRiders
             save.loginStreak = streak;
             ShowLogin();
         }
+        /// Test: ödül alındıktan sonraki görünüm (bugünkü gün alınmış, düğme kapalı).
+        public void DebugLoginClaimed(int streak)
+        {
+            save.loginDay = DailyQuests.Today;
+            save.loginStreak = streak;
+            ui.ShowLogin(streak, LoginCoins(out _), true);
+        }
+        public void DebugClaimLogin() => ui.DebugPressClaim();
+        public void DebugShowLoginNow() => ShowLogin();
+        public string DebugLoginLayoutText => ui.DebugLoginLayout();
+        public int DebugLoginPending => save.PendingLoginDay();
+        public int DebugMoneyNow => save.money;
+        public int DebugLoginStreak => save.loginStreak;
 
         /// Ekran görüntüsü testi onlarca kez fırlatır: kota uygulanmaz.
         public bool debugUnlimitedLaunches;
@@ -967,11 +980,25 @@ namespace SlingRiders
             ui.Tick(dt, BuildHud());
         }
 
+        /// Dokunuş kızağın (lastik bağlantısı) yakınında mı: ekran genişliğinin dörtte biri yarıçapında.
+        bool NearSled(Vector2 screen)
+        {
+            Vector3 sp = cam.WorldToScreenPoint(sled.position + Vector3.up * 0.5f);
+            if (sp.z <= 0f) return true;
+            return (screen - (Vector2)sp).magnitude < Screen.width * 0.25f;
+        }
+
         void UpdateAim(float dt)
         {
             if (!input.pointerHeld && !input.spaceHeld) aimArmed = true;
 
-            if (aimArmed && input.pointerDown && !ui.BlocksPointer(input.pointerPos)) aimDragging = true;
+            // İp yalnız kızak (lastiğin bağlandığı yer) tutularak çekilir (kullanıcı 2026-10-24: "ekranın neresine dokunsa ipi
+            // çekiyor, ipi tutup çeksin").
+            if (aimArmed && input.pointerDown && !ui.BlocksPointer(input.pointerPos))
+            {
+                if (NearSled(input.pointerPos)) aimDragging = true;
+                else ui.Toast("GRAB THE SLED!");
+            }
             if (aimDragging && input.pointerHeld)
             {
                 // Parmak geriye ve yana çekilir; kızak çekilen yönün tersine fırlar (sapan gibi).
@@ -1027,6 +1054,8 @@ namespace SlingRiders
                 feltAccel = Vector3.Lerp(feltAccel, sled.acceleration, 1f - Mathf.Exp(-12f * dt));
                 Vector3 local = Quaternion.Inverse(sled.Orientation) * Vector3.ClampMagnitude(feltAccel, 60f);
                 target = new Vector2(Mathf.Clamp(-local.z * 1.6f, -30f, 25f), Mathf.Clamp(-local.x * 2f, -20f, 20f));
+                // Virajda karakter de kızakla birlikte hafifçe içe yatar (kullanıcı 2026-10-24), en çok ~12°.
+                if (sled.grounded) target.y += sled.lean * Mathf.Rad2Deg * 1f;
             }
             const float w = 14f, zeta = 0.45f;
             Vector2 acc = w * w * (target - torsoAngle) - 2f * zeta * w * torsoVel;
@@ -1136,6 +1165,7 @@ namespace SlingRiders
         bool hintedRocket, hintedNose, hintedBridge, hintedFork;
         int shownBoosts;
         int warnedHazard = -1, shownBounces;
+        bool warnedBalance;
         /// Hava numarası eşiği (m/s; ~65 km/s) ve iki numara arası en az süre (s).
         const float TrickSpeed = 18f, TrickCooldown = 3.5f;
         bool wasGrounded = true;
@@ -1161,7 +1191,7 @@ namespace SlingRiders
                 && sled.position.y - track.Height(sled.position.x, sled.position.z) > 1.5f)
             {
                 hintedNose = true;
-                ShowHint(Hint.Nose, IconKind.Wing, input.TouchMode ? "In the air, drag up-down: nose" : "W / S: nose in the air", 2);
+                ShowHint(Hint.Nose, IconKind.Wing, input.TouchMode ? "In the air, drag up: nose down" : "W / S: nose down / up", 2);
             }
             if (!hintedBridge && track.BridgeAt(sled.position.z + 30f, out _))
             {
@@ -1181,6 +1211,12 @@ namespace SlingRiders
                 sfx.Pop();
             }
             wasGrounded = sled.grounded;
+            if (sled.Unstable && !warnedBalance && state == State.Run)
+            {
+                warnedBalance = true;
+                ui.Toast(input.TouchMode ? "PUSH FORWARD!" : "PRESS W: NOSE DOWN!");
+            }
+            if (sled.grounded) warnedBalance = false;
             if (sled.bounces != shownBounces)
             {
                 shownBounces = sled.bounces;

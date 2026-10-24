@@ -1008,7 +1008,6 @@ namespace SlingRiders
             menuTheme.Register(settings, "settings", 0.40f);
             menuTheme.Register(chestModal, "chest", 0.38f);
             menuTheme.Register(questModal, "quests", 0.38f);
-            menuTheme.Register(loginModal, "login", 0.38f);
             menuTheme.Register(partModal, "part", 0.40f);
             menuTheme.Register(shopModal, "shop", 0.06f);
             menuTheme.Register(offerModal, "offer", 0.38f);
@@ -2054,8 +2053,6 @@ namespace SlingRiders
         readonly VisualElement[] questFills = new VisualElement[DailyQuests.PerDay];
         readonly Button[] questClaims = new Button[DailyQuests.PerDay];
         Label questTimer;
-        readonly VisualElement[] loginDays = new VisualElement[7];
-        readonly Label[] loginAmounts = new Label[7];
 
         static VisualElement Modal(out VisualElement card, string ribbonText, Color ribbonColor, Color ribbonDark)
         {
@@ -2391,12 +2388,19 @@ namespace SlingRiders
             if (open) Open(questModal, questCard);
         }
 
-        // Günlük ödül (kullanıcı 2026-10-19, örnek görsele benzer): ahşap çerçeve, buz kenarlı mavi panel, kırmızı kurdele
-        // başlık; 1-6. gün iki sütunlu kahverengi kutular (alınanlarda büyük sarı tik, bugünkü altın çerçeveli ve nabızlı),
-        // 7. gün geniş mor kutu (elmaslar), altta büyük sarı CLAIM düğmesi.
-        readonly VisualElement[] loginChecks = new VisualElement[7];
-        readonly VisualElement[] loginBodies = new VisualElement[7];
-        VisualElement loginToday;
+        // Günlük ödül (kullanıcı 2026-10-24, referans tasarım ve ayrı PNG parçaları; UI/DailyRewards): oyun sahnesi üstünde koyu
+        // perde, 9-slice panel, sağ üstte kapatma; başlık, alt başlık, 7 noktalı ilerleme; 1-6. gün iki sütun üç satır kart,
+        // 7. gün altta geniş kart (sandık), en altta altın CLAIM düğmesi ve sonraki ödül bilgisi. Kartlar ve ikonlar kendi
+        // oranlarında (esnetilmez); bütün pencere ekrana sığacak kadar orantılı küçülür. Ödül miktarları DailyRewardConfig'te.
+        readonly VisualElement[] loginCards = new VisualElement[7], loginChecks = new VisualElement[7], loginLocks = new VisualElement[7],
+                                 loginTodayTags = new VisualElement[7], loginGlows = new VisualElement[7], loginDots = new VisualElement[7],
+                                 loginIcons = new VisualElement[7];
+        VisualElement loginPanel, loginChest, loginFxLayer;
+        Button loginClaimBtn;
+        Label loginClaimText, loginNextText, loginTotalText;
+        int loginToday = -1;
+        bool loginClaiming;
+        float loginOpenT = -1f, loginFit = 1f, loginPressT = -1f;
 
         static void Outline(Label l, float width, Color color)
         {
@@ -2430,168 +2434,427 @@ namespace SlingRiders
             return pile;
         }
 
+        static Background DR(string name) => Background.FromTexture2D(Resources.Load<Texture2D>("UI/DailyRewards/" + name));
+
+        /// Görsel oranında boyutlanan resim (esnetilmez): genişlik verilir, yükseklik dokudan.
+        static VisualElement DRImage(string name, float width)
+        {
+            var e = new VisualElement { pickingMode = PickingMode.Ignore };
+            var tex = Resources.Load<Texture2D>("UI/DailyRewards/" + name);
+            if (tex != null)
+            {
+                e.style.backgroundImage = Background.FromTexture2D(tex);
+                e.style.height = width * tex.height / tex.width;
+            }
+            e.style.width = width;
+            e.style.flexShrink = 0;
+            return e;
+        }
+
+        static readonly Color DRGold = new Color32(0xFF, 0xD2, 0x3F, 0xFF), DRInk = new Color32(0x2A, 0x14, 0x05, 0xFF),
+                              DRNavy = new Color32(0x14, 0x1C, 0x4A, 0xFF), DRTeal = new Color32(0x2E, 0xE6, 0xF0, 0xFF);
+
         void BuildLogin()
         {
+            const float PanelW = 960f, InnerW = 820f, Gap = 18f;
+            float cardW = (InnerW - Gap) / 2f;
+
             loginModal = new VisualElement();
-            foreach (var c in new[] { "fill", "dim", "center", "pick" }) loginModal.AddToClassList(c);
+            foreach (var c in new[] { "fill", "center", "pick" }) loginModal.AddToClassList(c);
             loginModal.style.display = DisplayStyle.None;
-            Color wood = new Color32(0x9A, 0x62, 0x36, 0xFF), woodDark = new Color32(0x6B, 0x3F, 0x1F, 0xFF);
-            Color panel = new Color32(0x1E, 0x5C, 0xAE, 0xFF), ice = new Color32(0x8F, 0xDD, 0xFF, 0xFF);
-            Color tile = new Color32(0x7A, 0x48, 0x2A, 0xFF), tileEdge = new Color32(0xC8, 0x8B, 0x4E, 0xFF);
-            Color gold = new Color32(0xFF, 0xD8, 0x4A, 0xFF), brownInk = new Color32(0x4A, 0x22, 0x0C, 0xFF);
+            loginModal.style.backgroundColor = new Color(0.02f, 0.03f, 0.08f, 0.62f);   // oyun sahnesi görünür, koyu perde
 
-            loginCard = new VisualElement();
-            foreach (var c in new[] { "col", "pop", "off" }) loginCard.AddToClassList(c);
-            loginCard.style.width = Length.Percent(88);
-            Box(loginCard, wood, woodDark, 14, 52);
-            loginCard.style.paddingTop = loginCard.style.paddingBottom = 18;
-            loginCard.style.paddingLeft = loginCard.style.paddingRight = 18;
+            loginPanel = new VisualElement();
+            loginCard = loginPanel;
+            loginPanel.style.width = PanelW;
+            loginPanel.style.flexShrink = 0;
+            loginPanel.style.alignItems = Align.Center;
+            loginPanel.style.paddingTop = 50;
+            loginPanel.style.paddingBottom = 120;   // alt köşelerdeki yapraklar (toplam yazısı üstlerine binmesin)
+            loginPanel.style.paddingLeft = loginPanel.style.paddingRight = (PanelW - InnerW) / 2f;
+            loginPanel.style.backgroundImage = DR("panel");
+            // 9-slice: köşe yarıçapı ve alt köşelerdeki yapraklar esnemez
+            loginPanel.style.unitySliceLeft = 80;
+            loginPanel.style.unitySliceRight = 80;
+            loginPanel.style.unitySliceTop = 80;
+            loginPanel.style.unitySliceBottom = 170;
+            loginModal.Add(loginPanel);
 
-            var inner = E("col");
-            Box(inner, panel, ice, 9, 40);
-            inner.style.paddingTop = 96;
-            inner.style.paddingLeft = inner.style.paddingRight = 18;
-            inner.style.paddingBottom = 26;
-            inner.style.alignItems = Align.Stretch;
-            inner.style.alignSelf = Align.Stretch;   // çerçeveyi doldursun (yoksa dar sütunda kalıyordu)
-            loginCard.Add(inner);
+            var close = new Button(() => { click?.Invoke(); if (!loginClaiming) Close(loginModal, loginPanel); }) { name = "menu-login-x" };
+            close.style.position = Position.Absolute;
+            close.style.top = -30;
+            close.style.right = -30;
+            close.style.width = close.style.height = 130;
+            close.style.backgroundImage = DR("button-close");
+            close.style.backgroundColor = Color.clear;
+            close.style.borderTopWidth = close.style.borderBottomWidth = close.style.borderLeftWidth = close.style.borderRightWidth = 0;
+            loginPanel.Add(close);
 
-            // Kurdele başlık
-            var ribbon = E("row");
-            ribbon.style.position = Position.Absolute;
-            ribbon.style.top = -46;
-            ribbon.style.alignSelf = Align.Center;
-            Box(ribbon, new Color32(0xE6, 0x3E, 0x62, 0xFF), new Color32(0xA8, 0x22, 0x47, 0xFF), 0, 28);
-            ribbon.style.borderBottomWidth = 12;
-            ribbon.style.paddingLeft = ribbon.style.paddingRight = 46;
-            ribbon.style.paddingTop = 4;
-            ribbon.style.height = 128;
-            ribbon.style.alignItems = Align.Center;
-            var title = L("DAILY REWARD", "heavy");
-            title.style.fontSize = 78;
-            title.style.color = gold;
-            Outline(title, 9, new Color32(0x6B, 0x14, 0x30, 0xFF));
-            ribbon.Add(title);
-            loginCard.Add(ribbon);
+            var title = L("DAILY REWARDS", "heavy");
+            title.style.fontSize = 104;
+            title.style.color = DRGold;
+            Outline(title, 11, new Color32(0x5A, 0x22, 0x08, 0xFF));
+            loginPanel.Add(title);
+            var sub = L("A bigger reward every day", "heavy");
+            sub.style.fontSize = 44;
+            sub.style.color = new Color(0.94f, 0.95f, 1f);
+            sub.style.marginTop = -6;
+            loginPanel.Add(sub);
 
-            VisualElement Tile(int d, bool wide)
+            // 7 noktalı ilerleme: noktalar ince çizgiyle bağlı
+            var dots = new VisualElement();
+            dots.style.flexDirection = FlexDirection.Row;
+            dots.style.alignItems = Align.Center;
+            dots.style.marginTop = 22;
+            dots.style.marginBottom = 26;
+            for (int d = 0; d < 7; d++)
             {
-                var t = E("col");
-                Box(t, wide ? (Color)new Color32(0x8E, 0x2A, 0x6B, 0xFF) : tile, wide ? gold : tileEdge, 8, 30);
-                t.style.flexGrow = 1;
-                t.style.flexBasis = 0;
-                t.style.height = wide ? 290 : 272;
-                t.style.marginLeft = t.style.marginRight = 9;
-                t.style.marginTop = 16;
-                t.style.alignItems = Align.Center;
-                t.style.justifyContent = Justify.Center;
-                var body = E(wide ? "row" : "col");
-                body.style.alignItems = Align.Center;
-                body.style.justifyContent = Justify.Center;
-                var day = L("DAY " + (d + 1), "heavy");
-                day.style.fontSize = wide ? 66 : 44;
-                day.style.color = Color.white;
-                Outline(day, wide ? 8 : 6, brownInk);
-                loginAmounts[d] = L("", "heavy");
-                loginAmounts[d].style.fontSize = wide ? 52 : 42;
-                loginAmounts[d].style.color = gold;
-                loginAmounts[d].style.unityTextAlign = TextAnchor.MiddleCenter;
-                Outline(loginAmounts[d], 6, brownInk);
-                if (wide)
+                if (d > 0)
                 {
-                    var left = E("col");
-                    left.style.alignItems = Align.Center;
-                    left.style.marginRight = 30;
-                    left.Add(day);
-                    left.Add(loginAmounts[d]);
-                    body.Add(left);
-                    var prize = E("row");
-                    prize.style.alignItems = Align.FlexEnd;
-                    prize.Add(new Icon(IconKind.Chest, 130));
-                    var pile = CoinPile(90);
-                    pile.style.marginLeft = -20;
-                    prize.Add(pile);
-                    body.Add(prize);
+                    var line = new VisualElement();
+                    line.style.width = 48;
+                    line.style.height = 5;
+                    line.style.backgroundColor = new Color(0.35f, 0.42f, 0.7f);
+                    dots.Add(line);
+                }
+                var dot = new VisualElement();
+                dot.style.width = dot.style.height = 34;
+                dot.style.borderTopLeftRadius = dot.style.borderTopRightRadius = dot.style.borderBottomLeftRadius = dot.style.borderBottomRightRadius = 17;
+                dot.style.borderTopWidth = dot.style.borderBottomWidth = dot.style.borderLeftWidth = dot.style.borderRightWidth = 4;
+                loginDots[d] = dot;
+                dots.Add(dot);
+            }
+            loginPanel.Add(dots);
+
+            string[] coinArt = { "coins-small", "coins-small", "coins-medium", "coins-medium", "coins-large", "coins-large" };
+            VisualElement Card(int d)
+            {
+                bool grand = d == 6;
+                float w = grand ? InnerW : cardW;
+                var card = DRImage(grand ? "card-grand" : "card-default", w);
+                card.pickingMode = PickingMode.Ignore;
+                card.style.backgroundSize = new BackgroundSize(Length.Percent(100), Length.Percent(100));
+                loginCards[d] = card;
+                // Bugünün yavaş turkuaz ışıltısı (kartın arkasında, sert yanıp sönme yok)
+                var glow = new VisualElement { pickingMode = PickingMode.Ignore };
+                glow.style.position = Position.Absolute;
+                glow.style.left = glow.style.right = glow.style.top = glow.style.bottom = -10;
+                glow.style.borderTopLeftRadius = glow.style.borderTopRightRadius = glow.style.borderBottomLeftRadius = glow.style.borderBottomRightRadius = 46;
+                glow.style.borderTopWidth = glow.style.borderBottomWidth = glow.style.borderLeftWidth = glow.style.borderRightWidth = 8;
+                glow.style.borderTopColor = glow.style.borderBottomColor = glow.style.borderLeftColor = glow.style.borderRightColor = DRTeal;
+                glow.style.display = DisplayStyle.None;
+                card.Add(glow);
+                loginGlows[d] = glow;
+
+                var day = L("DAY " + (d + 1), "heavy");
+                day.style.position = Position.Absolute;
+                day.style.left = grand ? 48 : 30;
+                day.style.top = grand ? 22 : 16;
+                day.style.fontSize = grand ? 60 : 40;
+                day.style.color = grand ? new Color(0.98f, 0.92f, 1f) : Color.white;
+                Outline(day, 6, DRNavy);
+                card.Add(day);
+
+                var amount = L("", "heavy");
+                amount.name = "login-amount-" + d;
+                amount.style.color = DRGold;
+                Outline(amount, 8, DRInk);
+                if (grand)
+                {
+                    var tag = L("GRAND REWARD", "heavy");
+                    tag.style.position = Position.Absolute;
+                    tag.style.left = 48;
+                    tag.style.top = 92;
+                    tag.style.fontSize = 34;
+                    tag.style.color = DRInk;
+                    tag.style.backgroundColor = (Color)new Color32(0xFF, 0xC9, 0x5A, 0xFF);
+                    tag.style.paddingLeft = tag.style.paddingRight = 24;
+                    tag.style.paddingTop = tag.style.paddingBottom = 4;
+                    tag.style.borderTopLeftRadius = tag.style.borderTopRightRadius = tag.style.borderBottomLeftRadius = tag.style.borderBottomRightRadius = 26;
+                    card.Add(tag);
+                    amount.style.position = Position.Absolute;
+                    amount.style.left = 48;
+                    amount.style.top = 140;
+                    amount.style.fontSize = 76;
+                    loginChest = DRImage("chest", 330);
+                    loginChest.style.position = Position.Absolute;
+                    loginChest.style.right = 40;
+                    loginChest.style.top = 20;
+                    card.Add(loginChest);
+                    loginIcons[d] = loginChest;
                 }
                 else
                 {
-                    body.Add(day);
-                    body.Add(CoinPile(62));
-                    body.Add(loginAmounts[d]);
+                    var icon = DRImage(coinArt[d], 160);
+                    icon.style.position = Position.Absolute;
+                    icon.style.left = (cardW - 160f) / 2f;
+                    icon.style.top = 48;
+                    card.Add(icon);
+                    loginIcons[d] = icon;
+                    amount.style.position = Position.Absolute;
+                    amount.style.left = 0;
+                    amount.style.right = 0;
+                    amount.style.bottom = 12;
+                    amount.style.unityTextAlign = TextAnchor.MiddleCenter;
+                    amount.style.fontSize = 52;
                 }
-                t.Add(body);
-                loginBodies[d] = body;
-                // Alınmış gün: büyük sarı tik
-                var check = new Icon(IconKind.Check, wide ? 150 : 132, gold);
+                card.Add(amount);
+
+                // TODAY etiketi (turkuaz hap), kilit, alındı işareti
+                var today = L("TODAY", "heavy");
+                today.style.position = Position.Absolute;
+                today.style.right = grand ? 40 : 22;
+                today.style.top = grand ? 22 : 16;
+                today.style.fontSize = 30;
+                today.style.color = DRNavy;
+                today.style.backgroundColor = DRTeal;
+                today.style.paddingLeft = today.style.paddingRight = 20;
+                today.style.paddingTop = today.style.paddingBottom = 2;
+                today.style.borderTopLeftRadius = today.style.borderTopRightRadius = today.style.borderBottomLeftRadius = today.style.borderBottomRightRadius = 24;
+                card.Add(today);
+                loginTodayTags[d] = today;
+                var lockIcon = new Icon(IconKind.Lock, grand ? 58 : 48, new Color(0.72f, 0.78f, 0.95f));
+                lockIcon.style.position = Position.Absolute;
+                lockIcon.style.right = grand ? 40 : 24;
+                lockIcon.style.top = grand ? 22 : 16;
+                card.Add(lockIcon);
+                loginLocks[d] = lockIcon;
+                var check = new VisualElement { pickingMode = PickingMode.Ignore };
                 check.style.position = Position.Absolute;
-                check.style.alignSelf = Align.Center;
-                check.style.top = wide ? 66 : 64;
-                check.style.display = DisplayStyle.None;
-                t.Add(check);
+                check.style.width = check.style.height = grand ? 110 : 84;
+                check.style.left = grand ? (InnerW - 110f) / 2f : (cardW - 84f) / 2f;
+                check.style.top = grand ? 70 : 50;
+                check.style.borderTopLeftRadius = check.style.borderTopRightRadius = check.style.borderBottomLeftRadius = check.style.borderBottomRightRadius = 75;
+                check.style.backgroundColor = (Color)new Color32(0x3F, 0xD1, 0x5B, 0xFF);
+                check.style.borderBottomWidth = 8;
+                check.style.borderBottomColor = (Color)new Color32(0x22, 0x9A, 0x3C, 0xFF);
+                check.style.alignItems = Align.Center;
+                check.style.justifyContent = Justify.Center;
+                check.Add(new Icon(IconKind.Check, grand ? 76 : 58, Color.white));
+                card.Add(check);
                 loginChecks[d] = check;
-                loginDays[d] = t;
-                return t;
+                return card;
             }
 
             for (int r = 0; r < 3; r++)
             {
-                var row = E("row");
-                row.style.alignSelf = Align.Stretch;
-                row.Add(Tile(r * 2, false));
-                row.Add(Tile(r * 2 + 1, false));
-                inner.Add(row);
+                var row = new VisualElement();
+                row.style.flexDirection = FlexDirection.Row;
+                row.style.justifyContent = Justify.SpaceBetween;
+                row.style.width = InnerW;
+                row.style.marginBottom = Gap;
+                row.Add(Card(r * 2));
+                row.Add(Card(r * 2 + 1));
+                loginPanel.Add(row);
             }
-            var row7 = E("row");
-            row7.style.alignSelf = Align.Stretch;
-            row7.Add(Tile(6, true));
-            inner.Add(row7);
+            loginPanel.Add(Card(6));
 
-            var claim = B(() => { ClaimLogin?.Invoke(); Close(loginModal, loginCard); }, "btn", "btn-big");
-            claim.name = "menu-login-close";
-            claim.text = "CLAIM";
-            claim.style.backgroundColor = (Color)new Color32(0xFF, 0xC9, 0x3C, 0xFF);
-            claim.style.borderBottomColor = (Color)new Color32(0xD2, 0x86, 0x10, 0xFF);
-            claim.style.color = brownInk;
-            claim.style.unityTextOutlineWidth = 0;
-            claim.style.fontSize = 84;
-            claim.style.alignSelf = Align.Center;
-            claim.style.width = Length.Percent(62);
-            claim.style.marginTop = 28;
-            inner.Add(claim);
+            // Altın CLAIM düğmesi: canlı metin ve coin ikonu
+            loginClaimBtn = new Button(PressClaim) { name = "menu-login-close" };
+            loginClaimBtn.style.width = 720;
+            loginClaimBtn.style.height = 720f * 170f / 900f;
+            loginClaimBtn.style.marginTop = 30;
+            loginClaimBtn.style.backgroundImage = DR("button-claim");
+            loginClaimBtn.style.backgroundColor = Color.clear;
+            loginClaimBtn.style.borderTopWidth = loginClaimBtn.style.borderBottomWidth = loginClaimBtn.style.borderLeftWidth = loginClaimBtn.style.borderRightWidth = 0;
+            loginClaimBtn.style.flexDirection = FlexDirection.Row;
+            loginClaimBtn.style.alignItems = Align.Center;
+            loginClaimBtn.style.justifyContent = Justify.Center;
+            loginClaimBtn.style.paddingBottom = 8;
+            loginClaimText = L("CLAIM", "heavy");
+            loginClaimText.style.fontSize = 70;
+            loginClaimText.style.color = DRNavy;
+            loginClaimBtn.Add(loginClaimText);
+            var btnCoin = new Icon(IconKind.Coin, 84);
+            btnCoin.style.marginLeft = 16;
+            loginClaimBtn.Add(btnCoin);
+            loginPanel.Add(loginClaimBtn);
 
-            loginModal.Add(loginCard);
+            loginNextText = L("Next reward unlocks tomorrow", "heavy");
+            loginNextText.style.fontSize = 36;
+            loginNextText.style.color = new Color(0.78f, 0.84f, 1f);
+            loginNextText.style.marginTop = 18;
+            loginPanel.Add(loginNextText);
+            var rule = new VisualElement();
+            rule.style.width = InnerW * 0.8f;
+            rule.style.height = 3;
+            rule.style.marginTop = 16;
+            rule.style.marginBottom = 14;
+            rule.style.backgroundColor = new Color(0.4f, 0.48f, 0.8f, 0.6f);
+            loginPanel.Add(rule);
+            loginTotalText = L("", "heavy");
+            loginTotalText.style.fontSize = 34;
+            loginTotalText.style.color = new Color(0.78f, 0.84f, 1f);
+            loginPanel.Add(loginTotalText);
+
+            loginFxLayer = new VisualElement { pickingMode = PickingMode.Ignore };
+            loginFxLayer.style.position = Position.Absolute;
+            loginFxLayer.style.left = loginFxLayer.style.right = loginFxLayer.style.top = loginFxLayer.style.bottom = 0;
+            loginModal.Add(loginFxLayer);
+
+            // Ekrana sığdır: dar/uzun telefonlarda panel orantılı küçülür (taşmaz)
+            loginModal.RegisterCallback<GeometryChangedEvent>(_ => FitLogin());
+            loginPanel.RegisterCallback<GeometryChangedEvent>(_ => FitLogin());
+
             safe.Add(loginModal);
-            // Bugünkü kutu nabız gibi atar
-            loginModal.schedule.Execute(() =>
+            loginModal.schedule.Execute(TickLogin).Every(16);
+        }
+
+        void FitLogin()
+        {
+            var m = loginModal.layout;
+            var p = loginPanel.layout;
+            if (p.height < 10f || m.height < 10f) return;
+            loginFit = Mathf.Min(1f, 0.95f * m.height / p.height, 0.97f * m.width / p.width);
+        }
+
+        void TickLogin()
+        {
+            if (loginModal.style.display == DisplayStyle.None) return;
+            float t = Time.unscaledTime;
+            // Açılış: ~250 ms solma ve 0.95 -> 1 ölçek
+            float open = 1f;
+            if (loginOpenT >= 0f)
             {
-                if (loginToday == null || loginModal.style.display == DisplayStyle.None) return;
-                float k = 1f + 0.035f * Mathf.Sin(Time.unscaledTime * 6f);
-                loginToday.style.scale = new Scale(new Vector2(k, k));
+                open = Mathf.Clamp01((t - loginOpenT) / 0.25f);
+                if (open >= 1f) loginOpenT = -1f;
+            }
+            float press = 1f;
+            if (loginPressT >= 0f)
+            {
+                float u = (t - loginPressT) / 0.16f;
+                press = u >= 1f ? 1f : 1f - 0.03f * Mathf.Sin(u * Mathf.PI);   // 1 -> 0.97 -> 1
+                if (u >= 1f) loginPressT = -1f;
+            }
+            float e = 1f - (1f - open) * (1f - open);
+            loginPanel.style.opacity = e;
+            loginPanel.style.scale = new Scale(Vector2.one * loginFit * Mathf.Lerp(0.95f, 1f, e));
+            loginClaimBtn.style.scale = new Scale(Vector2.one * press);
+            // Bugünün kartı: yavaş, hafif ışıltı
+            if (loginToday >= 0) loginGlows[loginToday].style.opacity = 0.35f + 0.45f * (0.5f + 0.5f * Mathf.Sin(t * 2.4f));
+            // Sandık: hafif sallanma
+            if (loginChest != null) loginChest.style.rotate = new Rotate(2.5f * Mathf.Sin(t * 1.6f));
+        }
+
+        /// day: bugün alınacak (claimed=false) ya da bugün alınmış (claimed=true) gün (1..7); coins: 7 günün ödülü.
+        public void ShowLogin(int day, int[] coins, bool claimed)
+        {
+            var tr = Tr;
+            loginToday = claimed ? -1 : day - 1;
+            loginClaiming = false;
+            int total = 0;
+            for (int d = 0; d < 7; d++)
+            {
+                total += coins[d];
+                bool done = d < day - 1 || (claimed && d == day - 1), today = !claimed && d == day - 1, future = !done && !today;
+                loginCards[d].Q<Label>("login-amount-" + d).text = coins[d].ToString("N0", tr);
+                if (d < 6) loginCards[d].style.backgroundImage = DR(today ? "card-active" : "card-default");
+                loginGlows[d].style.display = today ? DisplayStyle.Flex : DisplayStyle.None;
+                loginTodayTags[d].style.display = today ? DisplayStyle.Flex : DisplayStyle.None;
+                loginLocks[d].style.display = future ? DisplayStyle.Flex : DisplayStyle.None;
+                loginChecks[d].style.display = done ? DisplayStyle.Flex : DisplayStyle.None;
+                loginIcons[d].style.opacity = done ? 0.45f : 1f;
+                loginCards[d].style.opacity = done ? 0.72f : 1f;
+                // İlerleme noktası: alınmış dolu turkuaz, bugün parlak halka, gelecek koyu
+                var dot = loginDots[d];
+                Color fill = done ? DRTeal : today ? new Color(0.75f, 1f, 1f) : new Color(0.2f, 0.25f, 0.5f);
+                Color ring = today ? DRTeal : done ? new Color(0.6f, 0.95f, 1f) : new Color(0.38f, 0.45f, 0.75f);
+                dot.style.backgroundColor = fill;
+                dot.style.borderTopColor = dot.style.borderBottomColor = dot.style.borderLeftColor = dot.style.borderRightColor = ring;
+                dot.style.scale = new Scale(Vector2.one * (today ? 1.25f : 1f));
+            }
+            int amountNow = coins[Mathf.Clamp(day - 1, 0, 6)];
+            loginClaimText.text = claimed ? "COME BACK TOMORROW" : "CLAIM " + amountNow.ToString("N0", tr);
+            loginClaimText.style.fontSize = claimed ? 48 : 70;
+            loginClaimBtn.SetEnabled(!claimed);
+            loginClaimBtn.style.opacity = claimed ? 0.7f : 1f;
+            loginNextText.text = claimed || day < 7 ? "Next reward unlocks tomorrow" : "Tomorrow the streak starts again";
+            loginTotalText.text = "7-day total: " + total.ToString("N0", tr) + " coins";
+            loginPanel.RemoveFromClassList("off");
+            loginModal.style.display = DisplayStyle.Flex;
+            loginOpenT = Time.unscaledTime;
+            loginPanel.style.opacity = 0f;
+            FitLogin();
+        }
+
+        /// CLAIM: tek sefer (hızlı tekrar dokunma ikinci kez vermez; kayıt GameController.ClaimLoginReward'da, bugün işaretiyle
+        /// birlikte tek Save). Basış animasyonu, parıltı ve bakiyeye uçan jetonlar; sonra pencere kapanır.
+        void PressClaim()
+        {
+            if (loginClaiming || loginToday < 0) return;
+            loginClaiming = true;
+            loginClaimBtn.SetEnabled(false);
+            loginPressT = Time.unscaledTime;
+            click?.Invoke();
+            ClaimLogin?.Invoke();
+            int today = loginToday;
+            loginToday = -1;
+            loginGlows[today].style.display = DisplayStyle.None;
+            loginTodayTags[today].style.display = DisplayStyle.None;
+            loginChecks[today].style.display = DisplayStyle.Flex;
+            loginIcons[today].style.opacity = 0.45f;
+            // Parıltı: düğme üstünde kısa ışın patlaması
+            var b = loginClaimBtn.worldBound;
+            var fx = loginFxLayer.worldBound;
+            var burst = new RayBurst();
+            burst.style.left = b.center.x - fx.x - 220;
+            burst.style.top = b.center.y - fx.y - 220;
+            burst.style.right = StyleKeyword.Auto;
+            burst.style.bottom = StyleKeyword.Auto;
+            burst.style.width = burst.style.height = 440;
+            loginFxLayer.Add(burst);
+            // Jetonlar coin sayacına uçar
+            Vector2 from = b.center - fx.position;
+            Vector2 to = from + new Vector2(0f, -900f);
+            foreach (var pill in coinPills)
+                if (pill.panel != null && pill.resolvedStyle.display != DisplayStyle.None && pill.worldBound.width > 1f)
+                {
+                    to = pill.worldBound.center - fx.position;
+                    break;
+                }
+            float start = Time.unscaledTime;
+            var flying = new System.Collections.Generic.List<VisualElement>();
+            for (int k = 0; k < 9; k++)
+            {
+                var c = new Icon(IconKind.Coin, 72);
+                c.style.position = Position.Absolute;
+                c.style.left = from.x - 36;
+                c.style.top = from.y - 36;
+                loginFxLayer.Add(c);
+                flying.Add(c);
+            }
+            IVisualElementScheduledItem item = null;
+            item = loginFxLayer.schedule.Execute(() =>
+            {
+                float t = Time.unscaledTime - start;
+                for (int k = 0; k < flying.Count; k++)
+                {
+                    float u = Mathf.Clamp01((t - k * 0.05f) / 0.6f);
+                    float e = u * u * (3f - 2f * u);
+                    Vector2 spread = new Vector2(Mathf.Sin(k * 2.1f) * 140f, Mathf.Cos(k * 1.3f) * 60f - 80f) * Mathf.Sin(u * Mathf.PI);
+                    Vector2 pos = Vector2.Lerp(from, to, e) + spread;
+                    flying[k].style.left = pos.x - 36;
+                    flying[k].style.top = pos.y - 36;
+                    flying[k].style.opacity = u >= 1f ? 0f : 1f;
+                    flying[k].style.scale = new Scale(Vector2.one * Mathf.Lerp(1f, 0.6f, e));
+                }
+                burst.style.opacity = Mathf.Clamp01(1f - t / 0.7f);
+                if (t > 0.6f + flying.Count * 0.05f + 0.15f)
+                {
+                    item.Pause();
+                    loginFxLayer.Clear();
+                    Close(loginModal, loginPanel);
+                    loginClaiming = false;
+                }
             }).Every(16);
         }
 
-        /// day: bugün alınacak gün (1..7); coins/gems: 7 günün ödülleri.
-        public void ShowLogin(int day, int[] coins, int[] gems)
+        public void DebugPressClaim() => PressClaim();
+        public string DebugLoginLayout()
         {
-            if (loginToday != null) loginToday.style.scale = new Scale(Vector2.one);
-            loginToday = null;
-            for (int d = 0; d < 7; d++)
-            {
-                loginAmounts[d].text = d == 6 ? (gems[d] > 0 ? gems[d] + " GEMS" : "") + (coins[d] > 0 ? (gems[d] > 0 ? "\n" : "") + coins[d] : "")
-                                              : coins[d] + (gems[d] > 0 ? "\n+" + gems[d] + " GEMS" : "");
-                bool past = d < day - 1, today = d == day - 1;
-                loginChecks[d].style.display = past ? DisplayStyle.Flex : DisplayStyle.None;
-                loginBodies[d].style.opacity = past ? 0.3f : 1f;
-                var t = loginDays[d];
-                Color edge = today ? (Color)new Color32(0xFF, 0xD8, 0x4A, 0xFF) : d == 6 ? (Color)new Color32(0xFF, 0xD8, 0x4A, 0xFF) : (Color)new Color32(0xC8, 0x8B, 0x4E, 0xFF);
-                t.style.borderTopColor = t.style.borderBottomColor = t.style.borderLeftColor = t.style.borderRightColor = edge;
-                float w = today ? 12 : 8;
-                t.style.borderTopWidth = t.style.borderBottomWidth = t.style.borderLeftWidth = t.style.borderRightWidth = w;
-                if (d < 6) t.style.backgroundColor = past ? (Color)new Color32(0x5A, 0x33, 0x1C, 0xFF)
-                                                   : today ? (Color)new Color32(0xA0, 0x62, 0x36, 0xFF) : (Color)new Color32(0x7A, 0x48, 0x2A, 0xFF);
-                if (today) loginToday = t;
-            }
-            Open(loginModal, loginCard);
+            var c = loginCards[0];
+            var tex = Resources.Load<Texture2D>("UI/DailyRewards/card-default");
+            return "card layout " + c.layout + " tex " + (tex != null ? tex.width + "x" + tex.height : "null") + " panel " + loginPanel.layout + " fit " + loginFit;
         }
 
         // ================================================================ kalıcı parça duyurusu

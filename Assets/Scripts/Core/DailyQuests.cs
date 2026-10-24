@@ -30,6 +30,18 @@ namespace SlingRiders
         public bool perfect, finished;
     }
 
+    /// Günlük giriş ödülü yapılandırması (kullanıcı 2026-10-24): reward(day) = BaseReward * 2^(day - 1),
+    /// 7 gün: 100, 200, 400, 800, 1600, 3200, 6400 (toplam 12 700 coin). Coin o anki parkurun kumbarasına gider.
+    /// Gün yenileme (yerel gece yarısı), gün atlanınca seriyi baştan başlatma ve 7. günden sonra 1. güne dönme kuralları
+    /// SaveData.PendingLoginDay'dedir.
+    public static class DailyRewardConfig
+    {
+        public const int BaseReward = 100;
+        public const int Days = 7;
+        public static int Reward(int day) => BaseReward << Mathf.Clamp(day - 1, 0, Days - 1);
+        public static int WeekTotal { get { int t = 0; for (int d = 1; d <= Days; d++) t += Reward(d); return t; } }
+    }
+
     /// Günlük görevler (kullanıcı isteği 2026-10-09; 2026-10-23'ten beri 5): her gün PerDay görev, oyuncunun bulunduğu parkura göre çeşitlenir
     /// (buzlu pistte buz görevi, köprülü pistte köprü görevi; hedefler parkur uzunluğuna göre). Görev listesi gün ve
     /// parkurdan türetilir (aynı gün aynı parkurda hep aynı liste); ilerleme ve alınan ödüller kayıtta tutulur.
@@ -56,10 +68,7 @@ namespace SlingRiders
         /// Günlük giriş ödülü (gün 1..7): coin parkura göre ölçeklenir; 3. ve 7. gün elmas, 7. gün büyük ödül.
         public static void LoginReward(int day, int track, out int coins, out int gems)
         {
-            float pay = Mathf.Max(1f, TrackLibrary.PayFactors[track] * TrackLibrary.CostScale[track]);
-            int[] baseCoins = { 100, 150, 200, 250, 300, 400, 800 };
-            coins = Mathf.RoundToInt(baseCoins[Mathf.Clamp(day - 1, 0, 6)] * pay / 4f / 10f) * 10;
-            coins = Mathf.Max(coins, baseCoins[Mathf.Clamp(day - 1, 0, 6)]);
+            coins = DailyRewardConfig.Reward(day);
             // 2026-10-24 (kullanıcı: "günlük ödülle elmas olmamalı"): elmas yok; 7. gün büyük coin ödülü.
             gems = 0;
         }

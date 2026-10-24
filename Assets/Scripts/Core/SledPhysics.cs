@@ -36,6 +36,10 @@ namespace SlingRiders
         public static float MaxGlideRatio(float wingArea) =>
             0.5f * Mathf.Sqrt(Mathf.PI * AspectRatio(wingArea) * 0.8f / WingCd0(wingArea));  // rad, kanatlı kızağın kendiliğinden tuttuğu hücum açısı (en iyi süzülmeye yakın)
         const float MaxPitch = 1.2f;     // rad
+        /// Kanatsız kızakta burnun uçuş yolundan bu kadar (rad, ~26°) fazla kalkması dengeyi bozar.
+        public const float UnstableExcess = 0.45f;
+        /// Kanatsız kızağın dengesi bozuk (burun fazla kalktı): oyuncu öne itmeli.
+        public bool Unstable;
         const float WallSlope = 1.4f;    // ~55°, bundan dik yüzey duvardır
         const float HalfWidth = 0.38f;
         /// Köprüden dereye düşme sonu (oyun su sıçratır).
@@ -545,7 +549,17 @@ namespace SlingRiders
                 if (v.y < -7f) alpha = 0.24f;
                 pitch = Mathf.MoveTowards(pitch, gamma + alpha, 1.5f * dt);
             }
-            else pitch = Mathf.MoveTowards(pitch, gamma, 0.5f * dt);
+            else
+            {
+                // Kanatsız (kullanıcı 2026-10-24: "roketle rampada kızağın önü havaya kalkıp geri yatıyor; hafif kalkmalı"):
+                // burun uçuş yoluna hızla döner (0.5 rad/s'de geride kalıp roketle daha da kalkıyordu), hafif yukarıda durur.
+                // Aşırı kalkarsa denge bozulur: burun kendiliğinden kalkmaya devam eder; oyuncu parmağını öne iterek düzeltir
+                // (PitchRate devrilmeden hızlı), yoksa ters iner ("You flipped!").
+                float excess = pitch - gamma;
+                if (excess > UnstableExcess) pitch += (excess - UnstableExcess * 0.5f) * 0.9f * dt;
+                else pitch = Mathf.MoveTowards(pitch, gamma + 0.06f, 1.6f * dt);
+            }
+            Unstable = !wingsOpen && pitch - gamma > UnstableExcess;
             pitch = Mathf.Clamp(pitch, -MaxPitch, MaxPitch);
             // Kanatlı kızak (kuyruklu planör gibi) kendini akışa hizalar: burun akışın
             // altına bastırılamaz, böylece eksi g oluşmaz; en fazla ~25° kabartılabilir.
