@@ -222,7 +222,7 @@ namespace SledSurfers
         /// kırmızı ok başları. Üstünden geçen kızak hafifçe sıçrar ve hızlanır (SledPhysics). x: levhanın ortası (z boyunca düz).
         public struct Boost { public float z0, z1, x; public bool ramp; }
         public readonly List<Boost> boosts = new List<Boost>();
-        public const float BoostHalfWidth = 1.3f, BoostLength = 7f;
+        public const float BoostHalfWidth = 1.6f, BoostLength = 10f;   // 2026-10-24: kullanıcının levha görseline göre genişletildi (oran ~0.3)
 
         /// (x, z) hangi hızlandırıcının üstünde (yoksa -1)?
         public int BoostAt(float x, float z)
