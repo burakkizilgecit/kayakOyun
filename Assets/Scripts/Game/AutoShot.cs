@@ -1481,7 +1481,7 @@ namespace SlingRiders
                 HomeCheck(texture != null && texture.name == files[i], names[i] + " is missing its imported artwork");
                 int callbacks = HomeTrackTheme.SliceCallbackCount(art);
                 HomeCheck(callbacks == (i == 2 ? 1 : 0), names[i] + " has accumulated resize callbacks");
-                Vector4 expectedSlices = i != 2 ? Vector4.zero : HomeTrackTheme.Slug(trackIndex) == "winter" ? new Vector4(180f, 170f, 180f, 250f)
+                Vector4 expectedSlices = i != 2 ? Vector4.zero : false ? new Vector4(180f, 170f, 180f, 250f)
                     : new Vector4(Mathf.RoundToInt(texture.width * 0.1f), Mathf.RoundToInt(texture.height * 0.19f),
                                   Mathf.RoundToInt(texture.width * 0.1f), Mathf.RoundToInt(texture.height * 0.28f));
                 var actualSlices = new Vector4(art.style.unitySliceLeft.value, art.style.unitySliceBottom.value,
@@ -1547,7 +1547,7 @@ namespace SlingRiders
         void MenuThemeReport(int trackIndex, string name)
         {
             string slug = HomeTrackTheme.Slug(trackIndex);
-            string expected = HomeTrackTheme.Slug(trackIndex) == "winter" ? "UI/Shop/shop_bg" : "UI/MenuThemes/" + slug + "/background";
+            string expected = "UI/MenuThemes/" + slug + "/background";
             int count = 0;
             HomeRoot.Query<VisualElement>(className: "menu-theme-background").ForEach(_ => count++);
             HomeCheck(count == MenuBackgrounds.Length, "menu background layers accumulated or are missing: " + count);
@@ -1567,7 +1567,7 @@ namespace SlingRiders
                     if (background.ClassListContains("menu-theme-" + HomeTrackTheme.Slug(i))) classes++;
                 HomeCheck(classes == 1 && background.ClassListContains("menu-theme-" + slug), id + " retained a stale theme class");
                 var texture = background.style.backgroundImage.value.texture;
-                HomeCheck(texture != null && texture.name == (HomeTrackTheme.Slug(trackIndex) == "winter" ? "shop_bg" : "background"), id + " has no imported menu texture");
+                HomeCheck(texture != null && texture.name == "background", id + " has no imported menu texture");
                 if (shared == null) shared = texture;
                 HomeCheck(texture == shared, id + " duplicated the selected track texture");
                 HomeCheck(trackIndex == 3 || (texture.width <= 1024 && texture.height <= 1024), id + " exceeds the new menu texture budget");

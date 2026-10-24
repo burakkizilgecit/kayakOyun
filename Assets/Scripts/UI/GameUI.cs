@@ -589,6 +589,7 @@ namespace SlingRiders
 
         /// Koşuda ekranın ortasında kısa bir yazı (kapak, roket kilidi...).
         Label threatLabel;
+        bool? hubChestReadyShown;
 
         /// Arkadaki tehlikenin mesafesi (m, gösterim ölçeğinde); negatifse gizlenir. Yaklaştıkça kızarır ve nabız atar.
         public void ShowThreat(string text, float closeness, float time)
@@ -757,10 +758,9 @@ namespace SlingRiders
             wallet.Add(HomeCurrency(GemPill(), "home-gems-plus"));
             wallet.Add(LaunchPill());
             top.Add(wallet);
-            var gear = B(() => ShowSettings(true), "btn", "home-gear");
+            var gear = B(() => ShowSettings(true), "btn", "kit-round", "kit-settings");
             gear.name = "home-settings";
-            gear.style.backgroundImage = new StyleBackground(VGrad(new Color32(69, 181, 251, 255), new Color32(28, 101, 219, 255)));
-            gear.Add(new Icon(IconKind.Gear, 64));
+            gear.style.width = gear.style.height = 120;
             top.Add(gear);
             p.Add(top);
 
@@ -1299,13 +1299,8 @@ namespace SlingRiders
                 c.cost.style.fontSize = c.cost.text.Length <= 4 ? 48 : c.cost.text.Length == 5 ? 44 : 38;
 
                 // Buton: alınabilirse yeşil (parıltılı), elmasla pembe, tamamlandıysa altın, yetmiyorsa gri.
-                Color green = new Color32(0x3F, 0xD1, 0x5B, 0xFF), greenDark = new Color32(0x22, 0xA0, 0x3C, 0xFF);
-                Color goldC = new Color32(0xFF, 0xC4, 0x2E, 0xFF), goldDark = new Color32(0xD0, 0x8A, 0x0B, 0xFF);
-                Color btnTop = afford ? green : gemPay ? GemPink : maxed ? goldC : CardGray;
-                Color btnDark = afford ? greenDark : gemPay ? GemPinkDark : maxed ? goldDark : CardGrayDark;
-                c.buy.style.backgroundImage = new StyleBackground(VGrad(Color.Lerp(btnTop, Color.white, 0.25f), btnTop));
-                c.buy.style.backgroundColor = btnTop;
-                c.buy.style.borderBottomColor = btnDark;
+                // Ortak görsel seti: alınabilir yeşil, elmasla altın, tamamlandı beyaz, yetmiyor gri
+                KitButton(c.buy, afford ? "btn-green" : gemPay ? "btn-gold" : maxed ? "btn-white" : "btn-gray", 104f);
                 c.canBuy = afford || gemPay;
                 if (i == bought) c.bump = 1f;
             }
@@ -1367,6 +1362,11 @@ namespace SlingRiders
             if (chestLabel.text != chestText) chestLabel.text = chestText;
             chestLabel.style.color = Color.white;
             homeChestDot.style.display = chestReady ? DisplayStyle.Flex : DisplayStyle.None;
+            if (chestReady != hubChestReadyShown)
+            {
+                hubChestReadyShown = chestReady;
+                chestIcon.style.backgroundImage = Background.FromTexture2D(Resources.Load<Texture2D>("UI/Kit/" + (chestReady ? "chest-ready" : "chest-closed")));
+            }
             float wiggle = chestReady ? 3f * Mathf.Sin(time * 5f) * Mathf.Max(0f, Mathf.Sin(time * 0.8f)) : 0f;
             chestIcon.style.rotate = new Rotate(Angle.Degrees(wiggle));
 
@@ -1534,7 +1534,11 @@ namespace SlingRiders
             stage.style.height = 560;
             chestRays = new RayBurst();
             stage.Add(chestRays);
-            var big = new Icon(IconKind.Chest, 400);
+            var big = new VisualElement { pickingMode = PickingMode.Ignore };   // ortak setin açık, coin dolu sandığı
+            big.style.width = 520;
+            big.style.height = 520f * 512f / 768f;
+            big.style.backgroundImage = Background.FromTexture2D(Resources.Load<Texture2D>("UI/Kit/chest-open-coins"));
+            big.style.unityBackgroundScaleMode = ScaleMode.ScaleToFit;
             big.name = "chest-big";
             stage.Add(big);
             chestCard.Add(stage);
@@ -1660,9 +1664,8 @@ namespace SlingRiders
             var title = L("SHOP", "outlined");
             title.style.fontSize = 84;
             top.Add(title);
-            var close = B(() => shopModal.style.display = DisplayStyle.None, "btn", "btn-round", "shop-close");
+            var close = B(() => shopModal.style.display = DisplayStyle.None, "btn", "kit-round", "kit-close", "shop-close");
             close.name = "home-shop-close";
-            close.text = "X";
             top.Add(close);
             shopModal.Add(top);
 
@@ -1741,14 +1744,26 @@ namespace SlingRiders
         /// Ürün görseli: Resources/UI/Shop/<ad>.png varsa o (180 px kutuda), yoksa çizilen ikon.
         static VisualElement ShopArt(string name, IconKind fallback, float iconSize)
         {
-            var tex = Resources.Load<Texture2D>("UI/Shop/" + name);
-            if (tex == null) return new Icon(fallback, iconSize);
+            // 2026-10-24: ortak görsel setinin paketleri (UI/Kit/shop-gems-N, shop-coins-N; N = kademe 1..6). Eski
+            // "gems_<miktar>" adı kademeye çevrilir.
+            Texture2D tex = null;
+            if (name.StartsWith("gems_")) tex = Resources.Load<Texture2D>("UI/Kit/shop-gems-" + GemTier(name));
+            else if (name.StartsWith("coins_")) tex = Resources.Load<Texture2D>("UI/Kit/shop-coins-" + name.Substring(6));
+            if (tex == null) tex = Resources.Load<Texture2D>("UI/Shop/" + name);
+            if (tex == null) return new Icon(fallback, iconSize, Ink);   // beyaz kartta koyu ikon
             var img = new VisualElement();
             img.style.width = 190;
             img.style.height = 160;
             img.style.backgroundImage = new StyleBackground(tex);
             img.style.unityBackgroundScaleMode = ScaleMode.ScaleToFit;
             return img;
+        }
+
+        static int GemTier(string id)
+        {
+            int amount = int.TryParse(id.Substring(5), out int v) ? v : 0;
+            int k = System.Array.IndexOf(GemPacks, amount);
+            return Mathf.Clamp(k + 1, 1, 6);
         }
 
         VisualElement Grid(int[] amounts, string[] prices, IconKind icon, string idPrefix, int[] tagAt, string[] tags)
@@ -1904,31 +1919,16 @@ namespace SlingRiders
 
         Button DealCloseButton(Action onClick)
         {
-            var b = B(onClick, "btn", "deal-close");
-            b.style.backgroundImage = new StyleBackground(VGrad(new Color32(0xFF, 0x5A, 0x4A, 0xFF), new Color32(0xE0, 0x1E, 0x1E, 0xFF)));
-            var x = new VisualElement();
-            x.pickingMode = PickingMode.Ignore;
-            x.style.width = x.style.height = 52;
-            x.generateVisualContent += ctx =>
-            {
-                var pt = ctx.painter2D;
-                pt.strokeColor = Color.white;
-                pt.lineWidth = 12f;
-                pt.lineCap = LineCap.Round;
-                pt.BeginPath(); pt.MoveTo(new Vector2(8f, 8f)); pt.LineTo(new Vector2(44f, 44f)); pt.Stroke();
-                pt.BeginPath(); pt.MoveTo(new Vector2(44f, 8f)); pt.LineTo(new Vector2(8f, 44f)); pt.Stroke();
-            };
-            b.Add(x);
+            // Ortak setin mor X'i (her pencerede aynı kapatma)
+            var b = B(onClick, "btn", "deal-close", "kit-round", "kit-close");
+            b.style.borderTopWidth = b.style.borderBottomWidth = b.style.borderLeftWidth = b.style.borderRightWidth = 0;
             return b;
         }
 
         Button DealBuyButton(out Label caption, out Label price, Action onClick)
         {
             var b = B(onClick, "btn", "deal-buy");
-            b.style.backgroundImage = new StyleBackground(VGrad(new Color32(0x8C, 0xE8, 0x4A, 0xFF), new Color32(0x3F, 0xC0, 0x2E, 0xFF)));
-            var gloss = E("deal-buy-gloss");
-            gloss.pickingMode = PickingMode.Ignore;
-            b.Add(gloss);
+            KitButton(b, "btn-green", 150f);
             caption = L("", "deal-buy-caption");
             b.Add(caption);
             price = L("", "deal-buy-price");
@@ -2283,11 +2283,13 @@ namespace SlingRiders
                 questRows[i] = row;
                 questCard.Add(row);
             }
-            var close = B(() => Close(questModal, questCard), "btn", "btn-white", "btn-mid");
+            // Standart kapatma: sağ üstte mor X (ortak görsel seti)
+            var close = B(() => Close(questModal, questCard), "btn", "kit-round", "kit-close");
             close.name = "home-quests-close";
-            close.text = "CLOSE";
-            close.style.alignSelf = Align.Stretch;
-            close.style.marginTop = 18;
+            close.style.position = Position.Absolute;
+            close.style.top = -60;
+            close.style.right = -50;
+            close.style.width = close.style.height = 130;
             questCard.Add(close);
             safe.Add(questModal);
         }
@@ -2370,9 +2372,8 @@ namespace SlingRiders
                     questIcons[i].Insert(0, gloss);
                 }
                 bool ready = done && !got;
-                questClaims[i].style.backgroundColor = ready ? (Color)new Color32(0xFF, 0xC9, 0x3C, 0xFF) : (Color)new Color32(0xC9, 0xC8, 0xCF, 0xFF);
-                questClaims[i].style.borderBottomColor = ready ? (Color)new Color32(0xD2, 0x86, 0x10, 0xFF) : (Color)new Color32(0xA3, 0xA2, 0xAA, 0xFF);
-                questClaims[i].style.color = ready ? (Color)new Color32(0x4A, 0x22, 0x0C, 0xFF) : Color.white;
+                KitButton(questClaims[i], ready ? "btn-gold" : "btn-gray", 110f);
+                questClaims[i].style.color = ready ? (Color)new Color32(0x2A, 0x14, 0x05, 0xFF) : Color.white;
                 questRewards[i].text = "+" + q.coins.ToString("N0", Tr);
                 questGemTexts[i].text = "+" + q.gems;
                 questGemChips[i].style.display = q.gems > 0 ? DisplayStyle.Flex : DisplayStyle.None;
@@ -2434,13 +2435,28 @@ namespace SlingRiders
             return pile;
         }
 
-        static Background DR(string name) => Background.FromTexture2D(Resources.Load<Texture2D>("UI/DailyRewards/" + name));
+        /// Ortak setten hap düğme görseli (9-slice; uçlar yuvarlak kalır). height: düğmenin yaklaşık yüksekliği (px).
+        static void KitButton(VisualElement b, string art, float height)
+        {
+            b.style.backgroundImage = Background.FromTexture2D(Resources.Load<Texture2D>("UI/Kit/" + art));
+            b.style.backgroundColor = Color.clear;
+            b.style.borderTopWidth = b.style.borderBottomWidth = b.style.borderLeftWidth = b.style.borderRightWidth = 0;
+            b.style.borderTopLeftRadius = b.style.borderTopRightRadius = b.style.borderBottomLeftRadius = b.style.borderBottomRightRadius = 0;
+            b.style.unitySliceLeft = b.style.unitySliceRight = 150;
+            b.style.unitySliceTop = b.style.unitySliceBottom = 70;
+            b.style.unitySliceScale = height / 280f;
+        }
+
+        // Ortak setteki karşılığı olanlar oradan (coin yığınları, sandık, kapatma, altın düğme); panel ve kartlar günlük ödül paketinden.
+        static string DRPath(string name) => name.StartsWith("coins-") ? "UI/Kit/" + name : name == "chest" ? "UI/Kit/chest-open-coins"
+            : name == "button-close" ? "UI/Kit/btn-close" : name == "button-claim" ? "UI/Kit/btn-gold" : "UI/DailyRewards/" + name;
+        static Background DR(string name) => Background.FromTexture2D(Resources.Load<Texture2D>(DRPath(name)));
 
         /// Görsel oranında boyutlanan resim (esnetilmez): genişlik verilir, yükseklik dokudan.
         static VisualElement DRImage(string name, float width)
         {
             var e = new VisualElement { pickingMode = PickingMode.Ignore };
-            var tex = Resources.Load<Texture2D>("UI/DailyRewards/" + name);
+            var tex = Resources.Load<Texture2D>(DRPath(name));
             if (tex != null)
             {
                 e.style.backgroundImage = Background.FromTexture2D(tex);
@@ -2652,7 +2668,7 @@ namespace SlingRiders
             // Altın CLAIM düğmesi: canlı metin ve coin ikonu
             loginClaimBtn = new Button(PressClaim) { name = "menu-login-close" };
             loginClaimBtn.style.width = 720;
-            loginClaimBtn.style.height = 720f * 170f / 900f;
+            loginClaimBtn.style.height = 720f * 280f / 880f;
             loginClaimBtn.style.marginTop = 30;
             loginClaimBtn.style.backgroundImage = DR("button-claim");
             loginClaimBtn.style.backgroundColor = Color.clear;
@@ -3016,7 +3032,7 @@ namespace SlingRiders
             if (chestModal.style.display.value == DisplayStyle.Flex)
             {
                 chestClock += dt;
-                var big = chestCard.Q<Icon>("chest-big");
+                var big = chestCard.Q<VisualElement>("chest-big");
                 float bounce = 1f + 0.12f * Mathf.Exp(-chestClock * 3f) * Mathf.Sin(chestClock * 14f);
                 big.style.scale = new Scale(new Vector2(bounce, bounce));
                 float pulse = 1f + 0.04f * Mathf.Sin(time * 5f);
@@ -3063,9 +3079,8 @@ namespace SlingRiders
             var p = NewPage(Page.Avatars);
 
             var top = E("topbar");
-            var back = B(() => OpenHub?.Invoke(), "btn", "btn-white", "btn-round");
+            var back = B(() => OpenHub?.Invoke(), "btn", "kit-round", "kit-back");
             back.name = "avatar-back";
-            back.Add(new Icon(IconKind.Back, 58, Ink));
             top.Add(back);
             var title = L("HEROES", "outlined");
             title.style.fontSize = 72;
@@ -3271,9 +3286,8 @@ namespace SlingRiders
             var p = NewPage(Page.Map);
 
             var top = E("topbar");
-            var back = B(() => OpenHub?.Invoke(), "btn", "btn-white", "btn-round");
+            var back = B(() => OpenHub?.Invoke(), "btn", "kit-round", "kit-back");
             back.name = "map-back";
-            back.Add(new Icon(IconKind.Back, 58, Ink));
             top.Add(back);
             var title = L("TRACKS", "outlined");
             title.style.fontSize = 80;
@@ -3493,8 +3507,8 @@ namespace SlingRiders
 
         Button PauseButton()
         {
-            var button = B(() => PauseRequested?.Invoke(), "btn", "btn-white", "pause-button");
-            button.text = "PAUSE";
+            var button = B(() => PauseRequested?.Invoke(), "btn", "kit-round", "kit-pause");
+            button.style.width = button.style.height = 104;
             return button;
         }
 
@@ -3575,11 +3589,11 @@ namespace SlingRiders
             p.Add(power);
 
             p.Add(E("grow"));
-            var back = B(() => OpenHub?.Invoke(), "btn", "btn-blue", "btn-mid");
-            back.text = "BACK";
-            back.style.width = 340;
-            back.style.alignSelf = Align.Center;
-            back.style.marginBottom = 20;
+            var back = B(() => OpenHub?.Invoke(), "btn", "kit-round", "kit-back");
+            back.name = "aim-back";
+            back.style.alignSelf = Align.FlexStart;
+            back.style.marginLeft = 24;
+            back.style.marginBottom = 30;
             p.Add(back);
         }
 
@@ -4303,7 +4317,7 @@ namespace SlingRiders
             ribbon.Add(title);
             launchCard.Add(ribbon);
 
-            var big = new Icon(IconKind.Slingshot, 200);
+            var big = new Icon(IconKind.Slingshot, 200, Ink);
             big.style.marginTop = 24;
             launchCard.Add(big);
             launchModalCount = L("0/" + SaveData.MaxLaunches, "outlined");

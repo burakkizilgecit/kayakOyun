@@ -12,11 +12,23 @@ namespace SlingRiders
         static Texture2D navigationAtlas;
         static readonly Sprite[] navigationSprites = new Sprite[4];
 
-        public static VisualElement Chest(float pixels) => NavigationIcon(0, pixels);
-        public static VisualElement Map(float pixels) => NavigationIcon(1, pixels);
-        public static VisualElement Clipboard(float pixels) => NavigationIcon(2, pixels);
-        public static VisualElement Shop(float pixels) => NavigationIcon(3, pixels);
-        public static VisualElement Plus(float pixels) => new PlusGlyph(pixels);
+        // 2026-10-24: ana ekran gezinme ikonları ortak görsel setinden (UI/Kit)
+        public static VisualElement Chest(float pixels) => KitImage("chest-closed", pixels);
+        public static VisualElement Map(float pixels) => KitImage("icons/icon-map", pixels);
+        public static VisualElement Clipboard(float pixels) => KitImage("icons/icon-quests", pixels);
+        public static VisualElement Shop(float pixels) => KitImage("icons/icon-shop", pixels);
+        public static VisualElement Plus(float pixels) => KitImage("btn-plus", pixels * 1.5f);
+
+        static VisualElement KitImage(string name, float pixels)
+        {
+            var icon = new VisualElement { pickingMode = PickingMode.Ignore };
+            icon.style.width = icon.style.height = pixels;
+            icon.style.flexShrink = 0;
+            var tex = Resources.Load<Texture2D>("UI/Kit/" + name);
+            if (tex != null) icon.style.backgroundImage = Background.FromTexture2D(tex);
+            icon.style.unityBackgroundScaleMode = ScaleMode.ScaleToFit;
+            return icon;
+        }
         public static VisualElement SnowAccent(float width, float height) => new SnowLip(width, height);
 
         static VisualElement NavigationIcon(int index, float pixels)

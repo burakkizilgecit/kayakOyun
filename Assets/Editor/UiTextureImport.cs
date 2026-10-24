@@ -10,7 +10,7 @@ namespace SlingRiders.EditorTools
         static readonly string[] Folders =
         {
             "Assets/Resources/UI/DailyRewards/", "Assets/Resources/UI/Logo/", "Assets/Resources/UI/Studio/",
-            "Assets/Resources/UI/Boost/", "Assets/Resources/UI/MapThumbs/",
+            "Assets/Resources/UI/Boost/", "Assets/Resources/UI/MapThumbs/", "Assets/Resources/UI/Kit/",
         };
 
         void OnPreprocessTexture()

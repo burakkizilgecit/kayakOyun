@@ -5,9 +5,76 @@ namespace SlingRiders
 {
     public enum IconKind { Coin, Flag, Gear, Back, Play, Slingshot, Runners, Wing, Glass, Hand, Swap, Wrench, Sound, Mute, Finish, Lock, Map, Check, Rocket, Income, Gem, Chest, Video, Flame }
 
-    /// Görsel dosyası kullanmadan Painter2D ile çizilen ikon. Koordinatlar 0..1 kare içinde tanımlanır.
+    /// Arayüz ikonu. 2026-10-24: ortak görsel setinden (Resources/UI/Kit) resmi olan türler resimle gösterilir: coin, gem,
+    /// sandık, kilit renkli; diğerleri tek renk (koyu zeminde krem, açık zeminde koyu lacivert sürüm; renk istenen tint'in
+    /// parlaklığından seçilir). Resmi olmayan ya da canlı değişen türler (geri, dişli, onay, süt seviyeli bardak) Painter2D
+    /// ile çizilir; koordinatlar 0..1 kare içinde.
     public class Icon : VisualElement
     {
+        static string KitArt(IconKind k)
+        {
+            switch (k)
+            {
+                case IconKind.Coin: return "coin";
+                case IconKind.Gem: return "gem";
+                case IconKind.Chest: return "chest-closed";
+                case IconKind.Lock: return "badge-lock";
+                default: return null;
+            }
+        }
+
+        static string KitIcon(IconKind k)
+        {
+            switch (k)
+            {
+                case IconKind.Flag: return "icon-flag";
+                case IconKind.Play: return "icon-play";
+                case IconKind.Slingshot: return "icon-slingshot";
+                case IconKind.Runners: return "icon-sled";
+                case IconKind.Wing: return "icon-wing";
+                case IconKind.Hand: return "icon-hand";
+                case IconKind.Swap: return "icon-swap";
+                case IconKind.Wrench: return "icon-wrench";
+                case IconKind.Sound: return "icon-sound";
+                case IconKind.Mute: return "icon-mute";
+                case IconKind.Finish: return "icon-finish";
+                case IconKind.Map: return "icon-map";
+                case IconKind.Rocket: return "icon-rocket";
+                case IconKind.Income: return "icon-income";
+                case IconKind.Video: return "icon-video";
+                case IconKind.Flame: return "icon-flame";
+                default: return null;
+            }
+        }
+
+        static readonly System.Collections.Generic.Dictionary<string, Texture2D> kitCache = new System.Collections.Generic.Dictionary<string, Texture2D>();
+        static Texture2D Kit(string path)
+        {
+            if (!kitCache.TryGetValue(path, out var t)) kitCache[path] = t = Resources.Load<Texture2D>("UI/Kit/" + path);
+            return t;
+        }
+
+        /// Kodla çizim yerine resim (varsa); yoksa arka plan temizlenir ve Draw çizer.
+        void ApplyArt()
+        {
+            Texture2D tex = null;
+            string full = KitArt(kind);
+            if (full != null) tex = Kit(full);
+            else
+            {
+                string mono = KitIcon(kind);
+                if (mono != null)
+                {
+                    float lum = tint.r * 0.299f + tint.g * 0.587f + tint.b * 0.114f;
+                    tex = Kit("icons/" + mono + (lum < 0.5f ? "-dark" : ""));
+                }
+            }
+            usesArt = tex != null;
+            style.backgroundImage = usesArt ? Background.FromTexture2D(tex) : new StyleBackground(StyleKeyword.None);
+            style.unityBackgroundScaleMode = ScaleMode.ScaleToFit;
+        }
+        bool usesArt;
+
         static readonly Color Ink = new Color32(0x2B, 0x23, 0x40, 0xFF);
         static readonly Color Gold = new Color32(0xFF, 0xD3, 0x4D, 0xFF);
         static readonly Color GoldDark = new Color32(0xE0, 0x96, 0x10, 0xFF);
@@ -23,6 +90,7 @@ namespace SlingRiders
             {
                 if (kind == value) return;
                 kind = value;
+                ApplyArt();
                 MarkDirtyRepaint();
             }
         }
@@ -41,11 +109,13 @@ namespace SlingRiders
             style.flexShrink = 0;
             pickingMode = PickingMode.Ignore;
             generateVisualContent += Draw;
+            ApplyArt();
         }
 
         public void SetTint(Color c)
         {
             tint = c;
+            ApplyArt();
             MarkDirtyRepaint();
         }
 
@@ -62,6 +132,7 @@ namespace SlingRiders
 
         void Draw(MeshGenerationContext ctx)
         {
+            if (usesArt) return;
             var r = contentRect;
             size = Mathf.Min(r.width, r.height);
             if (size <= 1f) return;

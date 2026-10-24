@@ -21,8 +21,7 @@ namespace SlingRiders
         int track = -1;
 
         public int CachedCount => textures.Count;
-        public static string AssetPath(int index) => HomeTrackTheme.Slug(index) == "winter" ? "UI/Shop/shop_bg"
-            : "UI/MenuThemes/" + HomeTrackTheme.Slug(index) + "/background";
+        public static string AssetPath(int index) => "UI/MenuThemes/" + HomeTrackTheme.Slug(index) + "/background";
 
         public void Register(VisualElement host, string name, float darkness)
         {

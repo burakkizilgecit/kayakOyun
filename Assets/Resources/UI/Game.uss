@@ -607,3 +607,42 @@
 }
 .deal-buy.purchase-unavailable { opacity: 0.7; }
 .purchase-unavailable .deal-buy-price { font-size: 58px; margin-top: 14px; }
+
+/* ---------------------------------------------------------------- ortak görsel seti (2026-10-24, UI/Kit)
+   Geniş düğmeler 880x280 hap görseli, 9-slice: yuvarlak uçlar (150 px) ve üst/alt kenar (70 px) esnemez.
+   Yükseklik sınıfına göre ölçek: 130 px -> 0.46, 160 px -> 0.57, 190 px -> 0.68. Basınca "-pressed" görseli. */
+.btn-green, .btn-orange, .btn-white, .btn-gray, .btn-blue, .btn-gold, .btn-max {
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    border-radius: 0;
+    -unity-background-scale-mode: stretch-to-fill;
+    -unity-slice-left: 150; -unity-slice-right: 150; -unity-slice-top: 70; -unity-slice-bottom: 70;
+    -unity-slice-scale: 0.46;
+    padding-bottom: 8px;
+}
+.btn-green { background-image: resource("UI/Kit/btn-green"); }
+.btn-green:active { background-image: resource("UI/Kit/btn-green-pressed"); }
+.btn-orange { background-image: resource("UI/Kit/btn-orange"); }
+.btn-orange:active { background-image: resource("UI/Kit/btn-orange-pressed"); }
+.btn-gold { background-image: resource("UI/Kit/btn-gold"); color: #2A1405; -unity-text-outline-width: 0; }
+.btn-gold:active { background-image: resource("UI/Kit/btn-gold-pressed"); }
+.btn-gold > Label { color: #2A1405; -unity-text-outline-width: 0; }
+.btn-white, .btn-blue, .btn-max { background-image: resource("UI/Kit/btn-white"); color: #141C4A; -unity-text-outline-width: 0; }
+.btn-white:active, .btn-blue:active, .btn-max:active { background-image: resource("UI/Kit/btn-white-pressed"); }
+.btn-white > Label, .btn-blue > Label, .btn-max > Label { color: #141C4A; -unity-text-outline-width: 0; }
+.btn-gray { background-image: resource("UI/Kit/btn-gray"); color: #FFFFFF; }
+.btn-big.btn-green, .btn-big.btn-orange, .btn-big.btn-white, .btn-big.btn-gray, .btn-big.btn-gold, .btn-big.btn-blue { -unity-slice-scale: 0.57; }
+.btn-huge.btn-green, .btn-huge.btn-orange, .btn-huge.btn-white, .btn-huge.btn-gray, .btn-huge.btn-gold { -unity-slice-scale: 0.68; }
+.pause-button.btn-white, .pause-button.btn-orange { -unity-slice-scale: 0.3; }
+
+/* Yuvarlak kontrol düğmeleri (tek görsel, metin yok) */
+.kit-round { width: 128px; height: 128px; padding: 0; background-color: rgba(0, 0, 0, 0); border-width: 0; border-radius: 0;
+             -unity-background-scale-mode: scale-to-fit; }
+.kit-back { background-image: resource("UI/Kit/btn-back"); }
+.kit-close { background-image: resource("UI/Kit/btn-close"); }
+.kit-settings { background-image: resource("UI/Kit/btn-settings"); }
+.kit-pause { background-image: resource("UI/Kit/btn-pause"); }
+.kit-plus { background-image: resource("UI/Kit/btn-plus"); }
+.shop-price.btn-green, .shop-price.btn-blue, .shop-price.btn-orange { -unity-slice-scale: 0.39; }
+.purchase-unavailable { background-image: resource("UI/Kit/btn-gray"); color: #FFFFFF; }
+.purchase-unavailable > Label { color: #FFFFFF; }
