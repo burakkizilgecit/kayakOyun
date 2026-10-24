@@ -416,10 +416,11 @@ namespace SledSurfers
                 // Çöken kaya köprü: hızlı geçiş (sağlam kalır) ve yavaş geçiş (arkadan çöker, kızak düşer).
                 game.DebugHideTutorial();
                 game.debugAutopilot = true;
+                foreach (int ctr in new[] { 0, 7 })
                 foreach (bool slow in new[] { false, true })
                 {
                     game.DebugReset(new[] { 25, 25, 20, 25, 20 }, 0);
-                    game.DebugTrack(7, 7);
+                    game.DebugTrack(ctr, ctr);
                     yield return new WaitForSeconds(1.5f);
                     float cbz0 = game.DebugBridgeZ(0);
                     game.DebugAim();
@@ -427,7 +428,7 @@ namespace SledSurfers
                     game.DebugLaunch(1f);
                     float wt = 0f;
                     while (!game.DebugInResult && game.DebugDistance < cbz0 - 8f && wt < 150f) { wt += Time.deltaTime; yield return null; }
-                    string tag = slow ? "slow" : "fast";
+                    string tag = (slow ? "slow" : "fast") + ctr;
                     float t0 = Time.time;
                     var marks = new[] { 0.6f, 1.6f, 2.4f, 3.2f, 4.2f };
                     int m = 0;

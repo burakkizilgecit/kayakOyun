@@ -1166,8 +1166,8 @@ namespace SledSurfers
             if (!hintedBridge && track.BridgeAt(sled.position.z + 30f, out _))
             {
                 hintedBridge = true;
-                ShowHint(Hint.Bridge, IconKind.Runners, track.fragileBridges ? "Crumbling rock bridge! Cross it fast"
-                                                                             : "Narrow bridges! Curvy ones hold coins", 3);
+                ShowHint(Hint.Bridge, IconKind.Runners, track.wallHalf > 0f ? "Crumbling rock bridge! Cross it fast"
+                                                                             : "Bridges crumble! Don't stop on them", 3);
             }
             // Hava numarası: hızlı kalkışta (rampa dudağı, yükselen hava, uçuş) ve yeterince havada kalacaksa; her kalkışta değil.
             if (wasGrounded && !sled.grounded && !rider.Tricking && Time.time - lastTrick > TrickCooldown && sled.Speed > TrickSpeed

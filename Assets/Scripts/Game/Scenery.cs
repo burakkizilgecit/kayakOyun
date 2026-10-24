@@ -1050,11 +1050,11 @@ namespace SledSurfers
 
         /// Uçurumun üstündeki ince doğal kaya yol (Canyon Run): tabla boyunca kalın kaya dilimleri, altında aşağı sarkan
         /// sivri kaya; korkuluk yok.
-        void BuildStoneLedge(TrackProfile.Bridge b)
+        void BuildStoneLedge(TrackProfile.Bridge b, int index)
         {
             var rockA = Textured(resources.Solid(theme.rock, 0.12f), TextureKit.Rock());
             var rockB = Textured(resources.Solid(Color.Lerp(theme.rock, new Color(0.92f, 0.72f, 0.52f), 0.35f), 0.1f), TextureKit.Rock());
-            var go = new GameObject("Stone Ledge").transform;
+            var go = new GameObject("Bridge " + index).transform;
             go.SetParent(root, false);
             Vector3 At(float z) => new Vector3(b.XAt(z), TrackProfile.DeckHeight(b, z), z);
             float z0 = b.z0 - 0.3f, len = b.z1 - b.z0 + 0.6f;
@@ -1236,9 +1236,10 @@ namespace SledSurfers
             var beam = resources.Solid(new Color(0.38f, 0.25f, 0.14f), 0.1f);
             foreach (var b in track.bridges)
             {
-                if (track.wallHalf > 0f) { BuildStoneLedge(b); continue; }
+                if (track.wallHalf > 0f) { BuildStoneLedge(b, track.bridges.IndexOf(b)); continue; }
                 float hwB = b.HalfWidth;
-                var go = new GameObject("Bridge").transform;
+                // Ad sonundaki sıra: çöken köprünün parçalarını WorldView bulur (yan köprüler ayrı çöker).
+                var go = new GameObject("Bridge " + track.bridges.IndexOf(b)).transform;
                 go.SetParent(root, false);
                 // Tabla parça parça kurulur: kıvrımlı köprüde (Bridge.XAt) her tahta ve korkuluk parçası tablanın o
                 // noktadaki yönüne döner.

@@ -92,9 +92,11 @@ namespace SledSurfers
         public HazardState[] hazards = new HazardState[0];
         /// Çöken köprü: kızağın bastığı köprünün başlangıcı (r0) ve basış anı (clock); yoksa NaN.
         public float ledgeR0 = float.NaN, ledgeR1, ledgeEnter;
+        /// Çöken köprünün track.bridges içindeki sırası (aynı deredeki yan köprüler ayrı çöker).
+        public int ledgeBridge = -1;
         /// Çöküş cephesi (z): bunun gerisindeki taş düşmüştür (görünüş de bunu izler). Köprüye basılmadıysa -inf.
         public float CollapseFront => float.IsNaN(ledgeR0) ? float.NegativeInfinity
-                                    : ledgeR0 + Mathf.Max(0f, clock - ledgeEnter - TrackProfile.CollapseDelay) * TrackProfile.CollapseSpeed;
+                                    : ledgeR0 + Mathf.Max(0f, clock - ledgeEnter - track.collapseDelay) * track.collapseSpeed;
         float boostTime;
         public bool Boosting => boostTime > 0f;
 
@@ -166,6 +168,7 @@ namespace SledSurfers
                                                radius = track.hazards[i].kind == HazardKind.Snowball ? 1.6f : track.hazards[i].kind == HazardKind.Boulder ? 2.1f
                                                       : track.hazards[i].kind == HazardKind.Meteor ? 1.4f : 1.2f };
             ledgeR0 = float.NaN;
+            ledgeBridge = -1;
             collapsing = false;
             stats.Reset();
         }
@@ -770,6 +773,7 @@ namespace SledSurfers
                 ledgeR0 = b.r0;
                 ledgeR1 = b.r1;
                 ledgeEnter = clock;
+                ledgeBridge = track.bridges.IndexOf(b);
             }
             if (float.IsNaN(ledgeR0) || end != RunEnd.None) return;
             // Kızak çöken kısmın üstünde (yarığın içinde, yerde ya da alçakta): taş altından gider.

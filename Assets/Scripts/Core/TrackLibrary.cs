@@ -20,7 +20,7 @@ namespace SledSurfers
         public static readonly float[] MilkHeadroomScale = { 1f, 1f, 1f, 1f, 1f, 1f, 1.8f, 1f, 1f, 1f, 1f };
         public static float[] PowerStart = { 0f, 5f, 7f, 8f, 9f, 10f, 10f, 8f, 8f, 9f, 9f };
         public static float[] PowerEnd = { 15f, 18f, 21f, 23f, 24f, 25f, 25f, 23f, 23f, 24f, 24f };
-        public static float[] CostScale = { 0.7f, 1.25f, 2.6f, 1.15f, 3.4f, 3.4f, 5.3f, 2f, 1f, 0.75f, 2f };   // 2026-10-24: elmas kıtlığı, geniş yol, az uçuş ve sürpriz engeller sonrası (sim ~510 atış)   // 2026-10-18: sim artık pistteki gerçek (sınırlı) altını sayıyor; geç pistler hedef atış sayısına geri çekildi   // 2026-10-10: referans fiyat eğrisi (5×aşama, 1.4→1.24) ile
+        public static float[] CostScale = { 0.7f, 1.25f, 2.2f, 0.95f, 3.4f, 3.4f, 4.3f, 2f, 1f, 0.75f, 2f };   // 2026-10-24: elmas kıtlığı, geniş yol, az uçuş ve sürpriz engeller sonrası (sim ~510 atış)   // 2026-10-18: sim artık pistteki gerçek (sınırlı) altını sayıyor; geç pistler hedef atış sayısına geri çekildi   // 2026-10-10: referans fiyat eğrisi (5×aşama, 1.4→1.24) ile
         /// Pistin aracı: son üç haritada aracın şekli tamamen değişir.
         public static readonly VehicleKind[] Vehicles =
             { VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sandboard, VehicleKind.Bobsled, VehicleKind.Hover, VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sled };
@@ -65,7 +65,7 @@ namespace SledSurfers
         /// %30 tek köprü (eski hali: düz, yay ya da zikzak), %45 iki, %25 üç köprü. Çoklu derede köprüler vadi ortasına göre
         /// eşit aralıklı; biri düz (güvenli), ötekiler S biçimli ve üstlerinde coin dizisi ile elmas (Collectibles).
         public static readonly float[] BridgeCountOdds = { 0.3f, 0.75f };
-        const float SideBridgeGap2 = 2.7f, SideBridgeGap3 = 3.7f, SideBridgeBend = 1.0f, SideBridgeHalfWidth = 1.0f;
+        const float SideBridgeGap2 = 4f, SideBridgeGap3 = 5f, SideBridgeBend = 1.0f, SideBridgeHalfWidth = 1.0f;   // 2026-10-24: köprüler birbirine çok yakındı (2.7 / 3.7)
 
         /// Hızlandırıcılar 3. parkurdan (indeks 2) itibaren, aralarında ~BoostSpacing m. Köprü, dere, çatal, yükselen hava ve
         /// roket tepesinin yakınına konmaz (sıçrayıp dereye ya da roket duvarına uçmasın); önündeki engeller kalkar.
@@ -1465,7 +1465,8 @@ namespace SledSurfers
             gt.pinches.AddRange(GorgePinches);
             gt.ravineIsWater = false;
             gt.fallText = "Fell into the gorge!";
-            gt.fragileBridges = true;
+            gt.collapseDelay = 0.6f;   // kaya yol: tahta köprüden çabuk çöker
+            gt.collapseSpeed = 8f;
             PlaceCreekBridges(gt, GorgeChasms, GorgeLedgeHalfWidth);
             // Kaya yol tablası köprü tablası gibi (fizik), ama yarık yolun iki yanında: duvara kadar boşluk.
             foreach (var r in GorgePillars)

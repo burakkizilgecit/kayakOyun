@@ -198,8 +198,10 @@ namespace SledSurfers
         /// çatlar; CollapseDelay s sonra çöküş, girişten itibaren CollapseSpeed m/s ile kızağın arkasından ilerler (çatlağın
         /// kayada yayılma hızı). Ondan hızlı giden kızak karşıya geçer; yavaş giden ya da duranın altındaki taş çöker.
         /// 24 m'lik köprüde en düşük ortalama hız ~ 24 / (24/8 + 0.6) ≈ 6.7 m/s (24 km/s).
-        public bool fragileBridges;
-        public const float CollapseDelay = 0.6f, CollapseSpeed = 8f;
+        /// 2026-10-24 (kullanıcı: "tüm köprülere bir dayanım koy"): bütün köprüler çöker. Tahta köprü: 0.9 s sonra 6.5 m/s
+        /// (14 m'lik köprüde en düşük ortalama hız ~5 m/s, ~18 km/s); Canyon Run kaya yolu: 0.6 s, 8 m/s.
+        public bool fragileBridges = true;
+        public float collapseDelay = 0.9f, collapseSpeed = 6.5f;
         public readonly List<Vector3> pinches = new List<Vector3>();
         public const float WallTop = 14f;
 
