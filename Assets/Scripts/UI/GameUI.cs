@@ -970,10 +970,7 @@ namespace SlingRiders
             HomeTrackTheme.Apply(track, homeBannerArt, homePlayArt, homeTrayArt, homeCanvas);
             menuTheme.Apply(track);
             var palette = HomeTrackTheme.Get(track);
-            // The offer's opaque blue card used to hide most of the surrounding landscape.
-            offerCard.style.backgroundImage = new StyleBackground(VGrad(Color.Lerp(palette.panel, palette.edge, 0.38f), palette.panel));
-            offerCard.style.borderTopColor = offerCard.style.borderLeftColor = offerCard.style.borderRightColor = Color.Lerp(palette.edge, Color.white, 0.45f);
-            offerCard.style.borderBottomColor = Color.Lerp(palette.panel, Color.black, 0.3f);
+            // Teklif penceresi her parkurda ortak çerçevede kalır (DealPanel).
             shopBody.Query<Label>(className: "shop-section").ForEach(section =>
             {
                 Color color = palette.panel;
@@ -1898,8 +1895,12 @@ namespace SlingRiders
 
         VisualElement DealPanel()
         {
+            // Günlük ödül penceresiyle aynı çerçeve (kullanıcı 2026-10-24: "pack preview görseli kötü"): lacivert panel, mor kenar,
+            // alt köşelerde yaprak; 9-slice.
             var panel = E("deal-panel", "col", "pop", "off");
-            panel.style.backgroundImage = new StyleBackground(VGrad(new Color32(0x3F, 0xA8, 0xFF, 0xFF), new Color32(0x1E, 0x62, 0xD8, 0xFF)));
+            panel.style.backgroundImage = DR("panel");
+            panel.style.unitySliceLeft = panel.style.unitySliceRight = panel.style.unitySliceTop = 80;
+            panel.style.unitySliceBottom = 170;
             return panel;
         }
 
@@ -1907,10 +1908,8 @@ namespace SlingRiders
         {
             var wrap = E("deal-ribbon-wrap");
             wrap.pickingMode = PickingMode.Ignore;
-            wrap.Add(E("deal-ribbon-tail", "deal-ribbon-tail-l"));
-            wrap.Add(E("deal-ribbon-tail", "deal-ribbon-tail-r"));
             var rib = E("deal-ribbon");
-            rib.style.backgroundImage = new StyleBackground(VGrad(new Color32(0xFF, 0xC8, 0x4A, 0xFF), new Color32(0xFF, 0x96, 0x1A, 0xFF)));
+            rib.style.backgroundImage = Background.FromTexture2D(Resources.Load<Texture2D>("UI/Kit/title-ribbon"));
             title = L("", "deal-ribbon-text");
             rib.Add(title);
             wrap.Add(rib);
@@ -2001,10 +2000,18 @@ namespace SlingRiders
             dealPriceLabel.text = available ? Store.Price(deal.productId) : "UNAVAILABLE";
             dealBuy.SetEnabled(available);
             dealBuy.EnableInClassList("purchase-unavailable", !available);
+            KitButton(dealBuy, available ? "btn-green" : "btn-gray", 150f);
             bool hasOld = available && !string.IsNullOrEmpty(deal.regularId);
             dealOldPrice.text = hasOld ? "Was " + Store.Price(deal.regularId) : "";
             dealOldPrice.style.display = hasOld ? DisplayStyle.Flex : DisplayStyle.None;
             var tex = Resources.Load<Texture2D>("UI/Offers/" + deal.art);
+            // Ortak setten teklif görseli (Offers/ altında özel çizim yoksa)
+            if (tex == null)
+            {
+                string kit = deal.art == "coins" ? "chest-open-coins" : deal.art == "gems" ? "shop-gems-6" : deal.art == "starter" ? "chest-open-gems"
+                           : deal.art == "noads" ? "shop-gems-4" : null;
+                if (kit != null) tex = Resources.Load<Texture2D>("UI/Kit/" + kit);
+            }
             dealArt.style.backgroundImage = tex != null ? new StyleBackground(tex) : new StyleBackground();
             dealArt.style.display = tex != null ? DisplayStyle.Flex : DisplayStyle.None;
             dealArtFallback.style.display = tex != null ? DisplayStyle.None : DisplayStyle.Flex;
@@ -3714,11 +3721,13 @@ namespace SlingRiders
             pause.style.top = 36;
             p.Add(pause);
             // Kötü atışta durmayı beklemeden yeniden (kullanıcı 2026-10-19): yeni atış bir hak harcar.
-            var again = B(() => RetryRun?.Invoke(), "btn", "btn-orange", "pause-button");
-            again.text = "RETRY";
+            // Yuvarlak, yazısız yeniden dene (kullanıcı 2026-10-24); ortak setin mor düğme ailesinde
+            var again = B(() => RetryRun?.Invoke(), "btn", "kit-round", "kit-retry");
+            again.name = "run-retry";
+            again.style.width = again.style.height = 104;
             again.style.position = Position.Absolute;
             again.style.right = 36;
-            again.style.top = 132;
+            again.style.top = 152;
             p.Add(again);
 
             // Sol üst köşe (kullanıcı isteği): toplanan coin ve elmas; gidilen mesafe onların altında, ortada.
