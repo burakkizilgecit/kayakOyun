@@ -443,6 +443,30 @@ namespace SledSurfers
                 Application.Quit();
                 yield break;
             }
+            if (mode == "pads")
+            {
+                // Hızlandırıcı levhaları yakından: düz levha ve rampa, arkadan-yukarıdan sabit kamera.
+                game.DebugHideTutorial();
+                foreach (int tr in new[] { 2, 3, 5 })
+                {
+                    game.DebugTrack(tr, tr);
+                    yield return new WaitForSeconds(1.2f);
+                    int shots = 0;
+                    for (int i = 0; i < game.DebugBoostCount && shots < 2; i++)
+                    {
+                        bool ramp = game.DebugBoostRamp(i);
+                        if (shots == 1 && !ramp && i < game.DebugBoostCount - 1) continue;   // ikinci kare tercihen rampa
+                        game.DebugViewBoost(i);
+                        yield return new WaitForSeconds(0.4f);
+                        yield return Shot("p" + tr + "_" + i + (ramp ? "_ramp" : ""));
+                        shots++;
+                    }
+                    game.DebugViewBoost(-1);
+                }
+                SaveData.ClearAll();
+                Application.Quit();
+                yield break;
+            }
             if (mode == "ramp")
             {
                 // Hızlandırıcı rampası: yaklaşma, rampada, dudaktan sonra (uçuş ve hava numarası).
@@ -454,7 +478,8 @@ namespace SledSurfers
                     game.DebugReset(new[] { 25, 25, 20, 25, 20 }, 0);
                     game.DebugTrack(tr, tr);
                     yield return new WaitForSeconds(1.5f);
-                    float rz = game.DebugRampZ(0);
+                    float rz = game.DebugBoostZ(0);   // ilk hızlandırıcı (düz levha); rampa ikinci turda
+                    if (tr == 5) rz = game.DebugRampZ(0);
                     Debug.Log("[AUTOSHOT] ramp t" + tr + " z=" + rz);
                     if (rz < 0f) continue;
                     game.DebugAim();

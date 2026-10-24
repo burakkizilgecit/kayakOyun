@@ -125,7 +125,7 @@ namespace SledSurfers
                 foreach (var bo in track.boosts)
                 {
                     float dz = bo.z0 - sled.position.z;
-                    if (bo.ramp && bo.z1 > sled.position.z && dz < 60f) { target = bo.x; break; }
+                    if (bo.z1 > sled.position.z && dz < 60f) { target = bo.x; break; }   // test: rampa ve düz levha
                 }
             if (ChaseRamps)
                 foreach (var m in track.bouncers)

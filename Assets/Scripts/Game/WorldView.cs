@@ -463,12 +463,14 @@ namespace SledSurfers
         {
             if (track.boosts.Count == 0) return;
             var frameMat = resources.Solid(new Color(0.18f, 0.18f, 0.2f), 0.4f);
-            var padMat = resources.Glow(new Color(0.58f, 0.6f, 0.64f), new Color(0.1f, 0.1f, 0.11f), 0.6f);
+            var padMat = resources.Solid(new Color(0.46f, 0.48f, 0.52f), 0.5f);   // orta gri (yamaçta ışıkla bembeyaz oluyordu)
             var stripeTex = resources.Own(HazardStripeTexture());
             var glowTex = resources.Own(GlowSpotTexture());
             for (int k = 0; k < BoostRows; k++)
             {
-                boostArrowMats[k] = resources.Glow(new Color(1f, 0.1f, 0.08f), new Color(2f, 0.12f, 0.08f), 0.7f);
+                // Işıksız (sahne ışığından bağımsız, iki yüzlü): oklar karda, kumda, gece gölünde aynı parlak kırmızı (kullanıcı
+                // 2026-10-24: "kırmızı oklar hâlâ görünmüyor, yanıp sönen ışık gibi olmalı").
+                boostArrowMats[k] = resources.Own(new Material(Shader.Find("Sprites/Default")) { color = new Color(1f, 0.1f, 0.06f), renderQueue = 3001 });
                 boostGlowMats[k] = resources.Own(new Material(Shader.Find("Sprites/Default")) { mainTexture = glowTex, renderQueue = 3000 });
                 boostGlowMats[k].color = new Color(1f, 0.15f, 0.1f, 0.6f);
             }
@@ -499,9 +501,10 @@ namespace SledSurfers
                         RampSkirt(pad, b, side, frameMat);
                 for (int r = 0; r < BoostRows; r++)
                 {
-                    float zt = b.z0 + len * (r == 0 ? 0.38f : 0.78f);
-                    Quad(pad, b.x, zt - 0.4f, 1.15f, 1.15f, 0.09f, boostGlowMats[r]);
-                    Chevron(pad, b.x, zt + 0.35f, boostArrowMats[r], 1.3f);
+                    // Rampada iki ok da dudaktan önce, yokuşta (dudak %78'de; ardındaki inişte ok arkadan görünmüyordu).
+                    float zt = b.z0 + len * (b.ramp ? (r == 0 ? 0.25f : 0.55f) : (r == 0 ? 0.32f : 0.68f));
+                    Quad(pad, b.x, zt - 0.2f, 1.25f, 1.4f, 0.09f, boostGlowMats[r]);
+                    Chevron(pad, b.x, zt + 0.35f, boostArrowMats[r], 1.1f);   // genişlik 1.8 m: dikkat şeritlerinin içine sığar
                 }
             }
         }
@@ -581,22 +584,38 @@ namespace SledSurfers
         /// İleri (+z) bakan kalın V ok başı, yüzeye oturur.
         void Chevron(Transform parent, float cx, float zt, Material mat, float scale = 1f)
         {
-            var outer = new[] { new Vector2(-0.82f, -0.36f) * scale, new Vector2(0f, 0.42f) * scale, new Vector2(0.82f, -0.36f) * scale };
-            var inner = new[] { new Vector2(-0.4f, -1.0f) * scale, new Vector2(0f, -0.3f) * scale, new Vector2(0.4f, -1.0f) * scale };   // kalın: alçak kamera açısında ileri-geri kalınlık ekranda incelir
-            var verts = new Vector3[6];
-            for (int k = 0; k < 3; k++)
+            // İki kol, her biri boyunca Seg parçaya bölünür: köşeleri araziye oturan tek üçgen rampanın kavisli yüzeyine
+            // gömülüyor, ok yarım görünüyordu (2026-10-24). Her ara nokta yüzeyin kendi yüksekliğinde.
+            Vector2 tipO = new Vector2(0f, 0.42f) * scale, tipI = new Vector2(0f, -0.3f) * scale;
+            const int Seg = 8;
+            var verts = new System.Collections.Generic.List<Vector3>();
+            var tris = new System.Collections.Generic.List<int>();
+            for (int side = -1; side <= 1; side += 2)
             {
-                float xo = cx + outer[k].x, zo = zt + outer[k].y, xi = cx + inner[k].x, zi = zt + inner[k].y;
-                verts[k] = new Vector3(xo, track.TerrainHeight(xo, zo) + 0.11f, zo);
-                verts[k + 3] = new Vector3(xi, track.TerrainHeight(xi, zi) + 0.11f, zi);
+                Vector2 endO = new Vector2(side * 0.82f, -0.36f) * scale, endI = new Vector2(side * 0.4f, -1.0f) * scale;
+                int b0 = verts.Count;
+                for (int k = 0; k <= Seg; k++)
+                {
+                    float u = k / (float)Seg;
+                    var o = Vector2.Lerp(tipO, endO, u);
+                    var n = Vector2.Lerp(tipI, endI, u);
+                    verts.Add(new Vector3(cx + o.x, track.TerrainHeight(cx + o.x, zt + o.y) + 0.11f, zt + o.y));
+                    verts.Add(new Vector3(cx + n.x, track.TerrainHeight(cx + n.x, zt + n.y) + 0.11f, zt + n.y));
+                    if (k == 0) continue;
+                    int a = b0 + (k - 1) * 2;
+                    if (side > 0) tris.AddRange(new[] { a, a + 2, a + 1, a + 1, a + 2, a + 3 });
+                    else tris.AddRange(new[] { a, a + 1, a + 2, a + 1, a + 3, a + 2 });
+                }
             }
-            var tris = new[] { 0, 1, 3, 3, 1, 4, 1, 2, 4, 4, 2, 5 };
-            var mesh = new Mesh { vertices = verts, triangles = tris };
+            var mesh = new Mesh();
+            mesh.SetVertices(verts);
+            mesh.SetTriangles(tris, 0);
             mesh.RecalculateNormals();
             var go = new GameObject("Boost Arrow");
             go.transform.SetParent(parent, false);
             go.AddComponent<MeshFilter>().sharedMesh = resources.Own(mesh);
-            go.AddComponent<MeshRenderer>().sharedMaterial = mat;
+            var mr = go.AddComponent<MeshRenderer>();
+            mr.sharedMaterial = mat;
         }
 
         /// Rampanın yan eteği: levhanın kenarından zemine inen dikey yüz.
@@ -631,24 +650,28 @@ namespace SledSurfers
         /// Hızlandırıcı levhası: z boyunca araziyi izleyen ince şerit (üstü lift kadar yukarıda).
         void Strip(Transform parent, TrackProfile.Boost b, float half, float z0, float z1, float lift, Material mat)
         {
-            const int N = 20;
-            var verts = new Vector3[(N + 1) * 2];
+            // Enine M parça: yamaçtaki (kavisli) levhada yalnız iki kenar noktası ortada arazinin üstünde kalıp araziye oturan
+            // okları örtüyordu (2026-10-24).
+            const int N = 20, M = 6;
+            var verts = new Vector3[(N + 1) * (M + 1)];
             var uv = new Vector2[verts.Length];
-            var tris = new int[N * 6];
+            var tris = new int[N * M * 6];
+            int t = 0;
             for (int i = 0; i <= N; i++)
             {
                 float z = Mathf.Lerp(z0, z1, i / (float)N);
-                for (int s = 0; s < 2; s++)
+                for (int s = 0; s <= M; s++)
                 {
-                    float x = b.x + (s == 0 ? -half : half);
-                    verts[i * 2 + s] = new Vector3(x, track.TerrainHeight(x, z) + lift, z);
-                    uv[i * 2 + s] = new Vector2(s, i / (float)N);
+                    float x = b.x + Mathf.Lerp(-half, half, s / (float)M);
+                    verts[i * (M + 1) + s] = new Vector3(x, track.TerrainHeight(x, z) + lift, z);
+                    uv[i * (M + 1) + s] = new Vector2(s / (float)M, i / (float)N);
                 }
-                if (i < N)
+                if (i == N) continue;
+                for (int s = 0; s < M; s++)
                 {
-                    int t = i * 6, v = i * 2;
-                    tris[t] = v; tris[t + 1] = v + 2; tris[t + 2] = v + 1;
-                    tris[t + 3] = v + 1; tris[t + 4] = v + 2; tris[t + 5] = v + 3;
+                    int v = i * (M + 1) + s;
+                    tris[t++] = v; tris[t++] = v + M + 1; tris[t++] = v + 1;
+                    tris[t++] = v + 1; tris[t++] = v + M + 1; tris[t++] = v + M + 2;
                 }
             }
             var mesh = new Mesh { vertices = verts, uv = uv, triangles = tris };
@@ -732,10 +755,10 @@ namespace SledSurfers
                 for (int k = 0; k < BoostRows; k++)
                 {
                     float ph = Mathf.Repeat(time * 1.6f - k * 0.5f, 1f);   // iki ok sırayla
-                    float on = Mathf.Pow(Mathf.Max(0f, Mathf.Cos(ph * Mathf.PI * 2f)), 3f);   // yumuşak yanıp sönme
-                    boostArrowMats[k].SetColor("_EmissionColor", new Color(2.4f, 0.18f, 0.1f) * (0.45f + 0.55f * on));   // sönükken de kırmızı
-                    boostArrowMats[k].color = Color.Lerp(new Color(0.85f, 0.08f, 0.06f), new Color(1f, 0.3f, 0.22f), on);
-                    boostGlowMats[k].color = new Color(1f, 0.15f, 0.1f, 0.08f + 0.62f * on);
+                    float on = ph < 0.45f ? 1f : 0f;   // net yanıp sönme (ışık gibi), iki ok sırayla
+                    // Yanıp sönen ışık: yanınca parlak kırmızı (beyaza yakın çekirdek), sönünce koyu bordo
+                    boostArrowMats[k].color = Color.Lerp(new Color(0.38f, 0.02f, 0.02f), new Color(1f, 0.22f, 0.14f), on);
+                    boostGlowMats[k].color = new Color(1f, 0.15f, 0.1f, 0.05f + 0.85f * on);
                 }
             for (int i = 0; i < flockRoots.Count; i++)
             {

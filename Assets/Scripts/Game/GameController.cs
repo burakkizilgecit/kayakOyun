@@ -1365,6 +1365,21 @@ namespace SledSurfers
             cam.transform.rotation = Quaternion.LookRotation(look - cam.transform.position);
         }
 
+        Vector3 DebugBoostPoint(int i, float dz, float up) { var b = track.boosts[i]; float z = b.z0 + dz; return new Vector3(b.x, track.TerrainHeight(b.x, z) + up, z); }
+
+        /// Test: i. hızlandırıcıya arkadan-yukarıdan bakar (i < 0: kamerayı serbest bırakır).
+        public void DebugViewBoost(int i)
+        {
+            debugCamPos = debugCamLook = null;
+            ui.DebugSetVisible(i < 0);
+            if (i < 0) return;
+            debugCamPos = DebugBoostPoint(i, -6f, 4.5f);
+            debugCamLook = DebugBoostPoint(i, 4f, 0f);
+            SnapCamera();
+        }
+        public int DebugBoostCount => track != null ? track.boosts.Count : 0;
+        public bool DebugBoostRamp(int i) => track.boosts[i].ramp;
+
         void UpdateCamera(float dt)
         {
             Vector3 target = CameraTarget(out var look);
