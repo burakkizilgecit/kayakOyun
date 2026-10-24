@@ -184,6 +184,60 @@ namespace SledSurfers
                     g.rock = new Color(0.66f, 0.38f, 0.26f);
                     return g;
                 }
+                case 8:   // Frozen Lake: kuzey ışıklı gece, donmuş göl, seyrek çamlar
+                    return new TrackTheme
+                    {
+                        horizon = new Color(0.36f, 0.62f, 0.72f), skyTint = new Color(0.2f, 0.36f, 0.6f), skyGround = new Color(0.6f, 0.72f, 0.86f),
+                        exposure = 1.05f, sunColor = new Color(0.72f, 0.86f, 1f), sunEuler = new Vector3(28f, 30f, 0f), sunIntensity = 0.62f,
+                        ambientSky = new Color(0.46f, 0.58f, 0.8f), ambientEquator = new Color(0.4f, 0.52f, 0.68f), ambientGround = new Color(0.3f, 0.37f, 0.5f),
+                        skyTop = new Color(0.07f, 0.11f, 0.3f), fogStart = 60f, fogEnd = 300f, contrast = 1.06f, saturation = 1.12f, vignette = 0.32f,
+                        gradeTint = new Color(0.94f, 1f, 1.06f),
+                        grass = new Color(0.74f, 0.85f, 0.95f), grassB = new Color(0.64f, 0.78f, 0.92f), rock = new Color(0.3f, 0.36f, 0.47f),
+                        trackA = new Color(0.58f, 0.74f, 0.92f), trackB = new Color(0.52f, 0.69f, 0.89f), kerb = new Color(0.3f, 0.9f, 0.8f),
+                        water = new Color(0.08f, 0.22f, 0.38f, 0.92f), hillHeight = 16f, mountainHeight = 85f, snowy = true,
+                        near = new[] { "Nature/stone_smallA", "Nature/stone_smallB", "Nature/stone_smallC" },
+                        mid = new[] { "Nature/tree_pineTallA", "Nature/tree_pineTallB", "Nature/tree_pineRoundA", "Nature/stone_largeA", "Nature/stone_tallA" },
+                        far = new[] { "Nature/tree_pineTallA", "Nature/tree_pineTallB", "Nature/tree_pineTallC", "Nature/rock_tallB" },
+                        nearHeight = new Vector2(0.3f, 0.9f), midHeight = new Vector2(5f, 11f), farHeight = new Vector2(10f, 20f),
+                        nearChance = 0.2f, midStep = 9f,
+                    };
+                case 9:   // Mushroom Grove: pembe-mor masal gökyüzü, ağaç boyunda mantarlar, çiçekler
+                    return new TrackTheme
+                    {
+                        horizon = new Color(1f, 0.82f, 0.9f), skyTint = new Color(0.82f, 0.62f, 0.92f), skyGround = new Color(0.5f, 0.6f, 0.45f),
+                        exposure = 1.3f, sunColor = new Color(1f, 0.88f, 0.95f), sunEuler = new Vector3(36f, -50f, 0f), sunIntensity = 1f,
+                        ambientSky = new Color(0.72f, 0.62f, 0.85f), ambientEquator = new Color(0.62f, 0.58f, 0.66f), ambientGround = new Color(0.36f, 0.4f, 0.32f),
+                        skyTop = new Color(0.44f, 0.34f, 0.86f), fogStart = 60f, fogEnd = 280f, contrast = 1.08f, saturation = 1.2f, vignette = 0.26f,
+                        gradeTint = new Color(1.03f, 0.98f, 1.04f),
+                        grass = new Color(0.4f, 0.62f, 0.4f), grassB = new Color(0.34f, 0.54f, 0.4f), rock = new Color(0.52f, 0.46f, 0.6f),
+                        trackA = new Color(0.74f, 0.58f, 0.5f), trackB = new Color(0.66f, 0.51f, 0.45f), kerb = new Color(1f, 0.45f, 0.75f),
+                        water = new Color(0.3f, 0.5f, 0.7f, 0.8f), hillHeight = 18f, mountainHeight = 55f,
+                        near = new[] { "Nature/mushroom_red", "Nature/mushroom_tan", "Nature/flower_purpleA", "Nature/flower_purpleB", "Nature/flower_redA",
+                                       "Nature/grass_large", "Nature/mushroom_redGroup" },
+                        mid = new[] { "Nature/mushroom_redGroup", "Nature/mushroom_tanGroup", "Nature/mushroom_red", "Nature/mushroom_tan", "Nature/tree_fat",
+                                      "Nature/mushroom_redGroup" },
+                        far = new[] { "Nature/mushroom_redGroup", "Nature/mushroom_tanGroup", "Nature/tree_fat", "Nature/tree_tall" },
+                        nearHeight = new Vector2(0.4f, 1.3f), midHeight = new Vector2(4f, 11f), farHeight = new Vector2(8f, 18f),
+                        midStep = 5.5f,
+                    };
+                case 10:  // Jungle Temple: nemli yağmur ormanı, palmiyeler, iri yapraklar, tapınak taşları
+                    return new TrackTheme
+                    {
+                        horizon = new Color(0.76f, 0.88f, 0.8f), skyTint = new Color(0.55f, 0.76f, 0.7f), skyGround = new Color(0.3f, 0.45f, 0.3f),
+                        exposure = 1.25f, sunColor = new Color(1f, 0.95f, 0.8f), sunEuler = new Vector3(42f, 120f, 0f), sunIntensity = 1.05f,
+                        ambientSky = new Color(0.6f, 0.74f, 0.68f), ambientEquator = new Color(0.5f, 0.6f, 0.46f), ambientGround = new Color(0.28f, 0.36f, 0.24f),
+                        skyTop = new Color(0.3f, 0.55f, 0.68f), fogStart = 40f, fogEnd = 230f, contrast = 1.1f, saturation = 1.18f, vignette = 0.3f,
+                        gradeTint = new Color(0.98f, 1.03f, 0.97f),
+                        grass = new Color(0.24f, 0.5f, 0.22f), grassB = new Color(0.19f, 0.42f, 0.2f), rock = new Color(0.5f, 0.49f, 0.43f),
+                        trackA = new Color(0.62f, 0.5f, 0.36f), trackB = new Color(0.55f, 0.44f, 0.31f), kerb = new Color(0.95f, 0.75f, 0.2f),
+                        water = new Color(0.2f, 0.45f, 0.36f, 0.85f), hillHeight = 20f, mountainHeight = 60f,
+                        near = new[] { "Nature/grass_leafsLarge", "Nature/grass_leafs", "Nature/plant_bushLarge", "Nature/flower_redA", "Nature/flower_yellowA" },
+                        mid = new[] { "Nature/tree_palmTall", "Nature/tree_palmBend", "Nature/tree_detailed", "Nature/plant_bushLarge", "Nature/stone_tallA",
+                                      "Nature/stone_tallB", "Nature/stone_tallC", "Nature/tree_palmTall" },
+                        far = new[] { "Nature/tree_palmTall", "Nature/tree_tall", "Nature/tree_fat", "Nature/tree_palmBend" },
+                        nearHeight = new Vector2(0.5f, 1.4f), midHeight = new Vector2(6f, 14f), farHeight = new Vector2(10f, 20f),
+                        nearChance = 0.75f, midStep = 4.5f,
+                    };
                 default:  // Çayır: parlak öğle, meşeler, çiçekler
                     return new TrackTheme
                     {

@@ -84,6 +84,7 @@ namespace SledSurfers
             }
 
             BuildBoosts();
+            BuildLakeAndMushrooms();
 
             // Yükselen hava (kullanıcı 2026-10-19: düz çizgiler çok basitti, dalgalı hava figürü olmalı): bölge boyunca
             // kıvrılarak yükselen yarı saydam hava şeritleri (dokusu yukarı akar, uçlarda incelir) ve aralarında girdap
@@ -232,7 +233,95 @@ namespace SledSurfers
         class HazardView { public Transform body, marker, trail; public Material markerMat; }
         HazardView[] hazardViews = new HazardView[0];
         HazardState[] shownHazards;
-        Material snowMat, rockMat, meteorMat, flameMat;
+        Material snowMat, rockMat, meteorMat, flameMat, boulderMat;
+
+        static Material Textured(Material m, Texture2D tex) { m.mainTexture = tex; return m; }
+
+        // ---------------------------------------------------------------- ince buz ve mantar trambolinleri
+        readonly List<(Transform ice, Transform hole)> iceViews = new List<(Transform, Transform)>();
+
+        /// İnce buz diskleri (açık, çatlak çizgili, yarı saydam) ve mantar şapkaları (kırmızı, beyaz benekli trambolin).
+        void BuildLakeAndMushrooms()
+        {
+            if (track.thinIce.Count > 0)
+            {
+                // Koyu (altındaki su görünür), belirgin beyaz çatlaklı: göl buzunun desenine karışmasın
+                var iceMat = resources.Own(new Material(Shader.Find("Sprites/Default")) { mainTexture = resources.Own(CrackTexture()), color = Color.white });
+                var holeMat = resources.Solid(new Color(0.04f, 0.12f, 0.22f), 0.9f);
+                foreach (var d in track.thinIce)
+                {
+                    float y = track.TerrainHeight(d.y, d.x);
+                    var ice = Mats.Prim(PrimitiveType.Quad, "Thin Ice", root, new Vector3(d.y, y + 0.05f, d.x), new Vector3(d.z * 2f, d.z * 2f, 1f), iceMat,
+                                        Quaternion.Euler(90f, 0f, 0f));
+                    var hole = Mats.Prim(PrimitiveType.Cylinder, "Ice Hole", root, new Vector3(d.y, y + 0.02f, d.x), new Vector3(d.z * 1.9f, 0.02f, d.z * 1.9f), holeMat);
+                    hole.gameObject.SetActive(false);
+                    iceViews.Add((ice, hole));
+                }
+            }
+            if (track.bouncers.Count > 0)
+            {
+                var capMat = resources.Glow(new Color(0.92f, 0.16f, 0.2f), new Color(0.25f, 0.02f, 0.04f), 0.45f);
+                var spotMat = resources.Solid(new Color(1f, 0.97f, 0.92f), 0.3f);
+                var stemMat = resources.Solid(new Color(0.96f, 0.9f, 0.8f), 0.2f);
+                foreach (var d in track.bouncers)
+                {
+                    float y = track.TerrainHeight(d.y, d.x);
+                    var root2 = new GameObject("Mushroom Bouncer").transform;
+                    root2.SetParent(root, false);
+                    root2.position = new Vector3(d.y, y, d.x);
+                    Mats.Prim(PrimitiveType.Cylinder, "Stem", root2, Vector3.up * 0.1f, new Vector3(d.z * 0.9f, 0.12f, d.z * 0.9f), stemMat);
+                    Mats.Prim(PrimitiveType.Sphere, "Cap", root2, Vector3.up * 0.2f, new Vector3(d.z * 2.1f, 1.1f, d.z * 2.1f), capMat);
+                    for (int k = 0; k < 6; k++)
+                    {
+                        float a = k * 60f * Mathf.Deg2Rad + 0.4f, rr = d.z * (k % 2 == 0 ? 0.55f : 0.3f);
+                        float sy = 0.26f + 0.55f * Mathf.Sqrt(Mathf.Max(0f, 1f - (rr / (d.z * 1.05f)) * (rr / (d.z * 1.05f))));
+                        Mats.Prim(PrimitiveType.Sphere, "Spot", root2, new Vector3(Mathf.Cos(a) * rr, sy, Mathf.Sin(a) * rr),
+                                  new Vector3(0.5f, 0.14f, 0.5f), spotMat);
+                    }
+                }
+            }
+        }
+
+        static Texture2D CrackTexture()
+        {
+            const int N = 128;
+            var tex = new Texture2D(N, N, TextureFormat.RGBA32, true) { wrapMode = TextureWrapMode.Clamp, name = "Thin Ice" };
+            var px = new Color[N * N];
+            var rnd = new System.Random(5);
+            float[] angles = new float[7];
+            for (int i = 0; i < angles.Length; i++) angles[i] = (float)(rnd.NextDouble() * Mathf.PI * 2);
+            for (int y = 0; y < N; y++)
+                for (int x = 0; x < N; x++)
+                {
+                    float u = (x + 0.5f) / N * 2f - 1f, v = (y + 0.5f) / N * 2f - 1f;
+                    float d = Mathf.Sqrt(u * u + v * v);
+                    float edge = Mathf.Clamp01((1f - d) / 0.08f);
+                    float a = Mathf.Atan2(v, u), crack = 0f;
+                    foreach (float c in angles)
+                    {
+                        float da = Mathf.Abs(Mathf.DeltaAngle(a * Mathf.Rad2Deg, c * Mathf.Rad2Deg + 8f * Mathf.Sin(d * 14f)));
+                        crack = Mathf.Max(crack, Mathf.Clamp01(1f - da / (2.5f / Mathf.Max(d, 0.1f))));
+                    }
+                    float ring = Mathf.Clamp01(1f - Mathf.Abs(d - 0.55f) / 0.03f) * 0.7f;
+                    float line = Mathf.Max(crack * Mathf.Clamp01(d * 3f), ring);
+                    var col = Color.Lerp(new Color(0.12f, 0.32f, 0.55f), Color.white, line);
+                    col.a = edge * (0.78f + 0.22f * line);
+                    px[y * N + x] = col;
+                }
+            tex.SetPixels(px);
+            tex.Apply(true);
+            return tex;
+        }
+
+        public void UpdateIce(SledPhysics sled)
+        {
+            for (int i = 0; i < iceViews.Count && i < sled.brokenIce.Length; i++)
+            {
+                bool broken = sled.brokenIce[i];
+                iceViews[i].ice.gameObject.SetActive(!broken);
+                iceViews[i].hole.gameObject.SetActive(broken);
+            }
+        }
 
         public void UpdateHazards(SledPhysics sled)
         {
@@ -248,13 +337,15 @@ namespace SledSurfers
                 var h = sled.hazards[i];
                 var v = hazardViews[i];
                 bool live = h.phase == 1 || h.phase == 2 || (h.phase == 3 && h.kind != HazardKind.Snowball && h.pos.z > sled.position.z - 30f);
-                if (h.kind == HazardKind.Snowball)
+                if (h.kind == HazardKind.Snowball || h.kind == HazardKind.Boulder)
                 {
                     v.body.gameObject.SetActive(h.phase == 1 || h.hit);
                     if (!v.body.gameObject.activeSelf) continue;
                     v.body.position = h.pos;
-                    v.body.localScale = Vector3.one * h.radius * 2f;
-                    v.body.rotation = Quaternion.Euler(-(h.t * HazardState.SnowballSpeed) / h.radius * Mathf.Rad2Deg, 0f, 0f);
+                    bool boulder = h.kind == HazardKind.Boulder;
+                    v.body.localScale = boulder ? new Vector3(h.radius * 2.05f, h.radius * 1.9f, h.radius * 2f) : Vector3.one * h.radius * 2f;
+                    float roll = h.t * (boulder ? HazardState.BoulderSpeed : -HazardState.SnowballSpeed) / h.radius * Mathf.Rad2Deg;
+                    v.body.rotation = Quaternion.Euler(roll, 0f, 0f);
                     continue;
                 }
                 v.body.gameObject.SetActive(live);
@@ -303,6 +394,7 @@ namespace SledSurfers
             {
                 var v = new HazardView();
                 var mat = hs[i].kind == HazardKind.Snowball ? snowMat : hs[i].kind == HazardKind.Meteor ? meteorMat : rockMat;
+                if (hs[i].kind == HazardKind.Boulder) mat = boulderMat ??= Textured(resources.Solid(new Color(0.52f, 0.5f, 0.44f), 0.12f), TextureKit.Rock());
                 v.body = Mats.Prim(PrimitiveType.Sphere, "Hazard", root, Vector3.zero, Vector3.one, mat);
                 v.markerMat = resources.Own(new Material(Shader.Find("Sprites/Default")) { color = new Color(0f, 0f, 0f, 0.3f) });
                 v.marker = Mats.Prim(PrimitiveType.Cylinder, "Hazard Marker", root, Vector3.zero, Vector3.one, v.markerMat);

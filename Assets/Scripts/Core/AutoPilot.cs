@@ -127,6 +127,12 @@ namespace SledSurfers
                     float dz = bo.z0 - sled.position.z;
                     if (bo.ramp && bo.z1 > sled.position.z && dz < 60f) { target = bo.x; break; }
                 }
+            if (ChaseRamps)
+                foreach (var m in track.bouncers)
+                {
+                    float dz = m.x - sled.position.z;
+                    if (dz > -1f && dz < 50f) { target = m.y; break; }
+                }
             // Havada: önündeki kuş sürüsünün geleceği yerden kaç.
             if (!sled.grounded)
                 foreach (var f in track.flocks)
@@ -195,6 +201,8 @@ namespace SledSurfers
                         }
                     if (!track.OnPath(zz, x) && track.ForkWeight(zz) > 0.3f) score -= 1f;   // çatal sırtına çıkma: erkenden şeridini seç
                     score -= track.BumpHeight(x, zz) * 0.12f;
+                    // İnce buz: yavaş kızak (kırılma hızının altında) üstünden geçmez
+                    if (track.thinIce.Count > 0 && sled.Speed < 16f && track.ThinIceAt(x, zz) >= 0) score -= 30f;
                     // Hızlandırıcı: tabandaysa hafifçe tercih edilir (yamaçtakine tırmanmak hız ve süt yer; engel cezası üstün).
                     if (track.boosts.Count > 0 && Mathf.Abs(x - track.CenterX(zz)) < track.halfWidth && track.BoostAt(x, zz) >= 0) score += 1.5f;   // tümsek az kaybettirir (inişte geri gelir); çamurdan hafif
                 }

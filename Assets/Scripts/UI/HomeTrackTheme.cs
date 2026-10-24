@@ -33,7 +33,11 @@ namespace SledSurfers
             new Palette("volcano", new Color32(49, 35, 44, 255), new Color32(233, 107, 68, 255), new Color32(255, 154, 50, 255)),
             new Palette("mars", new Color32(54, 45, 69, 255), new Color32(214, 131, 100, 255), new Color32(111, 221, 226, 255)),
             // Canyon Run: Sunset Canyon'un görselleri (aynı klasör), daha koyu kızıl panel
-            new Palette("canyon", new Color32(96, 38, 22, 255), new Color32(232, 132, 78, 255), new Color32(255, 190, 70, 255))
+            new Palette("canyon", new Color32(96, 38, 22, 255), new Color32(232, 132, 78, 255), new Color32(255, 190, 70, 255)),
+            // 2026-10-24: Frozen Lake (kış görselleri), Mushroom Grove ve Jungle Temple (orman görselleri), kendi renkleriyle
+            new Palette("winter", new Color32(18, 38, 92, 255), new Color32(120, 200, 240, 255), new Color32(110, 240, 210, 255)),
+            new Palette("forest", new Color32(70, 30, 92, 255), new Color32(214, 140, 220, 255), new Color32(255, 150, 210, 255)),
+            new Palette("forest", new Color32(14, 60, 34, 255), new Color32(120, 200, 100, 255), new Color32(240, 200, 70, 255))
         };
 
         static readonly string[] files = { "track-plaque", "play-button", "upgrade-panel" };
@@ -84,7 +88,10 @@ namespace SledSurfers
         public static int CachedThemeCount => cache.Count;
         public static int AppliedTrack(VisualElement canvas) => canvases.TryGetValue(canvas, out var value) ? value.track : -1;
         public static int SliceCallbackCount(VisualElement art) => bindings.TryGetValue(art, out var value) ? value.callbacks : 0;
-        public static string AssetPath(int track, string file) => track == 3 ? "UI/HomeWinter/" + file : "UI/HomeThemes/" + Slug(track) + "/" + file;
+        public static string AssetPath(int track, string file) => Slug(track) == "winter" ? "UI/HomeWinter/" + file : "UI/HomeThemes/" + Slug(track) + "/" + file;
+
+        /// Harita kartının manzara resmi (UI/MapThumbs): çoğunda tema adı, yeni parkurlarda kendi kırpımı.
+        public static string Thumb(int track) => track == 7 ? "gorge" : track == 8 ? "lake" : track == 9 ? "mushroom" : track == 10 ? "jungle" : Slug(track);
 
         public static void Apply(int track, VisualElement banner, VisualElement play, VisualElement tray, VisualElement homeCanvas)
         {

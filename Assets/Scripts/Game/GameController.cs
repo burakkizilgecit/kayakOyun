@@ -277,6 +277,8 @@ namespace SledSurfers
                                                        + " collapsing " + sled.collapsing + " onDeck " + track.OnDeck(sled.position.x, sled.position.z) + " grounded " + sled.grounded;
         public float DebugBridgeZ(int i) => track != null && i < track.bridges.Count ? track.bridges[i].r0 : -1f;
         public float DebugHazardZ(int i) => track != null && i < track.hazards.Count ? track.hazards[i].z : -1f;
+        public float DebugThinIceZ(int i) => track != null && i < track.thinIce.Count ? track.thinIce[i].x : -1f;
+        public float DebugBouncerZ(int i) => track != null && i < track.bouncers.Count ? track.bouncers[i].x : -1f;
         public float DebugBoostZ(int i) => track != null && i < track.boosts.Count ? track.boosts[i].z0 : -1f;
         public float DebugUpdraftZ(int i) => track != null && i < track.updrafts.Count ? track.updrafts[i].x : -1f;
         public float DebugGapZ(int i) => track != null && i < track.water.Count ? track.water[i].x : -1f;
@@ -656,6 +658,7 @@ namespace SledSurfers
             hintedRocket = hintedNose = hintedBridge = hintedFork = false;
             shownBoosts = 0;
             warnedHazard = -1;
+            shownBounces = 0;
             wasGrounded = true;
             ShowHint(Hint.Steer, IconKind.Swap, input.TouchMode ? "Drag left-right: steer" : "A / D: steer", 3);
         }
@@ -907,13 +910,26 @@ namespace SledSurfers
             world.AnimateBirds(sled.clock, Time.time);
             world.UpdateLedges(sled, Time.deltaTime);
             world.UpdateHazards(sled);
+            world.UpdateIce(sled);
+            // Kovalayan taş arkada görünmez: mesafesini ekranda göster
+            string threat = null;
+            float close = 0f;
+            if (state == State.Run)
+                foreach (var h in sled.hazards)
+                    if (h.kind == HazardKind.Boulder && h.phase == 1)
+                    {
+                        float gap = Mathf.Max(0f, sled.position.z - h.pos.z - h.radius);
+                        threat = "BOULDER BEHIND · " + TrackLibrary.Show(gap) + " m";
+                        close = Mathf.Clamp01(1f - gap / HazardState.BoulderBehind);
+                    }
+            ui.ShowThreat(threat, close, Time.time);
             // Sürpriz engel başladı: uyarı
             for (int i = 0; i < sled.hazards.Length; i++)
                 if (sled.hazards[i].phase == 1 && sled.hazards[i].t < 0.05f && state == State.Run && warnedHazard != i)
                 {
                     warnedHazard = i;
                     var hk = sled.hazards[i].kind;
-                    ui.Toast(hk == HazardKind.Snowball ? "SNOWBALL!" : hk == HazardKind.Meteor ? "METEOR!" : "ROCKFALL!");
+                    ui.Toast(hk == HazardKind.Snowball ? "SNOWBALL!" : hk == HazardKind.Meteor ? "METEOR!" : hk == HazardKind.Boulder ? "BOULDER! KEEP YOUR SPEED!" : "ROCKFALL!");
                     sfx.Thud(6f);
                 }
             // Su birikintisi: raylardan su sıçrar, ilk girişte büyük sıçrama ve ses.
@@ -1119,7 +1135,7 @@ namespace SledSurfers
 
         bool hintedRocket, hintedNose, hintedBridge, hintedFork;
         int shownBoosts;
-        int warnedHazard = -1;
+        int warnedHazard = -1, shownBounces;
         /// Hava numarası eşiği (m/s; ~65 km/s) ve iki numara arası en az süre (s).
         const float TrickSpeed = 18f, TrickCooldown = 3.5f;
         bool wasGrounded = true;
@@ -1165,6 +1181,11 @@ namespace SledSurfers
                 sfx.Pop();
             }
             wasGrounded = sled.grounded;
+            if (sled.bounces != shownBounces)
+            {
+                shownBounces = sled.bounces;
+                if (shownBounces > 0) { ui.Toast("BOING!"); sfx.Pop(); }
+            }
             if (sled.stats.boosts != shownBoosts)
             {
                 shownBoosts = sled.stats.boosts;

@@ -96,7 +96,8 @@ namespace SledSurfers
         {
             new Color32(0x5C, 0xC4, 0x5A, 0xFF), new Color32(0x2E, 0x8B, 0x57, 0xFF), new Color32(0xE8, 0x74, 0x3B, 0xFF),
             new Color32(0x4F, 0x9F, 0xE0, 0xFF), new Color32(0xE8, 0xB9, 0x3B, 0xFF), new Color32(0xD8, 0x3A, 0x2A, 0xFF),
-            new Color32(0xB8, 0x5A, 0x3C, 0xFF), new Color32(0xC0, 0x62, 0x2E, 0xFF),
+            new Color32(0xB8, 0x5A, 0x3C, 0xFF), new Color32(0xC0, 0x62, 0x2E, 0xFF), new Color32(0x5A, 0xB4, 0xE6, 0xFF),
+            new Color32(0xC0, 0x6C, 0xD8, 0xFF), new Color32(0x3C, 0x9A, 0x4A, 0xFF),
         };
         static readonly IconKind[] UpgradeIcons =
             { IconKind.Slingshot, IconKind.Runners, IconKind.Glass, IconKind.Income, IconKind.Rocket };
@@ -587,6 +588,19 @@ namespace SledSurfers
         public void LidOpened() => Toast("LID OFF!");
 
         /// Koşuda ekranın ortasında kısa bir yazı (kapak, roket kilidi...).
+        Label threatLabel;
+
+        /// Arkadaki tehlikenin mesafesi (m, gösterim ölçeğinde); negatifse gizlenir. Yaklaştıkça kızarır ve nabız atar.
+        public void ShowThreat(string text, float closeness, float time)
+        {
+            if (string.IsNullOrEmpty(text)) { threatLabel.style.display = DisplayStyle.None; return; }
+            threatLabel.style.display = DisplayStyle.Flex;
+            threatLabel.text = text;
+            float pulse = 0.5f + 0.5f * Mathf.Sin(time * (6f + 10f * closeness));
+            threatLabel.style.backgroundColor = Color.Lerp(new Color(0.85f, 0.45f, 0.1f, 0.85f), new Color(0.9f, 0.08f, 0.08f, 0.95f), closeness * (0.6f + 0.4f * pulse));
+            threatLabel.style.scale = new Scale(Vector2.one * (1f + 0.08f * closeness * pulse));
+        }
+
         public void Toast(string text)
         {
             toastLabel.text = text;
@@ -3040,7 +3054,7 @@ namespace SledSurfers
                 var pic = E();
                 pic.style.width = 600;
                 pic.style.height = 270;
-                pic.style.backgroundImage = Background.FromTexture2D(Resources.Load<Texture2D>("UI/MapThumbs/" + (i == 7 ? "gorge" : theme.slug)));
+                pic.style.backgroundImage = Background.FromTexture2D(Resources.Load<Texture2D>("UI/MapThumbs/" + HomeTrackTheme.Thumb(i)));
                 pic.style.backgroundSize = new BackgroundSize(BackgroundSizeType.Cover);
                 pic.style.backgroundColor = theme.panel;
                 pic.style.borderTopLeftRadius = pic.style.borderTopRightRadius = 70;
@@ -3454,6 +3468,19 @@ namespace SledSurfers
             toastLabel.style.marginTop = 10;
             toastLabel.style.display = DisplayStyle.None;
             p.Add(toastLabel);
+
+            // Arkadan gelen tehlike (kovalayan taş): kırmızı hap içinde canlı mesafe
+            threatLabel = L("", "outlined");
+            threatLabel.style.alignSelf = Align.Center;
+            threatLabel.style.fontSize = 54;
+            threatLabel.style.color = Color.white;
+            threatLabel.style.paddingLeft = threatLabel.style.paddingRight = 30;
+            threatLabel.style.paddingTop = threatLabel.style.paddingBottom = 6;
+            threatLabel.style.marginTop = 6;
+            threatLabel.style.borderTopLeftRadius = threatLabel.style.borderTopRightRadius = 30;
+            threatLabel.style.borderBottomLeftRadius = threatLabel.style.borderBottomRightRadius = 30;
+            threatLabel.style.display = DisplayStyle.None;
+            p.Add(threatLabel);
 
             p.Add(E("grow"));
 

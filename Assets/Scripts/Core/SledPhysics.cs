@@ -83,6 +83,11 @@ namespace SledSurfers
         public static float BoostKick = 10f;
         public const float BoostDuration = 1.2f;
         int lastBoost = -1;
+        int lastBouncer = -1, iceIdx = -1;
+        float iceTime;
+        /// Bu atışta kırılan ince buzlar (görünüş okur).
+        public bool[] brokenIce = new bool[0];
+        public int bounces;
         /// Bu atıştaki sürpriz engeller (TrackProfile.hazards sırasıyla).
         public HazardState[] hazards = new HazardState[0];
         /// Çöken köprü: kızağın bastığı köprünün başlangıcı (r0) ve basış anı (clock); yoksa NaN.
@@ -151,10 +156,15 @@ namespace SledSurfers
             launchBoost = 1f;
             lastBoost = -1;
             boostTime = 0f;
+            lastBouncer = iceIdx = -1;
+            iceTime = 0f;
+            bounces = 0;
+            brokenIce = new bool[track.thinIce.Count];
             hazards = new HazardState[track.hazards.Count];
             for (int i = 0; i < hazards.Length; i++)
                 hazards[i] = new HazardState { kind = track.hazards[i].kind,
-                                               radius = track.hazards[i].kind == HazardKind.Snowball ? 1.6f : track.hazards[i].kind == HazardKind.Meteor ? 1.4f : 1.2f };
+                                               radius = track.hazards[i].kind == HazardKind.Snowball ? 1.6f : track.hazards[i].kind == HazardKind.Boulder ? 2.1f
+                                                      : track.hazards[i].kind == HazardKind.Meteor ? 1.4f : 1.2f };
             ledgeR0 = float.NaN;
             collapsing = false;
             stats.Reset();
@@ -198,6 +208,21 @@ namespace SledSurfers
                 velocity += track.Normal(position.x, position.z) * 2.2f;
             }
             if (track.fragileBridges) FragileBridge();
+            if (track.thinIce.Count > 0) ThinIce(dt);
+            if (track.bouncers.Count > 0 && grounded && !launching)
+            {
+                int bi = track.BouncerAt(position.x, position.z);
+                if (bi >= 0 && bi != lastBouncer)
+                {
+                    lastBouncer = bi;
+                    bounces++;
+                    grounded = false;
+                    airTime = 0f;
+                    velocity.y = Mathf.Max(velocity.y, 0f) + TrackProfile.BouncePower * Mathf.Sqrt(Gravity / EarthGravity);
+                    var flat = new Vector3(velocity.x, 0f, velocity.z);
+                    if (flat.sqrMagnitude > 0.01f) velocity += flat.normalized * 1.5f;
+                }
+            }
             int boost = grounded && !launching ? track.BoostAt(position.x, position.z) : -1;
             if (boost >= 0 && boost != lastBoost)
             {
@@ -646,6 +671,21 @@ namespace SledSurfers
 
         /// Yan yamaçta görünmez duvar yok: yamacın tepesini aşıp pistin dışına çıkan kızak orada düşer
         /// (kullanıcı kararı 2026-10-08). Tepeye çıkmak için yamaca hızla, dik açıyla sürmek gerekir.
+        void ThinIce(float dt)
+        {
+            int i = grounded ? track.ThinIceAt(position.x, position.z) : -1;
+            if (i < 0 || brokenIce[i]) { iceIdx = -1; iceTime = 0f; return; }
+            if (i != iceIdx) { iceIdx = i; iceTime = 0f; }
+            iceTime += dt;
+            if (iceTime > TrackProfile.IceHold && end == RunEnd.None)
+            {
+                brokenIce[i] = true;
+                stats.fellInRavine = true;
+                velocity = Vector3.zero;
+                ForceEnd(RunEnd.Crashed, track.fallText, CrashCause.Ravine);
+            }
+        }
+
         void UpdateHazards(float dt)
         {
             for (int i = 0; i < hazards.Length && end == RunEnd.None; i++)
@@ -658,7 +698,13 @@ namespace SledSurfers
                     h.phase = 1;
                     h.t = 0f;
                     float cx = track.CenterX(position.z);
-                    if (h.kind == HazardKind.Snowball)
+                    if (h.kind == HazardKind.Boulder)
+                    {
+                        // Arkada doğar: kaçmak için hız gerekir.
+                        float z = position.z - HazardState.BoulderBehind;
+                        h.pos = new Vector3(position.x, track.TerrainHeight(position.x, z) + h.radius, z);
+                    }
+                    else if (h.kind == HazardKind.Snowball)
                     {
                         // Önde, kızağın şimdiki hizasında belirir (yana kaçmak gerekir).
                         float z = position.z + HazardState.SnowballLead;
@@ -677,6 +723,16 @@ namespace SledSurfers
                     continue;
                 }
                 h.t += dt;
+                if (h.kind == HazardKind.Boulder)
+                {
+                    h.pos.z += HazardState.BoulderSpeed * dt;
+                    h.pos.x = Mathf.MoveTowards(h.pos.x, position.x, 1.2f * dt);   // kızağın yanına yavaşça kayar
+                    h.pos.y = track.TerrainHeight(h.pos.x, h.pos.z) + h.radius;
+                    if (h.t * HazardState.BoulderSpeed > HazardState.BoulderRun || h.pos.z < position.z - 160f) { h.phase = 3; continue; }
+                    Vector2 d = new Vector2(position.x - h.pos.x, position.z - h.pos.z);
+                    if (d.magnitude < h.radius + HalfWidth && position.y < h.pos.y + h.radius * 0.8f) Hit(h, "Crushed by the boulder!");
+                    continue;
+                }
                 if (h.kind == HazardKind.Snowball)
                 {
                     h.pos.z -= HazardState.SnowballSpeed * dt;

@@ -53,7 +53,7 @@ namespace SledSurfers
     /// Sürpriz engeller (kullanıcı 2026-10-24): kızak tetik noktasına (z) gelince başlar.
     /// Snowball: önde, kızağın hizasında belirip karşıdan yuvarlanan dev kartopu. Rockfall / Meteor: kızağın birazdan
     /// varacağı yere önce gölge (meteorda kırmızı halka) düşer, gölge büyür, sonra kaya / meteor iner ve yolda kalır.
-    public enum HazardKind { Snowball, Rockfall, Meteor }
+    public enum HazardKind { Snowball, Rockfall, Meteor, Boulder }
 
     public struct Hazard
     {
@@ -71,6 +71,8 @@ namespace SledSurfers
         public float radius;
         public bool hit;           // kızağa çarptı
         public const float FallTime = 1.3f, MeteorFallTime = 1.5f, SnowballSpeed = 9f, SnowballLead = 55f;
+        /// Kovalayan taş (Jungle Temple): kızağın 35 m arkasında doğar, BoulderSpeed ile yuvarlanır, BoulderRun m sonra yoldan çıkar.
+        public const float BoulderSpeed = 12f, BoulderBehind = 35f, BoulderRun = 200f;   // 47 km/s kızak yetişilmeden kaçar, yavaşı yakalanır
         public float FallDuration => kind == HazardKind.Meteor ? MeteorFallTime : FallTime;
     }
 
@@ -164,10 +166,33 @@ namespace SledSurfers
         }
         public readonly List<Bridge> bridges = new List<Bridge>();
         public readonly List<Hazard> hazards = new List<Hazard>();
+        /// İnce buz (Frozen Lake): x = z, y = x (mutlak), z = yarıçap. Üstünde IceHold s'den uzun kalan kızağın altında kırılır.
+        public readonly List<Vector3> thinIce = new List<Vector3>();
+        public const float IceHold = 0.42f;
+        /// Mantar trambolinleri (Mushroom Grove): x = z, y = x (mutlak), z = yarıçap. Basan kızak havaya zıplar.
+        public readonly List<Vector3> bouncers = new List<Vector3>();
+        public const float BouncePower = 7f;
+
+        public int ThinIceAt(float x, float z) => DiscAt(thinIce, x, z);
+        public int BouncerAt(float x, float z) => DiscAt(bouncers, x, z);
+
+        static int DiscAt(List<Vector3> list, float x, float z)
+        {
+            for (int i = 0; i < list.Count; i++)
+            {
+                var d = list[i];
+                if (Mathf.Abs(z - d.x) > d.z) continue;
+                if ((new Vector2(x - d.y, z - d.x)).sqrMagnitude <= d.z * d.z) return i;
+            }
+            return -1;
+        }
 
         /// Dar kanyon duvarları (kullanıcı 2026-10-23): wallHalf > 0 ise vadi ortasından bu uzaklıkta dik kaya duvar; kızak
         /// (gövdesiyle) değerse düşer. pinches: duvarın daraldığı boğazlar (x = orta z, y = uzunluk, z = en dar yarı aralık).
         public float wallHalf;
+        /// Hızlandırıcı rampası konmaz (kendi fırlatma/tehlike mekaniği olan pistler; buzda 100 km/s'yle rampaya giren kızağın sütü
+        /// 2-3 g'lik dikey ivmeyle bir anda dökülüyordu).
+        public bool noRamps;
 
         /// Çöken kaya köprü (kullanıcı 2026-10-23: "yavaş geçiyorsa köprü taşımasın, çöksün"): kızak tablaya basınca taş
         /// çatlar; CollapseDelay s sonra çöküş, girişten itibaren CollapseSpeed m/s ile kızağın arkasından ilerler (çatlağın
