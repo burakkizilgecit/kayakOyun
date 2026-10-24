@@ -333,6 +333,22 @@ namespace SlingRiders
                 Application.Quit();
                 yield break;
             }
+            if (mode == "icons")
+            {
+                game.DebugHideTutorial();
+                game.DebugHub();
+                game.DebugIconSheet(true);
+                yield return new WaitForSeconds(0.8f);
+                yield return Shot("icons");
+                game.DebugIconSheet(false);
+                yield return Shot("hub");
+                game.DebugShop();
+                yield return new WaitForSeconds(0.8f);
+                yield return Shot("shop");
+                SaveData.ClearAll();
+                Application.Quit();
+                yield break;
+            }
             if (mode == "login")
             {
                 // Günlük ödül: 1. gün / 4. gün / 7. gün alınabilir, 4. gün alınmış; alım akışı (tek sefer).

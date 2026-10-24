@@ -2850,6 +2850,35 @@ namespace SlingRiders
         }
 
         public void DebugPressClaim() => PressClaim();
+
+        /// Test: bütün kodla çizilen ikonlar ızgarada (asset kataloğu için).
+        public void DebugIconSheet(bool on)
+        {
+            var old = root.Q<VisualElement>("debug-icons");
+            old?.RemoveFromHierarchy();
+            if (!on) return;
+            var sheet = new VisualElement { name = "debug-icons" };
+            sheet.style.position = Position.Absolute;
+            sheet.style.left = sheet.style.top = sheet.style.right = sheet.style.bottom = 0;
+            sheet.style.backgroundColor = new Color(0.93f, 0.93f, 0.95f);
+            sheet.style.flexDirection = FlexDirection.Row;
+            sheet.style.flexWrap = Wrap.Wrap;
+            sheet.style.paddingTop = 40; sheet.style.paddingLeft = 20;
+            foreach (IconKind k in System.Enum.GetValues(typeof(IconKind)))
+            {
+                var cell = new VisualElement();
+                cell.style.width = 255; cell.style.height = 220;
+                cell.style.alignItems = Align.Center;
+                cell.style.justifyContent = Justify.Center;
+                cell.Add(new Icon(k, 120));
+                var l = new Label(k.ToString());
+                l.style.fontSize = 34;
+                l.style.color = Ink;
+                cell.Add(l);
+                sheet.Add(cell);
+            }
+            root.Add(sheet);
+        }
         public string DebugLoginLayout()
         {
             var c = loginCards[0];

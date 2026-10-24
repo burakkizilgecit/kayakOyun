@@ -615,6 +615,7 @@ namespace SlingRiders
         }
         public void DebugClaimLogin() => ui.DebugPressClaim();
         public void DebugShowLoginNow() => ShowLogin();
+        public void DebugIconSheet(bool on) => ui.DebugIconSheet(on);
         public string DebugLoginLayoutText => ui.DebugLoginLayout();
         public int DebugLoginPending => save.PendingLoginDay();
         public int DebugMoneyNow => save.money;
