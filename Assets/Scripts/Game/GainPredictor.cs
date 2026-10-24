@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Yükseltme önizlemesi (yol haritası aşama 3): kartın bir sonraki kademesinin bu pistte yaklaşık kaç metre
     /// kazandıracağı. Ana ekrandayken arka planda, kare başına süreyle sınırlı adımla otomatik pilot koşuları simüle

@@ -34,6 +34,6 @@ No physical Android-device FPS measurement was performed.
 
 Gallery: Tools/out/equipment-polished/gallery.html
 Logs: Tools/out/equipment-polished.log, equipment-polished-windows.log, equipment-polished-android.log
-APK: Builds/Android/SledSurfers-test.apk (88,388,158 bytes)
+APK: Builds/Android/SlingRiders-test.apk (88,388,158 bytes)
 APK v2 signature verified.
 SHA256: EDA404AEF2D12B1BB6CC509EFAFDC42D3E7963F01A85A4B9A7538EB0806B7F6C

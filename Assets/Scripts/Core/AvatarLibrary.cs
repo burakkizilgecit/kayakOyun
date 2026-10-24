@@ -1,4 +1,4 @@
-namespace SledSurfers
+namespace SlingRiders
 {
     public enum Perk { None, Slosh, Sling, Magnet, Friction, Lid, Chest, Rocket, Armor, Income, Glide }
 

@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Gerçek parayla satılan ürünlerin fiyatları ve günlük fırsatlar. Fiyatlar mağazadan gelir: ödeme sistemi (Unity IAP /
     /// Google Play) bağlanınca SetPrice ile mağazanın yerel fiyat metni (ör. "₺264,99") yazılır; o zamana kadar aşağıdaki

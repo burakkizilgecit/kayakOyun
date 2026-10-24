@@ -1,4 +1,4 @@
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Pistin aracı (kullanıcı kararı 2026-10-09: son üç haritada aracın şekli tamamen değişir).
     /// Kızak: sörf tahtalı kızak (Çayır–Karlı Dağ). Kum sörfü: raysız geniş tahta (Çöl). Bobsled: kapalı obsidyen

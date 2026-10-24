@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace SledSurfers.EditorTools
+namespace SlingRiders.EditorTools
 {
     /// Sim oyuncu tipleri. Usta: bugünkü otomatik pilot (kusursuz rota ve bardak). Ortalama: gecikmeli ve titrek
     /// direksiyon, bardağı yarım yamalak dengeler, yavaşladığını görünce roketi ateşler. Eğmeyen: ortalama gibi

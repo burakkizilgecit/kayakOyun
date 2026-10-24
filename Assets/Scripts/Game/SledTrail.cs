@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Kızağın arkasında kalan iz (kullanıcı isteği 2026-10-09): ortada geniş, koyu bir oluk ve iki yanda kızak
     /// ayaklarının ince açık çizgileri. Kızak yerdeyken her Spacing metrede bir nokta alınır, şerit araziyi izler,

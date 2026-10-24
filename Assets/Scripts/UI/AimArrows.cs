@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Fırlatma nişanı (kullanıcı 2026-10-23, örnek görsele göre): kızaktan ileri kavisli bir yol üzerinde akan köşeli oklar,
     /// iki ince iz çizgisi, ucunda büyük ok başı ve kıvılcımlar. Güç arttıkça yol uzar, renk sarıdan turuncuya, pembeye ve

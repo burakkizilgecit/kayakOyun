@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Kızak, sürücü, elde bardak ve bardağı yakından gösteren küçük kamera.
     /// Bardak ve sıvı, oyunda okunabilsin diye gerçek boyutun GlassScale katı çizilir.

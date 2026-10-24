@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Su malzemelerinin dalgacık haritasını yavaşça kaydırır (rüzgârda kıpırdayan su).
     public class WaterAnimator : MonoBehaviour

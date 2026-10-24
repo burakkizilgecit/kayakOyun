@@ -1,7 +1,7 @@
 using UnityEditor;
 using UnityEngine;
 
-namespace SledSurfers.EditorTools
+namespace SlingRiders.EditorTools
 {
     /// Import only the illustrated home-menu surfaces. No environment, model or shared UI assets change.
     public sealed class WinterHomeAssets : AssetPostprocessor

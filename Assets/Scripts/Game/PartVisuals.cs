@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Yükseltmelerin 6 görünümü (başlangıç + 5 tamamlanan seviye): roket, sapan süslemeleri ve seviye adları.
     /// Hem oyundaki kızak/sapan hem de kartlardaki 3D önizlemeler bu kurucuları kullanır.

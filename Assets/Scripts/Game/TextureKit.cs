@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Zemin için döşenebilir (tekrar eden) gri tonlu dokular. Malzeme rengiyle çarpılır: 1 = rengin kendisi,
     /// daha koyu tonlar desen verir. Düz renkli yüzeylere çim, toprak ve taş dokusu katar.

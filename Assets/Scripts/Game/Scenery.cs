@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Parkurun renkleri, ışığı, gökyüzü ve bitki örtüsü.
     public class TrackTheme

@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Sonuç ekranındaki öneri: koşunun ölçümlerinden (RunStats) oyuncunun bir sonraki atışta yapabileceği tek şey.
     /// Yol haritası aşama 3: başarısızlığın nedeni görünsün, oyuncu "daha iyi oynayabilirim" hissetsin.

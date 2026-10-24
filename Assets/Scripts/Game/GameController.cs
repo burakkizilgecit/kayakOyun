@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Oyunun tamamını kuran ve yöneten bileşen: sahnede tek bir boş objeye eklenir.
     /// Akış: Ana ekran (yükseltmeler, dokun-oyna) → Nişan (sapanı ger) → Koşu → Sonuç → Ana ekran …

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Yükseltme kartlarındaki 3D önizlemeler: her kart için parçanın o anki seviyedeki görünümü (sapan, kızak,
     /// bardak, para yığını, roket) ayrı bir sahne köşesinde kurulur, kendi kamerasıyla şeffaf zemine çizilir.

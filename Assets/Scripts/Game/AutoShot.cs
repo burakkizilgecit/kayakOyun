@@ -3,7 +3,7 @@ using System.IO;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Otomatik görsel test: oyun "-autoshot <klasör>" ile başlatılırsa kendi kendine fırlatır,
     /// ekran görüntüleri alır ve kapanır. Normal oyunda hiçbir etkisi yoktur.

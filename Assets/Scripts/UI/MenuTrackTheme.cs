@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// One shared landscape per track for menu surfaces, never the live 3D character stage.
     public sealed class MenuTrackTheme

@@ -1,6 +1,6 @@
 // Stilize gökyüzü: tepeden ufka yumuşak renk geçişi, ufkun altı zemin rengi, güneş yönünde parıltı ve disk.
 // Ufuk rengi sis rengiyle aynı tutulur, böylece uzak arazi gökyüzüne dikişsiz karışır.
-Shader "Hidden/SledSurfers/Sky"
+Shader "Hidden/SlingRiders/Sky"
 {
     Properties
     {

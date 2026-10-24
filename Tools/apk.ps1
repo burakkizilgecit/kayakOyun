@@ -5,7 +5,7 @@ $dst = "C:\Users\burak\UnityProjects\SledRunner_ci"
 robocopy "$src\Assets" "$dst\Assets" /E /NFL /NDL /NJH /NJS /NP | Out-Null
 $u = "C:\Program Files\Unity\Hub\Editor\6000.6.3f1\Editor\Unity.exe"
 $log = "$sp\apk.log"
-& $u -batchmode -quit -projectPath $dst -buildTarget Android -executeMethod SledSurfers.EditorTools.BuildTools.BuildAndroidTest -logFile $log | Out-Null
+& $u -batchmode -quit -projectPath $dst -buildTarget Android -executeMethod SlingRiders.EditorTools.BuildTools.BuildAndroidTest -logFile $log | Out-Null
 Select-String -Path $log -Pattern "error CS|\[ANDROID BUILD\]|Android APK build failed|BuildFailedException|Android SDK|JDK|NDK.*not" | Select-Object -First 12 | ForEach-Object { $_.Line }
 $apk = "$dst\Builds\Android\SlingRiders-test.apk"
 if (Test-Path $apk) {

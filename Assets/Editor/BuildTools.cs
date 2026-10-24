@@ -2,7 +2,7 @@ using UnityEditor;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
 
-namespace SledSurfers.EditorTools
+namespace SlingRiders.EditorTools
 {
     public static class BuildTools
     {
@@ -15,7 +15,7 @@ namespace SledSurfers.EditorTools
             System.IO.Directory.CreateDirectory("Builds/Android");
             EditorUserBuildSettings.buildAppBundle = false;
             EditorUserBuildSettings.exportAsGoogleAndroidProject = false;
-            PlayerSettings.SetApplicationIdentifier(UnityEditor.Build.NamedBuildTarget.Android, "com.sledsurfers.sledrunner");
+            PlayerSettings.SetApplicationIdentifier(UnityEditor.Build.NamedBuildTarget.Android, "com.slingriders.game");
             PlayerSettings.SetScriptingBackend(UnityEditor.Build.NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
             PlayerSettings.Android.useCustomKeystore = false;
@@ -41,7 +41,7 @@ namespace SledSurfers.EditorTools
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
                 scenes = new[] { "Assets/Scenes/Main.unity" },
-                locationPathName = "Builds/WindowsTest/SledSurfers.exe",
+                locationPathName = "Builds/WindowsTest/SlingRiders.exe",
                 target = BuildTarget.StandaloneWindows64,
                 options = BuildOptions.Development,
             });

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Kalıcı parçaların görünüşü (Upgrades.PartNames): kızağın arkasına aero kuyruk, pervane, turbo pervane (halkalı),
     /// çift turbo pervane ve jet motoru. Her araçta (kızak, kum sörfü, bobsled, hover) aynı yerde, arka uçta durur.

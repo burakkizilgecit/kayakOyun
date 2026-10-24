@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     public enum IconKind { Coin, Flag, Gear, Back, Play, Slingshot, Runners, Wing, Glass, Hand, Swap, Wrench, Sound, Mute, Finish, Lock, Map, Check, Rocket, Income, Gem, Chest, Video, Flame }
 

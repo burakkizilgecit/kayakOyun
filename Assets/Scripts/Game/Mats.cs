@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Basit malzeme ve primitif yardımcıları. Malzemeler Resources'taki şablonlardan
     /// kopyalanır, böylece Standard shader build'e dahil olur.

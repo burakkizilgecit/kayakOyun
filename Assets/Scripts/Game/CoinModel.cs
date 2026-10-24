@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Pistteki coin: ince (kalınlık çapın ~%12'si) altın para. Kenarı pahlı, dış halkası kabarık, ortası hafif
     /// çukur ve iki yüzünde kabartma yıldız. Çap 1, yüzler ±Z'ye bakar (Y ekseninde döner). Tek mesh, iki malzeme:

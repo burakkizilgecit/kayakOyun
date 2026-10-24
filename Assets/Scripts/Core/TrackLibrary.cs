@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Parkurlar sırayla açılır: biri %100 bitince sonraki açılır.
     public static class TrackLibrary
@@ -25,7 +25,7 @@ namespace SledSurfers
         public static readonly VehicleKind[] Vehicles =
             { VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sandboard, VehicleKind.Bobsled, VehicleKind.Hover, VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sled, VehicleKind.Sled };
 
-        // Gerçek uzunluklar (m). Ekranda ×DisplayScale gösterilir (Sled Surfers gibi: Çayır "3600 m").
+        // Gerçek uzunluklar (m). Ekranda ×DisplayScale gösterilir (referans oyundaki gibi: Çayır "3600 m").
         public static readonly float[] Lengths = { 1000f, 1200f, 1400f, 1600f, 1800f, 2000f, 2200f, 1500f, 1500f, 1600f, 1700f };
 
         /// Ekrandaki mesafe ölçeği (kullanıcı kararı, videodaki gibi): gösterilen metre = gerçek × 3.6. Böylece km/s
@@ -577,7 +577,7 @@ namespace SledSurfers
 
 
         // ------------------------------------------------------------------ süzülme pistleri (2026-10-08)
-        // Kullanıcı kararı (Sled Surfers videoları incelendi): pist çoğunlukla yumuşak iniş; kızak sapanın verdiği
+        // Kullanıcı kararı (referans oyunun videoları incelendi): pist çoğunlukla yumuşak iniş; kızak sapanın verdiği
         // hızla başlar ve düzgünce yavaşlar, durduran tırmanış yok. Aralarda hızı geri veren iniş kanalları ("ikinci
         // nefes"). Mesafeyi sapan, kızak (sürtünme), roket ve rota (buz hızlı, su/çamur yavaş) belirler.
 

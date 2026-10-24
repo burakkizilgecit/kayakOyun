@@ -2,7 +2,7 @@ using System;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// RALP GAMES stüdyo açılışı (kullanıcı 2026-10-23, marka paketindeki senaryo): kömür zemin; R simgesi %85'ten %100'e,
     /// 8 birim aşağıdan yerine gelir; RALP soldan 12 birimle, GAMES daha hafif belirir; logo sabit durur, 250 ms solar.

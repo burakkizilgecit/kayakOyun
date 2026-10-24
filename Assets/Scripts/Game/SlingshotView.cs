@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Halatlı sapan: metal başlıklı yuvarlak ahşap direkler, aralarında örgü desenli kalın lastik halat
     /// bulunur. Halat her karede yeniden bükülür: gevşekken sarkar, gerilince düzleşip incelir.

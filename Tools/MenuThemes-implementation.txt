@@ -70,8 +70,8 @@ bagimsiz olarak tekrar incelendi; 52 ana kontrol guvenli alan icinde,
 galerideki 15/15 gorsel mevcut. Korunan 400 oyun/karakter/ortam dosyasi ve
 8 onceki kis UI dosyasinin SHA-256 ozetleri degismedi.
 Android derlemesi basarili, 0 hata; apksigner v2 imzasi dogrulandi.
-APK: Builds/Android/SledSurfers-test.apk
+APK: Builds/Android/SlingRiders-test.apk
 Boyut: 82.072.126 bayt (78,3 MiB). ARM64, min API 26, hedef API 36.
-Paket: com.sledsurfers.sledrunner, surum 1.0 / kod 1, development test.
+Paket: com.slingriders.game, surum 1.0 / kod 1, development test.
 SHA-256: E24E1677C0861F584A1FB0466772C1BFED109D8E3D894CC73BE9412634C9C9A5
 Android logu: Tools/out/menu-themes-android.log

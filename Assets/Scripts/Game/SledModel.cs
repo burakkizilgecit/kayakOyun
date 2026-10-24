@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Sörf tahtalı kızak: kalkık burunlu, desenli bir tahta ve altında ucu kıvrık boru raylar.
     /// Tüm parçalar koddan üretilir; raylar dışarıdan verilen malzemeyi kullanır (kızak altı yükseltmesi rengini değiştirir).

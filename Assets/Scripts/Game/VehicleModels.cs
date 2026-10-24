@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Son üç haritanın araçları (kullanıcı kararı 2026-10-09: aracın şekli tamamen değişir). Hepsi koddan üretilir;
     /// oturma yüksekliği kızakla aynı (~0.27 m), kanat ve roket bağlantıları RiderView'da ortak.

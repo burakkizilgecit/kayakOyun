@@ -2,7 +2,7 @@ using System.Text;
 using UnityEditor;
 using UnityEngine;
 
-namespace SledSurfers.EditorTools
+namespace SlingRiders.EditorTools
 {
     /// Oyunu açmadan fizik ayarını doğrulamak için otomatik oyuncuyla simülasyon.
     /// Menü: Sling Riders > Fizik Testleri  (sonuç Console'a yazılır)

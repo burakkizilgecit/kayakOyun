@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Loads only the selected home-menu artwork; gameplay and the world behind the UI stay unchanged.
     public static class HomeTrackTheme

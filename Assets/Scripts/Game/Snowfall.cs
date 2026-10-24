@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Karlı parkurda kameranın önünde yağan kar: dünyada asılı küçük mesh tanecikler (kızak hızla içinden geçer).
     /// Parçacık shader'ı yerine zemin malzemesi kullanılır: yapıda shader eksik kalmaz.

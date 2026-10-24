@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Owns explicitly registered runtime assets; imported models and shared texture caches stay untouched.
     public sealed class RuntimeResources : MonoBehaviour

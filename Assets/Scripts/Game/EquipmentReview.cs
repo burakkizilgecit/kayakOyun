@@ -1,7 +1,7 @@
 using System.IO;
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     // Uses the production builders, only in an explicitly requested isolated screenshot session.
     public static class EquipmentReview

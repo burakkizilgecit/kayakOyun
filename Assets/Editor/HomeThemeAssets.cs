@@ -1,7 +1,7 @@
 using UnityEditor;
 using UnityEngine;
 
-namespace SledSurfers.EditorTools
+namespace SlingRiders.EditorTools
 {
     /// Import only the new track-specific home frames. Winter and all world/character assets are untouched.
     public sealed class HomeThemeAssets : AssetPostprocessor

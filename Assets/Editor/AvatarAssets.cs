@@ -3,7 +3,7 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
-namespace SledSurfers.EditorTools
+namespace SlingRiders.EditorTools
 {
     /// Meshy animasyonları (Assets/Art/Meshy/<Ad>_<Klip>.fbx) karakterin mesh'iyle birlikte geliyor.
     /// Build'e yalnızca klip girsin diye her biri Resources/Avatars/Meshy/<Ad>_<Klip>.anim olarak çıkarılır.

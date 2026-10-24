@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Aşamalı öğretim ipuçları (yol haritası aşama 5): her biri ilgili an ilk geldiğinde birkaç kez gösterilir.
     public enum Hint { Steer, Milk, Rocket, Nose, Bridge, Launch, Fork }

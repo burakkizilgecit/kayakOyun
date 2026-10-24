@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Testler için otomatik oyuncu: engellerden kaçar, vadide süzülür, bardağı hissettiği ivmeye göre eğer.
     /// Hem başsız fizik testleri (SimTests) hem oyun içi ekran görüntüsü testi (AutoShot) kullanır.

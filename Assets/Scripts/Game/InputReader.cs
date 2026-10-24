@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Mobil: tek parmak (sapan / kızak yönü) + telefonu eğme (bardak).
     /// PC testi: fare ile sürükleme, Boşluk = sapan, A/D + W/S = kızak, I/J/K/L = bardak.

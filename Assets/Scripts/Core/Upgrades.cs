@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     public enum UpgradeType { Slingshot, Runners, Glass, Income, Rocket }
 

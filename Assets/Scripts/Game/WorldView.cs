@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Parkur profilinden zemin, korkuluk, çimen, ağaçlar, engeller, tabelalar ve sapanı üretir.
     public class WorldView

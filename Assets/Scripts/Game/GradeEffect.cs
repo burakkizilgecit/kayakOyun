@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Ana kameraya tek geçişli renk ayarı uygular (bkz. Resources/Shaders/Grade.shader).
     /// Değerleri parkur teması belirler; shader bulunamazsa sessizce devre dışı kalır.

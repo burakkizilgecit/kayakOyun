@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Shared illustrated home art, with lightweight vector details for the existing add buttons and snow accents.
     public static class WinterHomeArt

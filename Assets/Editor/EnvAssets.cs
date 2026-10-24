@@ -1,7 +1,7 @@
 using UnityEditor;
 using UnityEngine;
 
-namespace SledSurfers.EditorTools
+namespace SlingRiders.EditorTools
 {
     /// Çevre modelleri (Kenney CC0 paketleri) için içe aktarma ayarları: çalışma anında tek mesh'te
     /// birleştirilebilmeleri için okunabilir olmalılar; animasyon, kamera ve ışık alınmaz.

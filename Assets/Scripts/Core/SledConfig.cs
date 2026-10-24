@@ -1,6 +1,6 @@
 using System;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Bir atış için kızak, sapan ve bardağın fiziksel değerleri.
     /// Yükseltmeler bu değerleri değiştirir (bkz. Upgrades.BuildConfig).
@@ -11,7 +11,7 @@ namespace SledSurfers
         public float riderMass = 40f;          // kg
         /// Hava direnci Cd·A (m²): hız karesiyle büyür, hızlı kızak enerji kaybetmeden taşınamaz (kullanıcı: "enerji
         /// kaybı 0 gibi davranamayız"). 2026-10-08: 0.18 → 0.08. Güçlü direnç fırlatma hızını ilk saniyelerde yakıyordu;
-        /// kullanıcı kararı "fırlatma hızı, roket ve rota belirleyici" + Sled Surfers gibi sürtünme ağırlıklı düzgün yavaşlama.
+        /// kullanıcı kararı "fırlatma hızı, roket ve rota belirleyici" + referans oyundaki gibi sürtünme ağırlıklı düzgün yavaşlama.
         public static float DefaultDragArea = 0.08f;
         public float dragArea = DefaultDragArea;
         public float groundFriction = 0.138f;  // kinetik sürtünme katsayısı

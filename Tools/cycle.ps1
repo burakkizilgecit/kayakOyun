@@ -5,14 +5,14 @@ $dst = "C:\Users\burak\UnityProjects\SledRunner_ci"
 robocopy "$src\Assets" "$dst\Assets" /E /NFL /NDL /NJH /NJS /NP | Out-Null
 $u = "C:\Program Files\Unity\Hub\Editor\6000.6.3f1\Editor\Unity.exe"
 $log = "$sp\build.log"
-& $u -batchmode -quit -projectPath $dst -executeMethod SledSurfers.EditorTools.BuildTools.BuildWindowsTest -logFile $log | Out-Null
+& $u -batchmode -quit -projectPath $dst -executeMethod SlingRiders.EditorTools.BuildTools.BuildWindowsTest -logFile $log | Out-Null
 $errs = Select-String -Path $log -Pattern "error CS|\[BUILD\]" | Select-Object -First 10 | ForEach-Object { $_.Line }
 $errs
 if (-not ($errs -match "Succeeded")) { exit 1 }
 $shotDir = "$sp\$name"
 $extra = if ($shots) { "-shots $shots" } else { "" }
 Remove-Item $shotDir -Recurse -ErrorAction SilentlyContinue
-$p = Start-Process "$dst\Builds\WindowsTest\SledSurfers.exe" -ArgumentList "-screen-width 540 -screen-height 960 -screen-fullscreen 0 -autoshot `"$shotDir`" $extra -logFile `"$shotDir.log`"" -PassThru
+$p = Start-Process "$dst\Builds\WindowsTest\SlingRiders.exe" -ArgumentList "-screen-width 540 -screen-height 960 -screen-fullscreen 0 -autoshot `"$shotDir`" $extra -logFile `"$shotDir.log`"" -PassThru
 $p.WaitForExit(900000) | Out-Null
 (Get-ChildItem $shotDir).Name -join " "
 Select-String -Path "$shotDir.log" -Pattern "Exception|NullReference|\[UI\]" | Select-Object -First 10 | ForEach-Object { $_.Line }

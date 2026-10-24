@@ -5,7 +5,7 @@ using System.IO;
 using System.Text;
 using UnityEngine;
 
-namespace SledSurfers.EditorTools
+namespace SlingRiders.EditorTools
 {
     /// Bounded measurements of the actual snow generator and runtime physics. No gameplay tuning lives here.
     public static class SnowTerrainTests

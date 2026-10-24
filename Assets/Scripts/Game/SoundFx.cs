@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Ses dosyası kullanmadan, kodla üretilen oyun sesleri.
     /// Sürekli sesler (lastik gıcırtısı, kayma, rüzgâr) her kare ses seviyesiyle sürülür;

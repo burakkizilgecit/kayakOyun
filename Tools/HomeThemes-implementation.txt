@@ -74,10 +74,10 @@ testi simule edildi. Fiziksel Android telefonda FPS, bellek ve dokunma hissi
 bu ortamda olculmedi; cihaz testi kullaniciya hazirlanan APK ile yapilabilir.
 
 Android teslimi
-Builds/Android/SledSurfers-test.apk
+Builds/Android/SlingRiders-test.apk
 Derleme: basarili, 0 hata. 73.918.086 bayt (70,5 MiB).
 ARM64, en az Android 8 / API 26; hedef API 36. Development test surumu.
-Paket: com.sledsurfers.sledrunner, versionName 1.0, versionCode 1.
+Paket: com.slingriders.game, versionName 1.0, versionCode 1.
 apksigner verify: basarili, APK Signature Scheme v2.
 SHA-256: 00D5B854583ADCF6D1AC2BC9C9C7B098295711AB652F87153EA156BA8831DC67
 Derleme logu: Tools/out/home-themes-android.log

@@ -5,7 +5,7 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 
-namespace SledSurfers.EditorTools
+namespace SlingRiders.EditorTools
 {
     /// Sahneyi, malzeme şablonlarını ve oyuncu ayarlarını oluşturur.
     /// Menü: Sling Riders > Projeyi Kur
@@ -75,8 +75,8 @@ namespace SledSurfers.EditorTools
         {
             EditorApplication.delayCall += () =>
             {
-                if (Application.isBatchMode || SessionState.GetBool("SledSurfers.Opened", false)) return;
-                SessionState.SetBool("SledSurfers.Opened", true);
+                if (Application.isBatchMode || SessionState.GetBool("SlingRiders.Opened", false)) return;
+                SessionState.SetBool("SlingRiders.Opened", true);
                 if (string.IsNullOrEmpty(SceneManager.GetActiveScene().path) && File.Exists("Assets/Scenes/Main.unity"))
                     EditorSceneManager.OpenScene("Assets/Scenes/Main.unity");
             };

@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     public enum RunEnd { None, Stopped, Crashed, Spilled, Finished }
     /// Stable gameplay reason; display text can change or be translated independently.

@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Ödül arkasında yavaşça dönen ışın patlaması: sıcak sarı dilimler, ortada yumuşak parıltı (sandık açılışı).
     public class RayBurst : VisualElement

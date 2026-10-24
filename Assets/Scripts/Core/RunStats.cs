@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Sütün dökülme nedeni (sonuç ekranı ve simler aynı sınıflandırmayı kullanır).
     public enum SpillCause { Air, Landing, Surface, Ice, Turn, Accel, Bump, Count }

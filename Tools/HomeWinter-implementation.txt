@@ -85,8 +85,8 @@ Open the home screen on the target phone; check the top wallet against its cutou
 Tap PLAY and return; open HERO/MAP/SHOP/QUESTS/settings/chest; buy one affordable upgrade and check the deducted balance/level.
 Confirm the character remains animated, the UI responds smoothly, and small prices are readable at normal viewing distance.
 ANDROID PACKAGE
-Builds/Android/SledSurfers-test.apk — rebuilt with the final UI, 69,825,422 bytes (about 70 MB).
+Builds/Android/SlingRiders-test.apk — rebuilt with the final UI, 69,825,422 bytes (about 70 MB).
 Tools/out/home-android-build.log — ANDROID BUILD Succeeded, errors=0.
 apksigner verify --verbose: Verifies; APK Signature Scheme v2=true; one signer.
-Application ID com.sledsurfers.sledrunner; version 1.0 / code 1; arm64-v8a; minimum Android API26, target API36.
+Application ID com.slingriders.game; version 1.0 / code 1; arm64-v8a; minimum Android API26, target API36.
 Protected file hashes were checked again after Android packaging: all 400 unchanged from the redesign baseline.

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Pistteki coinler ve nadir pembe elmaslar. Her atışta yeniden dizilir; kızak yanından geçerken toplanır.
     /// Düz kısımlarda sıra sıra coin, çukurların üstünde yay biçiminde coin ve yayın tepesinde elmas bulunur.

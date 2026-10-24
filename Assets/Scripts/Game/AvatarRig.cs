@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Kızaktaki karakter (Quaternius ya da Meshy modeli). Oturma pozu animasyondan bir kez örneklenir
     /// (Meshy modellerinde T-pozdan kurulur); her karede o poza dönülür, üstüne gövde eğilmesi ve iki kemikli

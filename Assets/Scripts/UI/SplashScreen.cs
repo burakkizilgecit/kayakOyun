@@ -2,7 +2,7 @@ using System;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Açılış ekranı (kullanıcı 2026-10-23: "oyunun açılışına ufak bir animasyonlu arka plan, ortada logo"): koyu maviden
     /// mora gökyüzü, yavaş dönen ışık huzmeleri, çapraz kayan hız çizgileri ve parıldayan yıldızlar; ortada Sling Riders

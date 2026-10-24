@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Arayüzün her kare ihtiyaç duyduğu oyun durumu.
     public struct HudInfo

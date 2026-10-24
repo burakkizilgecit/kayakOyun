@@ -43,7 +43,7 @@ Seviye 0 ve 20 uçuş görüntüleri, 60 ve 750 m arazi görünümleri incelendi
 Tüm parkurun sayısal koşusu test edildi; tüm parkurun görsel ve fiziksel telefon testi yapılmadı.
 
 Çıktılar
-Builds/Android/SledSurfers-test.apk
+Builds/Android/SlingRiders-test.apk
 SHA256: 10FF0FA7EDA701499566977E2C64D9E31E56E9665D8DBE9C9413BB7023C2499F
 Tools/out/snow-terrain-comparison.txt — 36 koşunun önce/sonra karşılaştırması.
 Tools/out/snow-terrain-verified.json — ayrıntılı fizik ölçümü.

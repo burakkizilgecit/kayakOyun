@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     // Shared by live equipment and shop previews. Geometry is built only when a look changes.
     public static class EquipmentStyle

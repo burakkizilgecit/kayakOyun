@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     public enum QuestKind
     {

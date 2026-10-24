@@ -1,7 +1,7 @@
 using UnityEditor;
 using UnityEngine;
 
-namespace SledSurfers.EditorTools
+namespace SlingRiders.EditorTools
 {
     /// Landscapes are shared textures, not sprites or readable CPU copies.
     public sealed class MenuThemeAssets : AssetPostprocessor

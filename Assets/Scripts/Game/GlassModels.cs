@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Beş bardak modelinin görselleri. Kabuk, iç ve dış duvarı, kalın ağzı ve tabanı olan döndürülmüş profil;
     /// süt (çapı d·0.92 olan silindir) her modelde iç duvara sığar. Süslemeler (kulp, bantlar, kapak, pipet, ayaklar)
