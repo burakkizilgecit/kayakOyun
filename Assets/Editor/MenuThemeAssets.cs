@@ -6,7 +6,7 @@ namespace SlingRiders.EditorTools
     /// Landscapes are shared textures, not sprites or readable CPU copies.
     public sealed class MenuThemeAssets : AssetPostprocessor
     {
-        public override uint GetVersion() => 1;
+        public override uint GetVersion() => 1 + 1;
         void OnPreprocessTexture()
         {
             if (!assetPath.StartsWith("Assets/Resources/UI/MenuThemes/", System.StringComparison.Ordinal)
@@ -21,7 +21,7 @@ namespace SlingRiders.EditorTools
             importer.npotScale = TextureImporterNPOTScale.None;
             importer.filterMode = FilterMode.Bilinear;
             importer.wrapMode = TextureWrapMode.Clamp;
-            importer.textureCompression = TextureImporterCompression.Uncompressed;
+            importer.textureCompression = TextureImporterCompression.CompressedHQ;   // ham RGBA 11 temada APK'yı ~50 MB büyütüyordu (2026-10-25)
         }
     }
 }

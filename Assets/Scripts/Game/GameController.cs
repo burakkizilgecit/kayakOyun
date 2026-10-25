@@ -48,6 +48,15 @@ namespace SlingRiders
         float resumeTimeScale = 1f;
         bool resumeAudioPause;
         float accumulator;
+        /// Çizim ara değerlemesi (kullanıcı 2026-10-25: "pistte giderken karakter ve kızak titriyor"): fizik 240 Hz, ekran ~60 Hz;
+        /// karede 4 ya da 5 adım düşünce kızak bir karede ~40, ötekinde ~50 cm ilerliyor, kamera takibinde titreme gibi görünüyordu.
+        /// Kızak son iki fizik adımı arasında, karenin düştüğü oranda (accumulator / adım) çizilir.
+        Vector3 prevSledPos;
+        Quaternion prevSledRot = Quaternion.identity;
+        float RenderAlpha => state == State.Run && !sled.launching && (sled.position - prevSledPos).sqrMagnitude < 4f
+                             ? Mathf.Clamp01(accumulator / PhysicsStep) : 1f;
+        Vector3 SledRenderPos => Vector3.LerpUnclamped(prevSledPos, sled.position, RenderAlpha);
+        Quaternion SledRenderRot => Quaternion.Slerp(prevSledRot, sled.Orientation, RenderAlpha);
         float pull, aim;
         bool aimArmed, aimDragging;
         float runTime;
@@ -496,7 +505,7 @@ namespace SlingRiders
             SnapCamera();   // kızak pistin içine taşındı: kamera oraya süzülmek yerine doğrudan geçer
             ui.ShowHub(save);
             RefreshQuests(false);
-            // Günlük giriş ödülü: oturumda bir kez kendiliğinden açılır (otomatik testte açılmaz).
+            // Günlük giriş ödülü: alınana dek her koşudan sonra ana ekranda bir kez açılır (X ile kapatılınca kaybolmasın; otomatik testte açılmaz).
             if (!loginShown && !AutoShot.Requested && save.PendingLoginDay() > 0)
             {
                 loginShown = true;
@@ -660,6 +669,7 @@ namespace SlingRiders
             sled.stats.perfectLaunch = perfect;
             sled.Launch();
             state = State.Run;
+            loginShown = false;   // X ile kapatılan günlük ödül alınmadıysa bir sonraki ana ekran dönüşünde yeniden açılır
             camDir = new Vector2(Mathf.Sin(aim), Mathf.Cos(aim)).normalized;
             runTime = 0f;
             accumulator = 0f;
@@ -908,7 +918,7 @@ namespace SlingRiders
 
             orbit += dt;
             UpdateBody(dt, out Vector3 shake);
-            rider.Sync(sled, liquid, GlassPitch, GlassRoll, torsoAngle.x, torsoAngle.y, shake);
+            rider.Sync(sled, liquid, GlassPitch, GlassRoll, torsoAngle.x, torsoAngle.y, shake + (SledRenderPos - sled.position), SledRenderRot);
             trail?.Tick(sled, state == State.Run);
             rider.TickCrash(dt, (x, z) => track.Height(x, z), cam.transform.position);
             // Ayağa kalkan karakterin başının üstünde konuşma baloncuğu.
@@ -1109,6 +1119,8 @@ namespace SlingRiders
             while (accumulator >= PhysicsStep)
             {
                 accumulator -= PhysicsStep;
+                prevSledPos = sled.position;
+                prevSledRot = sled.Orientation;
                 // İvmeölçeri olmayan telefonda oyuncu bardağı eğemez: karakter dengelemeyi büyük ölçüde üstlenir.
                 reflex.Step(sled, NoTiltDevice ? Mathf.Max(cfg.glassReflex, 0.9f) : cfg.glassReflex, PhysicsStep);
                 if (debugAutopilot)
@@ -1323,7 +1335,7 @@ namespace SlingRiders
                 look = debugCamLook.Value;
                 return debugCamPos.Value;
             }
-            Vector3 p = sled.position;
+            Vector3 p = SledRenderPos;
             if (state == State.Hub)
             {
                 // Ana ekran: kamera karakterin önünde, hafifçe sağa-sola salınır (referanstaki gibi yüz yüze).

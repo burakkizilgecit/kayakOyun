@@ -1017,6 +1017,56 @@ namespace SlingRiders.EditorTools
             Debug.Log(sb.ToString());
         }
 
+        /// Titreme ölçümü (kullanıcı 2026-10-25): her parkurda ortalama oyuncu orta ve üst seviyede; 60 Hz karede örneklenir.
+        /// Kısa sıçrama: 0.12 s'den kısa havada kalış (zemine değip kalkma). Burun titremesi: kare başına burun açısının ikinci
+        /// farkının ortalaması (derece). Yanal titreme: yanal konumun ikinci farkı (cm).
+        public static void Jitter()
+        {
+            var sb = new StringBuilder("[SIM] Titreme (ortalama oyuncu, 60 Hz kare)\n");
+            for (int track = 0; track < TrackLibrary.Count; track++)
+                foreach (int lvl in new[] { 12, 25 })
+                {
+                    var t = TrackLibrary.Get(track);
+                    int stages = Upgrades.StagesFor(track) * Upgrades.StageSize;
+                    int L = Mathf.Min(lvl, stages);
+                    var cfg = Upgrades.BuildConfig(new[] { L, L, L / 2, L, L });
+                    var sled = new SledPhysics(t, cfg);
+                    sled.PlaceForAim(1f);
+                    sled.Launch();
+                    var player = new SimPlayer(PlayerKind.Ortalama, 7);
+                    float time = 0f, airRun = 0f, frameT = 0f;
+                    int hops = 0, frames = 0;
+                    bool wasGround = true;
+                    double pitchJ = 0, latJ = 0; float p0 = 0, p1 = 0, x0 = 0, x1 = 0; int k = 0;
+                    var hopZ = new System.Collections.Generic.List<float>();
+                    while (sled.end == RunEnd.None && time < 300f)
+                    {
+                        sled.Step(player.Steer(t, sled, Dt), player.Pitch(t, sled, cfg), Dt);
+                        time += Dt;
+                        if (!sled.grounded) airRun += Dt;
+                        else
+                        {
+                            if (!wasGround && airRun > 0f && airRun < 0.12f && !sled.launching) { hops++; if (hopZ.Count < 6) hopZ.Add(sled.position.z); }
+                            airRun = 0f;
+                        }
+                        wasGround = sled.grounded;
+                        frameT += Dt;
+                        if (frameT >= 1f / 60f && !sled.launching)
+                        {
+                            frameT -= 1f / 60f;
+                            float p = sled.pitch * Mathf.Rad2Deg, x = sled.position.x;
+                            if (k >= 2) { pitchJ += Mathf.Abs(p - 2f * p1 + p0); latJ += Mathf.Abs(x - 2f * x1 + x0) * 100f; frames++; }
+                            p0 = p1; p1 = p; x0 = x1; x1 = x; k++;
+                        }
+                    }
+                    float km = Mathf.Max(0.05f, sled.maxDistance / 1000f);
+                    sb.AppendLine(string.Format("  {0,-17} sv{1,2}: {2,5:F0} m  kısa sıçrama {3,4} ({4,5:F1}/km)  burun {5,5:F2}°  yanal {6,5:F2} cm   ilk: {7}",
+                        t.name, lvl, sled.maxDistance, hops, hops / km, frames > 0 ? pitchJ / frames : 0, frames > 0 ? latJ / frames : 0,
+                        string.Join(",", hopZ.ConvertAll(z => z.ToString("F0")))));
+                }
+            Debug.Log(sb.ToString());
+        }
+
         /// Parkur hissi (kullanıcı 2026-10-19: zevksiz, heyecansız, yavaş parkur değişmeli): her pistte, oyuncunun o pisti
         /// bitirdiği seviyenin %60'ı ve %100'ü ile ortalama oyuncu koşusu (3 tohum). Ortalama/en yüksek hız, havada geçen
         /// süre, 0.5 s'den uzun uçuş sayısı, sürünme (< 25 km/sa) oranı, koşu süresi ve km başına olay (köprü, atlayış,

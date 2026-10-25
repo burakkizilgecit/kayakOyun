@@ -6,7 +6,7 @@ namespace SlingRiders.EditorTools
     /// Import only the new track-specific home frames. Winter and all world/character assets are untouched.
     public sealed class HomeThemeAssets : AssetPostprocessor
     {
-        public override uint GetVersion() => 1;
+        public override uint GetVersion() => 1 + 1;
 
         void OnPreprocessTexture()
         {
@@ -26,7 +26,7 @@ namespace SlingRiders.EditorTools
             importer.filterMode = FilterMode.Bilinear;
             importer.wrapMode = TextureWrapMode.Clamp;
             importer.npotScale = TextureImporterNPOTScale.None;
-            importer.textureCompression = TextureImporterCompression.Uncompressed;
+            importer.textureCompression = TextureImporterCompression.CompressedHQ;   // ham RGBA 11 temada APK'yı ~50 MB büyütüyordu (2026-10-25)
             var settings = new TextureImporterSettings();
             importer.ReadTextureSettings(settings);
             settings.spriteMeshType = SpriteMeshType.FullRect;

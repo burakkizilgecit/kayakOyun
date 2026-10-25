@@ -1385,7 +1385,7 @@ namespace SlingRiders
 
         static readonly string[] HomeButtons =
         {
-            "home-play", "home-map", "home-shop", "home-hero", "home-quests", "home-settings", "home-chest",
+            "home-play", "home-track", "home-shop", "home-hero", "home-quests", "home-settings", "home-chest",
             "home-coins-plus", "home-gems-plus", "home-track",
             "home-upgrade-0", "home-upgrade-1", "home-upgrade-2", "home-upgrade-3", "home-upgrade-4"
         };
@@ -1540,7 +1540,7 @@ namespace SlingRiders
 
         static readonly string[] MenuBackgrounds =
         {
-            "map", "result", "settings", "chest", "quests", "login", "part", "shop", "offer",
+            "map", "result", "settings", "chest", "quests", "part", "shop", "offer",   // günlük ödül oyun sahnesi üstünde (2026-10-24)
             "launches", "pause", "ad", "heroes-top", "heroes-grid"
         };
 
@@ -1603,7 +1603,7 @@ namespace SlingRiders
             yield return new WaitForSecondsRealtime(0.45f);
             MenuThemeReport(trackIndex, name);
             MenuLayoutReport(name, surface, controls);
-            HomeCheck(HomeVisible(HomeRoot.Q<VisualElement>("menu-bg-" + backgroundKey)), backgroundKey + " backdrop is hidden");
+            if (backgroundKey != null) HomeCheck(HomeVisible(HomeRoot.Q<VisualElement>("menu-bg-" + backgroundKey)), backgroundKey + " backdrop is hidden");
             yield return Shot(name);
         }
 
@@ -1629,7 +1629,7 @@ namespace SlingRiders
                 yield return MenuCapture(trackIndex, prefix + "shop_" + suffix, "home-shop-modal", "shop", "home-shop-close");
                 yield return MenuClose("home-shop-modal", "home-shop-close");
             }
-            HomePress("home-map");
+            HomePress("home-track");   // MAP düğmesi kaldırıldı (2026-10-23): harita parkur adından açılır
             yield return MenuCapture(trackIndex, prefix + "map_" + suffix, "menu-map", "map", "map-back");
             HomeCheck(game.DebugUiPage == GameUI.Page.Map, "MAP did not select the map page");
             yield return MenuClose("menu-map", "map-back");
@@ -1658,8 +1658,8 @@ namespace SlingRiders
                 yield return MenuClose(surface, close);
             }
             game.DebugLogin(3);
-            yield return MenuCapture(trackIndex, prefix + "login", "menu-login", "login", "menu-login-close");
-            yield return MenuClose("menu-login", "menu-login-close");
+            yield return MenuCapture(trackIndex, prefix + "login", "menu-login", null, "menu-login-close");
+            yield return MenuClose("menu-login", "menu-login-x");
             game.DebugOffer(0);
             yield return MenuCapture(trackIndex, prefix + "offer", "menu-offer", "offer", "menu-offer-close");
             HomeRoot.Q<VisualElement>("menu-offer").Query<Button>(className: "purchase-unavailable")
@@ -1812,13 +1812,13 @@ namespace SlingRiders
                 "coin upgrade callback did not apply the live cost/level");
             yield return Shot("home_coin_upgrade");
 
-            HomeFixture(money: 0, gems: 100);
+            HomeFixture(levels: new[] { 9, 7, 0, 4, 1 }, money: 0, gems: 100);   // elmas yalnız aşama sonu kademesinde (9→10)
             yield return new WaitForSecondsRealtime(0.3f);
             int gemPrice = Upgrades.GemCost(0, game.DebugUpgradeLevel(0));
             yield return Shot("home_gem_fallback");
             HomePress("home-upgrade-0");
             yield return new WaitForSecondsRealtime(0.2f);
-            HomeCheck(game.DebugUpgradeLevel(0) == 9 && game.DebugMoney == 0 && game.DebugGemBalance == 100 - gemPrice,
+            HomeCheck(game.DebugUpgradeLevel(0) == 10 && gemPrice > 0 && game.DebugMoney == 0 && game.DebugGemBalance == 100 - gemPrice,
                 "gem fallback did not charge the live gem price");
 
             HomeFixture(money: 0, gems: 0);
@@ -1840,9 +1840,9 @@ namespace SlingRiders
 
             HomeFixture();
             yield return new WaitForSecondsRealtime(0.4f);
-            HomePress("home-map");
+            HomePress("home-track");
             yield return new WaitForSecondsRealtime(0.25f);
-            HomeCheck(game.DebugUiPage == GameUI.Page.Map, "MAP callback did not open map");
+            HomeCheck(game.DebugUiPage == GameUI.Page.Map, "track title did not open map");
             game.DebugHub();
             yield return new WaitForSecondsRealtime(0.35f);
             HomePress("home-track");

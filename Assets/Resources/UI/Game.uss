@@ -595,7 +595,7 @@
 .shop-grid, .shop-section, .shop-free, .shop-cell { flex-shrink: 0; }
 .shop-cell > .purchase-unavailable, .shop-cell > .purchase-unavailable:disabled {
     font-size: 30px; opacity: 1;
-    color: #2B2340; background-color: #E3E8EF; border-color: #BBC5D2;
+    color: #2B2340; background-color: rgba(0, 0, 0, 0); border-width: 0;   /* yalnız kit hap görseli; eski gri kutu kaldırıldı */
     -unity-text-outline-width: 0;
 }
 .deal-buy.purchase-unavailable { opacity: 0.7; }

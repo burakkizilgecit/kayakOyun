@@ -959,11 +959,12 @@ namespace SlingRiders
         }
 
         public void Sync(SledPhysics sled, LiquidSim liquid, float glassPitch, float glassRoll,
-                         float torsoPitch, float torsoRoll, Vector3 shake)
+                         float torsoPitch, float torsoRoll, Vector3 shake, Quaternion? bodyRot = null)
         {
             var trickRot = TrickRotation(sled.grounded, Time.deltaTime);
-            var rot = sled.Orientation * trickRot;
-            root.SetPositionAndRotation(sled.position + shake + sled.Orientation * TrickPivot - rot * TrickPivot, rot);
+            var baseRot = bodyRot ?? sled.Orientation;   // çizim ara değerlemesi (GameController.SledRenderRot)
+            var rot = baseRot * trickRot;
+            root.SetPositionAndRotation(sled.position + shake + baseRot * TrickPivot - rot * TrickPivot, rot);
             // Hover aracı yerin biraz üstünde hafifçe salınır.
             if (shownVehicle == VehicleKind.Hover && vehicles.TryGetValue(VehicleKind.Hover, out var hv))
                 hv.root.localPosition = new Vector3(0f, 0.05f + 0.02f * Mathf.Sin(Time.time * 4f), 0f);
