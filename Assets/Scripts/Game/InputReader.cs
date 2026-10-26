@@ -127,7 +127,8 @@ namespace SlingRiders
             {
                 Vector3 a = Input.acceleration;
                 if (!gravityReady) { gravity = neutral = a; gravityReady = true; }
-                gravity = Vector3.Lerp(gravity, a, 1f - Mathf.Exp(-25f * dt));
+                // 25/s ham ivmeölçer gürültüsünü bardağa ve kola taşıyordu (kullanıcı 2026-10-26: karakter titriyor); 15/s ~65 ms
+                gravity = Vector3.Lerp(gravity, a, 1f - Mathf.Exp(-15f * dt));
                 glassPitch = Mathf.Clamp(Mathf.DeltaAngle(ForwardTilt(neutral), ForwardTilt(gravity)), -MaxGlassTilt, MaxGlassTilt);
                 glassRoll = Mathf.Clamp(Mathf.DeltaAngle(SideTilt(neutral), SideTilt(gravity)), -MaxGlassTilt, MaxGlassTilt);
                 return;

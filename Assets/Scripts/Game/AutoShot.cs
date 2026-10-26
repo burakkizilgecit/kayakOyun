@@ -590,6 +590,44 @@ namespace SlingRiders
                 Application.Quit();
                 yield break;
             }
+            if (mode == "glide")
+            {
+                // Süzülme titremesi ölçümü (kullanıcı 2026-10-26: "süzülürken karakter sağa sola hafif yalpalıyor"):
+                // kanatlı kızak, girişsiz ve otomatik pilotla; her kare kaydedilir.
+                game.DebugHideTutorial();
+                foreach (bool pilot in new[] { false, true })
+                foreach (int tr in new[] { 0, 3 })
+                {
+                    game.debugAutopilot = pilot;
+                    game.DebugReset(new[] { 20, 20, 12, 20, 16 }, 0);
+                    game.DebugTrack(tr, tr);
+                    yield return new WaitForSeconds(1.5f);
+                    game.DebugAim();
+                    yield return new WaitForSeconds(0.5f);
+                    game.DebugLaunch(1f);
+                    var log = new System.Text.StringBuilder("dt\tgrounded\tpilot\tlean\tbank\trenderRoll\trenderYaw\ttorsoX\ttorsoY\tglassP\tglassR\tcamRoll\tcamYaw\tcamPitch\tx\tvx\n");
+                    float t0 = Time.time;
+                    float p0 = float.NaN, p1 = float.NaN, worst = 0f;
+                    while (!game.DebugInResult && Time.time - t0 < 12f)
+                    {
+                        string s = game.DebugGlideSample();
+                        log.AppendLine(s);
+                        var c = s.Split('\t');
+                        float gp = float.Parse(c[9], System.Globalization.CultureInfo.InvariantCulture);
+                        // Oyuncunun refleksi (otomatik pilot değil), havada: bardak karede 10°'den fazla sıçramamalı
+                        if (!pilot && c[1] == "0" && !float.IsNaN(p1)) worst = Mathf.Max(worst, Mathf.Abs(gp - 2f * p1 + p0));
+                        p0 = p1; p1 = gp;
+                        yield return null;
+                    }
+                    if (worst > 10f) Debug.LogError("[GLIDE] FAIL bardak refleksi titriyor: karede " + worst.ToString("F1") + "° (iz " + tr + ")");
+                    else Debug.Log("[GLIDE] iz " + tr + (pilot ? " pilot" : " serbest") + " en büyük bardak sıçraması " + worst.ToString("F1") + "°");
+                    File.WriteAllText(Path.Combine(folder, "glide_" + (pilot ? "pilot" : "free") + "_t" + tr + ".tsv"), log.ToString());
+                    yield return Shot("glide_" + (pilot ? "pilot" : "free") + "_t" + tr);
+                }
+                SaveData.ClearAll();
+                Application.Quit();
+                yield break;
+            }
             if (mode == "updraft")
             {
                 // Yükselen hava: ilk bölgeye yaklaşırken, içinde ve çıkışta (uçuş yüksekliği ve rüzgâr çizgileri).

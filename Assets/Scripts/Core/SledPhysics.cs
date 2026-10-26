@@ -105,6 +105,7 @@ namespace SlingRiders
         public bool Boosting => boostTime > 0f;
 
         float bankRoll;                  // rad, yamaçta gövdenin yana yatışı (sağ taraf yukarı +)
+        public float BankRoll => bankRoll;
         float stillTime;
         float landHold;                  // inişten hemen sonra kızak zemine bastırılır (aynı tümsekte tekrar seğmez)
         Vector2 aimDir = Vector2.up;     // fırlatma yönü (x, z)

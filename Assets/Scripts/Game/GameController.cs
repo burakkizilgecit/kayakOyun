@@ -122,6 +122,17 @@ namespace SlingRiders
         public float DebugSimulationTime => sled.clock;
         public void DebugPause(bool value) => SetPaused(value);
         public bool DebugInResult => state == State.Result;
+        /// Test (titreme): o karenin süzülme durumu, sekmeyle ayrılmış.
+        public string DebugGlideSample()
+        {
+            var tr = System.Globalization.CultureInfo.InvariantCulture;
+            var c = cam.transform.eulerAngles;
+            var r = SledRenderRot.eulerAngles;
+            return string.Format(tr, "{0:F4}\t{1}\t{2}\t{3:F3}\t{4:F3}\t{5:F3}\t{6:F3}\t{7:F3}\t{8:F3}\t{9:F3}\t{10:F3}\t{11:F3}\t{12:F3}\t{13:F3}\t{14:F3}\t{15:F3}",
+                Time.deltaTime, sled.grounded ? 1 : 0, debugAutopilot ? 1 : 0, sled.lean * Mathf.Rad2Deg, sled.BankRoll * Mathf.Rad2Deg,
+                Mathf.DeltaAngle(0f, r.z), Mathf.DeltaAngle(0f, r.y), torsoAngle.x, torsoAngle.y, GlassPitch, GlassRoll,
+                Mathf.DeltaAngle(0f, c.z), Mathf.DeltaAngle(0f, c.y), Mathf.DeltaAngle(0f, c.x), SledRenderPos.x, sled.velocity.x);
+        }
         public void DebugHub() { ui.DebugCloseModals(); EnterHub(); }
         public GameUI.Page DebugUiPage => ui.Current;
         public int DebugMoney => save.money;

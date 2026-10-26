@@ -165,18 +165,30 @@ namespace SlingRiders
             // kuvvetiyle bardağı yerdeki gibi eğip, ortalama oyuncuya ilk haritanın ilk rampasında sütün %26-57'sini
             // döktürüyordu. Yerdeki zorluk aynı kalır.
             if (!sled.grounded) strength = Mathf.Max(strength, AirReflex);
-            if (Level(sled.Orientation, felt, out float p, out float r))
-            {
-                pitch = strength * p;
-                roll = strength * r;
-            }
-            else
-            {
-                // Ağırlıksızken (havada) karakter son duruşu korur, yavaşça bırakır (90 -> 30°/s): rampadan çıkarken
-                // bardak kızakla birlikte eğilip inişte dökülüyordu.
-                pitch = Mathf.MoveTowards(pitch, 0f, 30f * dt);
-                roll = Mathf.MoveTowards(roll, 0f, 30f * dt);
-            }
+            // Ağırlıksızken (havada) karakter son duruşu korur, yavaşça bırakır (90 -> 30°/s): rampadan çıkarken
+            // bardak kızakla birlikte eğilip inişte dökülüyordu.
+            float relaxP = Mathf.MoveTowards(pitch, 0f, 30f * dt), relaxR = Mathf.MoveTowards(roll, 0f, 30f * dt);
+            // Dengeleme ile bırakma arasında yumuşak geçiş, açı değişimi sınırlı (kullanıcı 2026-10-26: "süzülürken karakter
+            // sağa sola yalpalıyor"): kanatlı süzülmede hissedilen ağırlık 0.4 g eşiğinin çevresinde dolaşıyor, refleks her
+            // fizik adımında iki durum arasında atlayıp bardağı (ve onu tutan kolu) karede 20-29° sıçratıyordu.
+            float weight = WeightFactor(sled.Orientation, felt, out float p, out float r);
+            pitch = Mathf.MoveTowards(pitch, Mathf.Lerp(relaxP, strength * p, weight), MaxRate * dt);
+            roll = Mathf.MoveTowards(roll, Mathf.Lerp(relaxR, strength * r, weight), MaxRate * dt);
+        }
+
+        const float MaxRate = 240f;   // °/s; yerde hızlı tepkiyi korur (0.2 s gecikmeli hissedilen ivme zaten yumuşak)
+
+        /// Level'in sürekli hali: hissedilen ağırlık 0.3 g altında 0, 0.5 g üstünde 1 (aradaki geçiş yumuşak).
+        static float WeightFactor(Quaternion orientation, Vector3 felt, out float pitch, out float roll)
+        {
+            Vector3 local = Quaternion.Inverse(orientation) * (new Vector3(0f, -SledPhysics.Gravity, 0f) - felt);
+            pitch = roll = 0f;
+            float g = local.magnitude / SledPhysics.Gravity;
+            if (g < 0.05f) return 0f;
+            Vector3 up = -local.normalized;
+            pitch = Mathf.Clamp(Mathf.Atan2(up.z, up.y) * Mathf.Rad2Deg, -40f, 40f);
+            roll = Mathf.Clamp(Mathf.Atan2(up.x, up.y) * Mathf.Rad2Deg, -40f, 40f);
+            return Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.3f, 0.5f, g));
         }
 
         /// Bardağı hissedilen etkin yerçekimine hizalamak için gereken eğim (derece). Ağırlıksızken false.
