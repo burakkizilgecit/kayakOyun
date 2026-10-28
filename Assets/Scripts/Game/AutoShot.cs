@@ -136,6 +136,44 @@ namespace SlingRiders
                 yield break;
             }
 
+            if (mode == "milk")
+            {
+                // Süt becerisi: koşu ortasında HUD süt göstergesi (çarpanla) ve sonuç kartındaki süt satırları
+                game.DebugHideTutorial();
+                game.debugAutopilot = true;
+                foreach (int tr in new[] { 0, 3 })
+                {
+                    game.DebugReset(new[] { 22, 22, 18, 22, 18 }, 0);
+                    game.DebugTrack(tr, tr);
+                    yield return new WaitForSeconds(1.5f);
+                    game.DebugAim();
+                    yield return new WaitForSeconds(0.5f);
+                    game.DebugLaunch(1f);
+                    float mt = 0f;
+                    float nextLog = 0f;
+                    while (!game.DebugInResult && mt < 14f)
+                    {
+                        if (mt >= nextLog) { Debug.Log("[MILK] " + tr + " " + game.DebugMilkState); nextLog += 0.5f; }
+                        mt += Time.deltaTime;
+                        yield return null;
+                    }
+                    if (!game.DebugInResult) yield return Shot("m" + tr + "_hud");
+                    while (!game.DebugInResult && mt < 150f)
+                    {
+                        if (mt >= nextLog) { Debug.Log("[MILK] " + tr + " " + game.DebugMilkState); nextLog += 0.5f; }
+                        mt += Time.deltaTime;
+                        yield return null;
+                    }
+                    Debug.Log("[MILK] " + tr + " end " + game.DebugMilkState);
+                    yield return new WaitForSeconds(2.5f);
+                    game.DebugClosePart();   // yeni parça penceresi sonuç kartını örtmesin
+                    yield return new WaitForSeconds(0.8f);
+                    yield return Shot("m" + tr + "_result");
+                }
+                SaveData.ClearAll();   // yalnız test önekli kayıt (gerçek kayıt korunur)
+                Application.Quit();
+                yield break;
+            }
             if (mode == "parts")
             {
                 // Kalıcı parçalar: duyuru önizlemeleri + Çayır'da köprü öncesi yükselti (yaklaşırken ve inerken)

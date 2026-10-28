@@ -114,6 +114,8 @@ namespace SlingRiders
             return a;
         }
         public readonly int[] bests = new int[TrackLibrary.Count];
+        /// Pist başına en iyi bitiş sütü (%; 2026-10-28 süt rekabeti): pist bitirilince bardakta kalan en yüksek oran.
+        public readonly int[] milkBests = new int[TrackLibrary.Count];
 
         /// Seçili parkurun rekoru (m).
         public int best
@@ -168,6 +170,7 @@ namespace SlingRiders
             for (int t = 0; t < TrackLibrary.Count; t++)
                 for (int i = 0; i < Upgrades.Count; i++) yield return "lvl" + t + "_" + i;
             for (int i = 0; i < TrackLibrary.Count; i++) yield return "best_t" + i;
+            for (int i = 0; i < TrackLibrary.Count; i++) yield return "milk_t" + i;
         }
 
         /// Geçerli önekle yazılmış bütün kayıt anahtarlarını siler (testler için; PlayerPrefs.DeleteAll yerine).
@@ -202,6 +205,8 @@ namespace SlingRiders
                     s.trackLevels[t][i] = Mathf.Clamp(PlayerPrefs.GetInt(K("lvl" + t + "_" + i), 0), 0, Upgrades.MaxFor(t));
             for (int i = 0; i < TrackLibrary.Count; i++)
                 s.bests[i] = PlayerPrefs.GetInt(K("best_t" + i), 0);
+            for (int i = 0; i < TrackLibrary.Count; i++)
+                s.milkBests[i] = Mathf.Clamp(PlayerPrefs.GetInt(K("milk_t" + i), 0), 0, 100);
             // Bir parkur bitmeden sonraki açılmaz (eski kayıtlar ve değişen pistler için de geçerli).
             while (s.unlocked > 0 && !s.Finished(s.unlocked - 1)) s.unlocked--;
             s.track = Mathf.Min(s.track, s.unlocked);
@@ -261,6 +266,7 @@ namespace SlingRiders
             for (int t = 0; t < TrackLibrary.Count; t++)
                 for (int i = 0; i < Upgrades.Count; i++) PlayerPrefs.SetInt(K("lvl" + t + "_" + i), trackLevels[t][i]);
             for (int i = 0; i < TrackLibrary.Count; i++) PlayerPrefs.SetInt(K("best_t" + i), bests[i]);
+            for (int i = 0; i < TrackLibrary.Count; i++) PlayerPrefs.SetInt(K("milk_t" + i), milkBests[i]);
             PlayerPrefs.SetInt(K("qday"), questDay);
             PlayerPrefs.SetInt(K("qtrack"), questTrack);
             for (int i = 0; i < DailyQuests.PerDay; i++) PlayerPrefs.SetInt(K("qp" + i), questProgress[i]);

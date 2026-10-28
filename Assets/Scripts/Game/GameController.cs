@@ -69,6 +69,12 @@ namespace SlingRiders
         float lastPull;
         int heardLandings;
         float lastFill = 1f, splashCooldown;
+        /// Süt becerisi: sağlam el çarpanı ve kıl payı (MilkStreak). streakDist: çarpana işlenen son rekor mesafe.
+        readonly MilkStreak streak = new MilkStreak();
+        float streakDist, frameFill = 1f, spillRate;
+        bool wasBoosting;
+        /// Kıl payı ödülü (mesafe metresi cinsinden; gelir ve parkur çarpanıyla ölçeklenir).
+        const float CloseCallMeters = 15f;
 
         // Ana ekranda kamera karakterin önünde yavaşça salınır.
         float orbit;
@@ -122,6 +128,10 @@ namespace SlingRiders
         public float DebugSimulationTime => sled.clock;
         public void DebugPause(bool value) => SetPaused(value);
         public bool DebugInResult => state == State.Result;
+        /// Test (süt becerisi): çarpan, kademe ilerlemesi, taşma tehlikesi, doluluk.
+        public string DebugMilkState => string.Format(System.Globalization.CultureInfo.InvariantCulture,
+            "x{0:F2} prog {1:F2} danger {2:F2} fill {3:F3} calls {4} breaks {5} d {6:F0}",
+            streak.mult, streak.Progress, liquid.Danger, liquid.FillRatio, streak.closeCalls, streak.breaks, sled.maxDistance);
         /// Test (titreme): o karenin süzülme durumu, sekmeyle ayrılmış.
         public string DebugGlideSample()
         {
@@ -468,6 +478,11 @@ namespace SlingRiders
             accumulator = 0f;
             heardLandings = 0;
             lastFill = 1f;
+            streak.Reset();
+            streakDist = 0f;
+            frameFill = 1f;
+            spillRate = 0f;
+            wasBoosting = false;
             input.Calibrate();
             lidOpen = false;
             pilot.Reset();
@@ -769,8 +784,17 @@ namespace SlingRiders
             float income = Upgrades.IncomeMultiplier(save.levels[(int)UpgradeType.Income]) * (save.Perk == Perk.Income ? 1.1f : 1f);
             int bonus = FinishBonus * (save.track + 1);
             // Pistte toplanan altın sabit değerlidir (120): gelir ve parkur çarpanı yalnızca mesafe ve bitiş ödülüne uygulanır.
-            int earned = Mathf.RoundToInt((distance * (0.4f + 0.6f * Mathf.Clamp01(fill)) + (finished ? bonus : 0))
-                                          * income * TrackLibrary.PayFactors[save.track]) + loot.coins * Collectibles.CoinValue;
+            float milkFactor = 0.4f + 0.6f * Mathf.Clamp01(fill), pay = income * TrackLibrary.PayFactors[save.track];
+            // Süt becerisi: sağlam el çarpanının kazandırdığı ek metre ve kıl payları, mesafe gibi sütle ölçeklenir.
+            int steadyCoins = Mathf.RoundToInt(streak.bonusMeters * milkFactor * pay);
+            int closeCoins = Mathf.RoundToInt(streak.closeCalls * CloseCallMeters * milkFactor * pay);
+            int earned = Mathf.RoundToInt((distance * milkFactor + (finished ? bonus : 0)) * pay)
+                         + steadyCoins + closeCoins + loot.coins * Collectibles.CoinValue;
+            // Pist başına süt rekoru (yalnız bitişte; rekabet: aynı pisti daha az dökerek bitirmek)
+            int milkPct = Mathf.RoundToInt(Mathf.Clamp01(fill) * 100f);
+            bool milkRecord = finished && milkPct > save.milkBests[save.track];
+            int milkBest = Mathf.Max(milkPct * (finished ? 1 : 0), save.milkBests[save.track]);
+            if (milkRecord) save.milkBests[save.track] = milkPct;
             save.gems += loot.gems;
             string unlockedName = null;
             if (finished && save.track == save.unlocked && save.unlocked < TrackLibrary.Count - 1)
@@ -797,6 +821,8 @@ namespace SlingRiders
             float flagZ = Mathf.Max(sled.maxDistance, 1f);
             world.PlantFlag(new Vector3(sled.position.x, track.Height(sled.position.x, flagZ), flagZ), distance);
             sfx.Thud(5f);
+            if (finished) sfx.Fanfare();
+            else if (record) sfx.Record();
             resultDelay = ResultDelay;
             if (sled.end == RunEnd.Crashed)
             {
@@ -824,6 +850,13 @@ namespace SlingRiders
                 unlockedLength = unlockedName != null ? Mathf.RoundToInt(TrackLibrary.Lengths[save.unlocked]) : 0,
                 lastTrack = finished && save.track == TrackLibrary.Count - 1,
                 fill = fill,
+                steadyCoins = steadyCoins,
+                bestMult = streak.bestMult,
+                closeCalls = streak.closeCalls,
+                closeCoins = closeCoins,
+                milkGrade = finished ? MilkStreak.Grade(fill) : null,
+                milkRecord = milkRecord,
+                milkBest = milkBest,
                 progress = Mathf.Clamp01(distance / track.finishZ),
                 bestProgress = Mathf.Clamp01(previousBest / track.finishZ),
                 tip = RunTips.Tip(sled.stats, sled.end, sled.endReason, cfg, sled.maxDistance, sled.crashCause),
@@ -1090,6 +1123,16 @@ namespace SlingRiders
             float tension = state == State.Aim ? Mathf.Clamp01(Mathf.Abs(pull - lastPull) / Mathf.Max(dt, 0.001f) * 0.8f) : 0f;
             lastPull = pull;
             sfx.Drive(tension, sled.Speed, sled.grounded, state == State.Run, state == State.Run && sled.RocketFiring, dt);
+            // Süt: çalkalanma (ağza yaklaşınca) ve akış (dökülürken) sesleri; hızlandırıcıya girince "vuuş".
+            float fillNow = liquid.FillRatio;
+            float rate = dt > 0f ? Mathf.Max(0f, frameFill - fillNow) / dt : 0f;
+            frameFill = fillNow;
+            spillRate = Mathf.Lerp(spillRate, rate, 1f - Mathf.Exp(-12f * dt));
+            bool milkLive = state == State.Run && lidOpen && sled.end == RunEnd.None;
+            sfx.Milk(milkLive ? liquid.Danger : 0f, milkLive ? spillRate : 0f, milkLive, dt);
+            bool boosting = state == State.Run && sled.Boosting;
+            if (boosting && !wasBoosting) sfx.Boost();
+            wasBoosting = boosting;
 
             if (sled.landings > heardLandings)
             {
@@ -1155,6 +1198,9 @@ namespace SlingRiders
                 liquid.Step(sled.acceleration, GlassRotation(), PhysicsStep);
                 float spilled = fillBefore - liquid.FillRatio;
                 if (spilled > 0f) sled.stats.milkLost[(int)RunStats.Classify(sled, track)] += spilled;
+                float dz = sled.maxDistance - streakDist;
+                streakDist = sled.maxDistance;
+                OnStreak(streak.Step(dz, liquid.FillRatio, liquid.Danger, lidOpen && sled.end == RunEnd.None, PhysicsStep));
                 Pickup();
                 if (sled.end == RunEnd.None && liquid.FillRatio < EmptyLimit)
                     sled.ForceEnd(RunEnd.Spilled, "The cup is empty!");
@@ -1165,6 +1211,27 @@ namespace SlingRiders
                 }
             }
         }
+
+        void OnStreak(MilkStreak.Event e)
+        {
+            switch (e)
+            {
+                case MilkStreak.Event.LevelUp:
+                    sfx.StreakUp(Mathf.RoundToInt((streak.mult - 1f) / MilkStreak.StepBonus));
+                    if (streak.mult >= MilkStreak.MaxMult - 0.001f) ui.Toast("STEADY HAND x" + streak.mult.ToString("0.0", Tr) + "!");
+                    break;
+                case MilkStreak.Event.Break:
+                    sfx.StreakBreak();
+                    break;
+                case MilkStreak.Event.CloseCall:
+                    sfx.CloseCall();
+                    ui.Toast("CLOSE CALL!");
+                    shakeAmount = Mathf.Max(shakeAmount, 0.04f);
+                    break;
+            }
+        }
+
+        static readonly System.Globalization.CultureInfo Tr = System.Globalization.CultureInfo.InvariantCulture;
 
         void Pickup()
         {
@@ -1733,6 +1800,8 @@ namespace SlingRiders
                 speedKmh = sled.Speed * 3.6f,
                 fill = liquid.FillRatio,
                 milkDanger = state == State.Run ? liquid.Danger : 0f,
+                milkMult = state == State.Run ? streak.mult : 1f,
+                milkStreakProgress = state == State.Run && lidOpen ? streak.Progress : 0f,
                 pull = pull,
                 aimAngle = aim,
                 perfectWindow = state == State.Aim && PerfectWindowOpen,

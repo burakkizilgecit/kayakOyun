@@ -1,4 +1,4 @@
-param([string[]]$modes = @("screens","home","themes","menus","equipment","review","login","check","reset","splash","hazards","collapse","newtracks","ramp","pads","gorge","boost","bridges","gems","tracks","rocket","wall","surfaces","wings","glide","updraft","snow","woods","drawn","parts","avatars","icons"))
+param([string[]]$modes = @("screens","home","themes","menus","equipment","review","login","check","reset","splash","hazards","collapse","newtracks","ramp","pads","gorge","boost","bridges","gems","tracks","rocket","wall","surfaces","wings","glide","milk","updraft","snow","woods","drawn","parts","avatars","icons"))
 # Uçtan uca: bir kez derler, her otomatik test modunu çalıştırır, kayıtlarda hata/istisna/başarısız kontrol arar.
 $sp = "C:\Users\burak\UnityProjects\SledRunner\Tools\out"
 $report = "$sp\e2e-report.txt"

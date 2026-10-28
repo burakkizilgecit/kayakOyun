@@ -13,6 +13,8 @@ namespace SlingRiders
         public bool freeLaunches;   // Çayır bitene kadar hak düşmez: sayaç "∞" gösterir
         public int sensitivity;     // direksiyon hassasiyeti (0..2)
         public float milkDanger;    // süt taşmaya ne kadar yakın (0..1)
+        public float milkMult;      // sağlam el çarpanı (1..1.5)
+        public float milkStreakProgress;   // sonraki kademeye ilerleme (0..1)
         public bool perfectWindow;  // sapan tam gerildi: şimdi bırakırsa mükemmel atış
         public float progress, bestProgress, speedKmh, fill, pull, runTime, aimAngle;
         public bool airborne, canGlide, dragging, tiltMode, sound;
@@ -42,6 +44,11 @@ namespace SlingRiders
         public bool lastTrack;                   // son parkur da bitti
         public int coins, gems;                  // pistte toplanan coin ve elmas
         public string tip;                       // bir sonraki atış için öneri (RunTips); boşsa gösterilmez
+        public int steadyCoins, closeCalls, closeCoins;   // süt becerisi ödülleri
+        public float bestMult;                   // koşudaki en yüksek sağlam el çarpanı
+        public string milkGrade;                 // bitişte süt notu (NOT A DROP! / STEADY HAND), yoksa null
+        public bool milkRecord;                  // pistin süt rekoru kırıldı
+        public int milkBest;                     // pistin süt rekoru (%)
     }
 
     /// UI Toolkit ile koddan kurulan oyun arayüzü: Ana ekran (yükseltmeler) → Nişan → Koşu → Sonuç → Ana ekran.
@@ -256,7 +263,7 @@ namespace SlingRiders
         // Bardak (nişan + koşu)
         VisualElement glassHud, glassFrame, milkPill, milkFill;
         float milkDangerShown;
-        Label milkLabel;
+        Label milkLabel, multBadge;
         Icon milkIcon, lidIcon;
         int shownMilk = -1;
 
@@ -266,7 +273,8 @@ namespace SlingRiders
         Icon goIcon;
         bool goNext;
         readonly List<Confetti> bits = new List<Confetti>();
-        Label resTitle, resDist, resMilk, resCoins, resBonus;
+        Label resTitle, resDist, resMilk, resCoins, resBonus, resMilkSkill, resMilkGrade;
+        float shownMult = 1f, multFlash;
         TrackBar resBar;
         RunSummary result;
         float resultClock;
@@ -550,6 +558,15 @@ namespace SlingRiders
             resTip.text = summary.tip ?? "";
             resTip.style.display = string.IsNullOrEmpty(summary.tip) ? DisplayStyle.None : DisplayStyle.Flex;
             resMilk.text = Mathf.RoundToInt(Mathf.Clamp01(summary.fill) * 100f) + "%";
+            var skill = new System.Collections.Generic.List<string>();
+            if (summary.steadyCoins > 0) skill.Add("Steady hand x" + summary.bestMult.ToString("0.00", Tr) + ": +" + summary.steadyCoins);
+            if (summary.closeCalls > 0) skill.Add("Close calls " + summary.closeCalls + ": +" + summary.closeCoins);
+            if (summary.milkRecord) skill.Add("New milk record: " + summary.milkBest + "%");
+            else if (summary.finished && summary.milkBest > 0) skill.Add("Milk record: " + summary.milkBest + "%");
+            resMilkSkill.text = string.Join("  ·  ", skill);
+            resMilkSkill.style.display = skill.Count > 0 ? DisplayStyle.Flex : DisplayStyle.None;
+            resMilkGrade.text = summary.milkGrade ?? "";
+            resMilkGrade.style.display = summary.milkGrade != null ? DisplayStyle.Flex : DisplayStyle.None;
             resDist.text = "0 m";
             resCoins.text = "+0";
             coinFrom = 0;
@@ -3981,6 +3998,10 @@ namespace SlingRiders
             milkLabel = L("MILK 100%");
             milkPill.Add(milkLabel);
             hud.Add(milkPill);
+            // Sağlam el çarpanı: bardak çerçevesinin sağ üst köşesinde altın rozet (hap dar, etikete sığmıyordu).
+            multBadge = L("x1.05", "outlined", "mult-badge");
+            multBadge.style.display = DisplayStyle.None;
+            hud.Add(multBadge);
             return hud;
         }
 
@@ -4006,7 +4027,23 @@ namespace SlingRiders
             bool lid = h.lidLeft > 0f;
             lidIcon.style.display = lid ? DisplayStyle.Flex : DisplayStyle.None;
             milkIcon.style.display = lid ? DisplayStyle.None : DisplayStyle.Flex;
+            // Sağlam el çarpanı x1.1 ve üstünde etikette görünür; arttığında hap altın renkte parlar, bozulunca söner.
+            float mult = Mathf.Max(1f, h.milkMult);
+            if (Mathf.Abs(mult - shownMult) > 0.001f) { multFlash = mult > shownMult ? 1f : 0f; shownMult = mult; }
+            multFlash = Mathf.MoveTowards(multFlash, 0f, dt * 2f);
             string text = lid ? "LID " + TrackLibrary.Show(h.lidLeft) + " m" : "MILK " + pct + "%";
+            bool showMult = !lid && mult > 1.001f;
+            multBadge.style.display = showMult ? DisplayStyle.Flex : DisplayStyle.None;
+            if (showMult)
+            {
+                string mt = "x" + mult.ToString("0.00", Tr);
+                if (multBadge.text != mt) multBadge.text = mt;
+                multBadge.style.left = left + width - 140f;
+                multBadge.style.top = top - b - 48f - 72f;
+                float bs = 1f + 0.35f * multFlash;
+                multBadge.style.scale = new Scale(new Vector2(bs, bs));
+                multBadge.style.rotate = new Rotate(-6f);
+            }
             if (milkLabel.text != text) milkLabel.text = text;
             if (pct != shownMilk)
             {
@@ -4030,7 +4067,9 @@ namespace SlingRiders
             glassFrame.style.scale = new Scale(new Vector2(fs, fs));
             float s = 1f + 0.12f * milkDangerShown + (fill < 0.3f ? 0.06f * Mathf.Abs(Mathf.Sin(time * 7f)) : 0f);
             milkPill.style.scale = new Scale(new Vector2(s, s));
-            milkPill.style.backgroundColor = Color.Lerp(Color.white, new Color(1f, 0.45f, 0.35f), milkDangerShown);
+            var calm = Color.Lerp(Color.white, new Color(1f, 0.88f, 0.45f), multFlash);
+            milkPill.style.backgroundColor = Color.Lerp(calm, new Color(1f, 0.45f, 0.35f), milkDangerShown);
+            if (multFlash > 0f) milkPill.style.scale = new Scale(Vector2.one * (s + 0.1f * multFlash));
         }
 
         // ================================================================ sonuç
@@ -4105,6 +4144,20 @@ namespace SlingRiders
             stats.Add(Stat(IconKind.Glass, "Milk left", out resMilk));
             stats.Add(Sp(Stat(IconKind.Coin, "Earned", out resCoins), 22));
             resultCard.Add(stats);
+
+            // Süt becerisi: sağlam el ve kıl payı ödülü; bitişte süt notu ve pist süt rekoru (2026-10-28)
+            resMilkGrade = L("", "outlined");
+            resMilkGrade.style.fontSize = 56;
+            resMilkGrade.style.marginTop = 16;
+            resMilkGrade.style.color = (Color)new Color32(0x6E, 0xC8, 0xFF, 0xFF);
+            resultCard.Add(resMilkGrade);
+            resMilkSkill = L("", "heavy");
+            resMilkSkill.style.fontSize = 36;
+            resMilkSkill.style.marginTop = 10;
+            resMilkSkill.style.whiteSpace = WhiteSpace.Normal;
+            resMilkSkill.style.unityTextAlign = TextAnchor.MiddleCenter;
+            resMilkSkill.style.color = (Color)new Color32(0x1E, 0x7F, 0xC9, 0xFF);
+            resultCard.Add(resMilkSkill);
 
             resLoot = L("", "heavy");
             resLoot.style.fontSize = 36;

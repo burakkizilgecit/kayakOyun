@@ -96,6 +96,8 @@ namespace SlingRiders.EditorTools
             Debug.Log(sb.ToString());
         }
 
+        static bool MilkSkillPay = true;   // "nomilkskill": süt becerisi ödülü olmadan (öncesiyle karşılaştırma)
+
         /// Oyuncu benzetimi: her atıştan sonra kazancı hesaplar (gerçek yerleşimden sonlu altın stoku,
         /// tahmini toplama şansı), parası yettikçe kademe sınırı içindeki en ucuz yükseltmeyi alır.
         /// Her parkurun kaç atışta bittiğini ve mesafenin atış atış nasıl arttığını yazar.
@@ -113,6 +115,7 @@ namespace SlingRiders.EditorTools
                 if (arg.StartsWith("boostkick=")) SledPhysics.BoostKick = ParseF(arg.Substring(10));
                 if (arg.StartsWith("boostgap=")) TrackLibrary.BoostSpacing = ParseF(arg.Substring(9));
                 if (arg == "nosidebridge") TrackLibrary.SideBridgesOn = false;
+                if (arg == "nomilkskill") MilkSkillPay = false;   // süt becerisi ödülü öncesiyle karşılaştırma
                 if (arg.StartsWith("base=")) Upgrades.baseCosts = System.Array.ConvertAll(arg.Substring(5).Split(','), int.Parse);
                 if (arg.StartsWith("growth=")) Upgrades.growth = System.Array.ConvertAll(arg.Substring(7).Split(','), ParseF);
                 if (arg.StartsWith("scale=")) TrackLibrary.CostScale = System.Array.ConvertAll(arg.Substring(6).Split(','), ParseF);
@@ -228,7 +231,10 @@ namespace SlingRiders.EditorTools
                     // Only uncollected items can pay again on a later attempt. The same runtime
                     // layout includes forks, surface rewards and jump pickups as well as ordinary coins.
                     int coinCount = coins.Collect(r.distance, rnd, 0.5f * pickChance, 0.15f * pickChance);
-                    int earned = Mathf.RoundToInt((Mathf.FloorToInt(r.distance) * (0.4f + 0.6f * Mathf.Clamp01(r.fill)) + (finished ? 1000 * (t + 1) : 0))
+                    float milkFactor = 0.4f + 0.6f * Mathf.Clamp01(r.fill);
+                    // Süt becerisi oyundakiyle aynı: ek metre + kıl payları (GameController.EndRun, CloseCallMeters 15)
+                    int earned = Mathf.RoundToInt((Mathf.FloorToInt(r.distance) * milkFactor + (finished ? 1000 * (t + 1) : 0)
+                                                   + (MilkSkillPay ? (r.bonusMeters + r.closeCalls * 15f) * milkFactor : 0f))
                                                   * Upgrades.IncomeMultiplier(levels[(int)UpgradeType.Income]) * TrackLibrary.PayFactors[t])
                                  + coinCount * Collectibles.CoinValue;
                     money += earned;
@@ -692,6 +698,8 @@ namespace SlingRiders.EditorTools
         struct SimResult
         {
             public float distance, fill, time, topSpeed;
+            public float bonusMeters, bestMult;   // süt becerisi (MilkStreak)
+            public int closeCalls, breaks;
             public RunEnd end;
             public string reason;
             public RunStats stats;
@@ -1020,6 +1028,39 @@ namespace SlingRiders.EditorTools
         /// Titreme ölçümü (kullanıcı 2026-10-25): her parkurda ortalama oyuncu orta ve üst seviyede; 60 Hz karede örneklenir.
         /// Kısa sıçrama: 0.12 s'den kısa havada kalış (zemine değip kalkma). Burun titremesi: kare başına burun açısının ikinci
         /// farkının ortalaması (derece). Yanal titreme: yanal konumun ikinci farkı (cm).
+        /// Süt becerisi dağılımı (2026-10-28): oyuncu türüne göre sağlam el çarpanı, ek kazanç (mesafe ödülüne oranı),
+        /// kıl payı ve bozulma sayısı. Her pistte orta seviye, 6 tohum.
+        public static void MilkSkill()
+        {
+            var sb = new StringBuilder("[SIM] Süt becerisi (orta seviye, 6 deneme)\n");
+            foreach (var kind in new[] { PlayerKind.Usta, PlayerKind.Ortalama, PlayerKind.Egmeyen })
+            {
+                sb.AppendLine("  " + kind);
+                for (int t = 0; t < TrackLibrary.Count; t++)
+                {
+                    var track = TrackLibrary.Get(t);
+                    var cfg = Upgrades.BuildConfig(new[] { 12, 12, 12, 12, 12 });
+                    float bonusPct = 0f, mult = 0f, calls = 0f, breaks = 0f, fill = 0f;
+                    int maxed = 0;
+                    const int N = 6;
+                    for (int s = 0; s < N; s++)
+                    {
+                        var r = Simulate(track, cfg, kind, 100 + s);
+                        bonusPct += (r.bonusMeters + r.closeCalls * 15f) / Mathf.Max(1f, r.distance);
+                        mult += r.bestMult;
+                        calls += r.closeCalls;
+                        breaks += r.breaks;
+                        fill += r.fill;
+                        if (r.bestMult >= MilkStreak.MaxMult - 0.001f) maxed++;
+                    }
+                    sb.AppendLine(string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                        "    {0,-18} ek kazanç %{1,5:F1}  en iyi çarpan x{2:F2}  x1.5'e ulaşan {3}/{4}  kıl payı {5:F1}  bozulma {6:F1}  süt %{7:F0}",
+                        track.name, 100f * bonusPct / N, mult / N, maxed, N, calls / N, breaks / N, 100f * fill / N));
+                }
+            }
+            Debug.Log(sb.ToString());
+        }
+
         public static void Jitter()
         {
             var sb = new StringBuilder("[SIM] Titreme (ortalama oyuncu, 60 Hz kare)\n");
@@ -1238,7 +1279,8 @@ namespace SlingRiders.EditorTools
             sled.Launch();
             var player = new SimPlayer(kind, seed, rocket);
             if (player.PerfectLaunch()) { sled.launchBoost = SledPhysics.PerfectLaunchBoost; sled.stats.perfectLaunch = true; }
-            float t = 0f;
+            float t = 0f, dist = 0f;
+            var streak = new MilkStreak();
             while (sled.end == RunEnd.None && t < maxSeconds)
             {
                 Vector2 glass = player.Glass(sled, cfg, Dt);
@@ -1249,11 +1291,14 @@ namespace SlingRiders.EditorTools
                 liquid.Step(sled.acceleration, SimPlayer.GlassRotation(sled, glass), Dt);
                 float lost = before - liquid.FillRatio;
                 if (lost > 0f) sled.stats.milkLost[(int)RunStats.Classify(sled, track)] += lost;
+                streak.Step(sled.maxDistance - dist, liquid.FillRatio, liquid.Danger, !liquid.lidClosed, Dt);
+                dist = sled.maxDistance;
                 if (liquid.FillRatio < 0.12f) sled.ForceEnd(RunEnd.Spilled, "Bardak boşaldı!");
                 t += Dt;
             }
             return new SimResult { distance = sled.maxDistance, fill = liquid.FillRatio, end = sled.end, reason = sled.endReason, time = t,
-                                   stats = sled.stats, topSpeed = sled.topSpeed };
+                                   stats = sled.stats, topSpeed = sled.topSpeed, bonusMeters = streak.bonusMeters,
+                                   bestMult = streak.bestMult, closeCalls = streak.closeCalls, breaks = streak.breaks };
         }
 
         static void Run(StringBuilder sb, int trackIndex, string label, int[] levels, float pull, GlassPlayer player,

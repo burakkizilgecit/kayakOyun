@@ -207,6 +207,21 @@
     overflow: hidden;
 }
 .milk-fill { position: absolute; left: 0px; top: 0px; bottom: 0px; border-radius: 30px; background-color: #CDEBFF; }
+.mult-badge {
+    position: absolute;
+    width: 150px;
+    height: 68px;
+    border-radius: 34px;
+    background-color: #FFC83A;
+    border-width: 4px;
+    border-bottom-width: 8px;
+    border-color: #C47A00;
+    color: #FFFFFF;
+    font-size: 44px;
+    -unity-font: url("Fonts/Baloo2-ExtraBold.ttf");
+    -unity-text-align: middle-center;
+    padding: 4px 0 0 0;
+}
 .milk-pill > Label { font-size: 38px; -unity-font: url("Fonts/Baloo2-ExtraBold.ttf"); margin: 6px 0 0 6px; }
 
 /* ------------------------------------------------------------ açılır pencere */
