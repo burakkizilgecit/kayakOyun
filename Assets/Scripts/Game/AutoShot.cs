@@ -330,6 +330,11 @@ namespace SlingRiders
                 yield return new WaitForSeconds(2.5f);
                 yield return Shot("s5_chest");
                 game.DebugHub();
+                game.DebugChestStreak(6);   // sandık serisi en üstte: +%60 (MAX) etiketi
+                game.DebugChest();
+                yield return new WaitForSeconds(2.5f);
+                yield return Shot("s5_chest_streak");
+                game.DebugHub();
                 game.DebugAim();
                 yield return new WaitForSeconds(0.8f);
                 yield return Shot("s6_aim");
@@ -504,9 +509,9 @@ namespace SlingRiders
                     while (!game.DebugInResult && game.DebugDistance < cbz0 - 8f && wt < 150f) { wt += Time.deltaTime; yield return null; }
                     string tag = (slow ? "slow" : "fast") + ctr;
                     float t0 = Time.time;
-                    var marks = new[] { 0.6f, 1.6f, 2.4f, 3.2f, 4.2f };
+                    var marks = new[] { 0.6f, 1.6f, 2.4f, 3.2f, 4.2f, 6.5f, 8.2f };   // son ikisi: düşen karakter ayakta (suda omuzlarına kadar)
                     int m = 0;
-                    while (m < marks.Length && Time.time - t0 < 8f)
+                    while (m < marks.Length && Time.time - t0 < 10f)
                     {
                         if (slow) game.DebugCapSpeed(3.5f);
                         if (Time.time - t0 >= marks[m]) { Debug.Log("[AUTOSHOT] ledge " + tag + m + " " + game.DebugLedge); yield return Shot("c" + tag + "_" + m); m++; }

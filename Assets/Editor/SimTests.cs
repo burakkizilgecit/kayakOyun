@@ -1061,6 +1061,96 @@ namespace SlingRiders.EditorTools
             Debug.Log(sb.ToString());
         }
 
+        /// Kalkışlar (2026-10-30, kullanıcı videosu: 100 km/s'de rampada takla atıyor ama havalanmıyor): her kalkışta hız,
+        /// dikey hız, en yüksek açıklık ve havada kalma; tümsek/rampa listesi.
+        public static void Takeoffs()
+        {
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            int ti = 0;
+            int[] lv = { 14, 14, 10, 14, 10 };
+            foreach (var arg in System.Environment.GetCommandLineArgs())
+            {
+                if (arg.StartsWith("track=")) ti = int.Parse(arg.Substring(6));
+                if (arg.StartsWith("lv=")) lv = System.Array.ConvertAll(arg.Substring(3).Split(','), int.Parse);
+            }
+            if (ti < 0)
+            {
+                var all = new StringBuilder("[SIM] Rampalar (ilk 3)\n");
+                for (int k = 0; k < TrackLibrary.Count; k++)
+                {
+                    var tk = TrackLibrary.Get(k);
+                    all.Append("  " + k + " " + tk.name + ":");
+                    int c = 0;
+                    foreach (var b in tk.bumps) if (b.ramp && c++ < 3) all.Append(string.Format(inv, " z{0:F0}({1})", b.z0, TrackLibrary.Show(b.z0)));
+                    foreach (var b in tk.bumps) if (!b.ramp && b.height > 0.6f && c++ < 6) all.Append(string.Format(inv, " tümsek z{0:F0}({1}) h{2:F1} L{3:F0}", b.z0, TrackLibrary.Show(b.z0), b.height, b.length));
+                    all.AppendLine();
+                }
+                Debug.Log(all.ToString());
+                return;
+            }
+            var track = TrackLibrary.Get(ti);
+            var cfg = Upgrades.BuildConfig(lv);
+            var sb = new StringBuilder("[SIM] Kalkışlar " + track.name + " lv " + string.Join(",", lv) + " kanat " + cfg.wingArea + "\n");
+            foreach (var b in track.bumps)
+                if (b.z0 < 900f) sb.AppendLine(string.Format(inv, "  {0} z0 {1:F0} uzunluk {2:F1} yükseklik {3:F2} yarıgenişlik {4:F1}",
+                                                             b.ramp ? "RAMPA " : "tümsek", b.z0, b.length, b.height, b.halfWidth));
+            var sled = new SledPhysics(track, cfg);
+            sled.PlaceForAim(1f);
+            sled.Launch();
+            var player = new SimPlayer(PlayerKind.Usta, 1, RocketPolicy.Varsayilan);
+            bool was = true; float t = 0f, airT = 0f, maxClear = 0f, z0 = 0f, v0 = 0f, vy0 = 0f;
+            while (sled.end == RunEnd.None && t < 120f && sled.position.z < 900f)
+            {
+                player.Glass(sled, cfg, Dt);
+                sled.Step(player.Steer(track, sled, Dt), player.Pitch(track, sled, cfg), Dt);
+                t += Dt;
+                if (was && !sled.grounded && !sled.launching) { airT = 0f; maxClear = 0f; z0 = sled.position.z; v0 = sled.Speed; vy0 = sled.velocity.y; }
+                if (!sled.grounded) { airT += Dt; maxClear = Mathf.Max(maxClear, sled.position.y - track.Height(sled.position.x, sled.position.z)); }
+                if (!was && sled.grounded && airT > 0.08f && v0 > 15f)
+                    sb.AppendLine(string.Format(inv, "  kalkış z {0,6:F1}  {1,4:F0} km/s  vy {2,5:F2}  açıklık {3,5:F2} m  hava {4,4:F2} s  iniş z {5,6:F1}",
+                                                z0, v0 * 3.6f, vy0, maxClear, airT, sled.position.z));
+                was = sled.grounded;
+            }
+            Debug.Log(sb.ToString());
+        }
+
+        /// Süzülmede burun kaldırma (2026-10-30): havada 2 m'den yüksekteyken parmak sürekli geri (burun yukarı) tutulursa.
+        /// Tam girdide stall olup ters inmeli; hafif girdide düşmemeli.
+        public static void StallTest()
+        {
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            var sb = new StringBuilder("[SIM] Burun kaldırma (Whispering Woods, lv 20)\n");
+            var track = TrackLibrary.Get(1);
+            var cfg = Upgrades.BuildConfig(new[] { 20, 20, 12, 20, 14 });
+            foreach (float hold in new[] { 0f, 0.15f, 0.35f, 0.6f, 1f })
+            {
+                var sled = new SledPhysics(track, cfg);
+                sled.PlaceForAim(1f);
+                sled.Launch();
+                var player = new SimPlayer(PlayerKind.Usta, 1, RocketPolicy.Varsayilan);
+                float t = 0f, maxEx = 0f;
+                int stallFrames = 0;
+                while (sled.end == RunEnd.None && t < 120f)
+                {
+                    player.Glass(sled, cfg, Dt);
+                    float pin = player.Pitch(track, sled, cfg);
+                    bool high = !sled.grounded && !sled.launching && sled.position.y - track.Height(sled.position.x, sled.position.z) > 2f;
+                    if (high && sled.position.z > 100f) pin = hold > 0f ? hold : pin;
+                    sled.Step(player.Steer(track, sled, Dt), pin, Dt);
+                    if (!sled.grounded)
+                    {
+                        float ex = sled.pitch - Mathf.Atan2(sled.velocity.y, Mathf.Max(sled.velocity.z, 0.01f));
+                        maxEx = Mathf.Max(maxEx, ex);
+                        if (sled.Unstable) stallFrames++;
+                    }
+                    t += Dt;
+                }
+                sb.AppendLine(string.Format(inv, "  girdi {0:F2}: {1} '{2}' mesafe {3:F0}  en büyük hücum {4:F0}°  stall {5:F1} s",
+                                            hold, sled.end, sled.endReason, sled.maxDistance, maxEx * Mathf.Rad2Deg, stallFrames * Dt));
+            }
+            Debug.Log(sb.ToString());
+        }
+
         public static void Jitter()
         {
             var sb = new StringBuilder("[SIM] Titreme (ortalama oyuncu, 60 Hz kare)\n");

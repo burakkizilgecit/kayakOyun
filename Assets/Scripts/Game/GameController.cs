@@ -31,6 +31,10 @@ namespace SlingRiders
 
         // Ücretsiz sandık her ChestMinutes dakikada bir açılır.
         const int ChestMinutes = 20;
+        /// Sandık serisi (kullanıcı 2026-10-30: "20 dakikada bir verdiğimiz ödül her 20 dakikada bir artmalı, yeni pistte başa
+        /// dönmeli, ama oyunu çok kolaylaştırmamalı"): bu pistte açılan her sandık +%10, en çok +%60 (6 sandık ≈ 2 saat).
+        const float ChestStreakStep = 0.10f;
+        const int ChestStreakMax = 6;
         int pendingChestCoins, pendingChestGems;
 
         bool wasInPuddle;
@@ -227,6 +231,7 @@ namespace SlingRiders
         }
 
         public void DebugChest() { save.chestReadyTicks = 0; OpenChest(); }
+        public void DebugChestStreak(int n) { save.chestStreak = n; save.chestStreakFront = save.unlocked; }
         public void DebugTripleChest() => ui.DebugTripleChest();
         public void DebugGems(int g) { save.gems = g; ui.RefreshHub(save, -1); }
         public bool DebugRocketFiring => sled.RocketFiring;
@@ -965,7 +970,7 @@ namespace SlingRiders
             UpdateBody(dt, out Vector3 shake);
             rider.Sync(sled, liquid, GlassPitch, GlassRoll, torsoAngle.x, torsoAngle.y, shake + (SledRenderPos - sled.position), SledRenderRot);
             trail?.Tick(sled, state == State.Run);
-            rider.TickCrash(dt, (x, z) => track.Height(x, z), cam.transform.position);
+            rider.TickCrash(dt, CrashGround, cam.transform.position);
             // Ayağa kalkan karakterin başının üstünde konuşma baloncuğu.
             if (rider.CrashStanding)
             {
@@ -1261,7 +1266,33 @@ namespace SlingRiders
         /// Hava numarası eşiği (m/s; ~65 km/s) ve iki numara arası en az süre (s).
         const float TrickSpeed = 18f, TrickCooldown = 3.5f;
         bool wasGrounded = true;
+
+        /// Kaza sonrası karakterin bastığı zemin. Dereye düşüldüyse (köprü çöktü ya da kaçırıldı) tabla yok sayılır ve suyun
+        /// içinde: karakter omuzlarına kadar suya gömülü durur (kullanıcı 2026-10-30: "suyun üstünde durup yeniden dene
+        /// diyor, mantıksız"); su sığsa dere yatağına basar.
+        float CrashGround(float x, float z)
+        {
+            if (!sled.stats.fellInRavine) return track.Height(x, z);
+            float g = track.TerrainHeight(x, z);
+            if (!track.ravineIsWater) return g;
+            foreach (var w in track.water)
+                if (z > w.x - 1f && z < w.y + 1f && g < w.z) return Mathf.Max(g, w.z - rider.ShoulderDepth);
+            return g;
+        }
         float lastTrick = -99f;
+        bool trickArmed = true;            // her kalkışta en çok bir takla
+        const float TrickMinAir = 0.7f;   // taklanın başlaması için kalan havada kalma süresi (sn)
+
+        void StartAirTrick()
+        {
+            trickArmed = false;
+            lastTrick = Time.time;
+            var kind = (RiderView.Trick)Random.Range(0, 4);
+            rider.StartTrick(kind);
+            ui.Toast(kind == RiderView.Trick.Backflip ? "BACKFLIP!" : kind == RiderView.Trick.Frontflip ? "FRONTFLIP!"
+                     : kind == RiderView.Trick.BarrelRoll ? "BARREL ROLL!" : "360 SPIN!");
+            sfx.Pop();
+        }
 
         /// Aşamalı öğretim: ipucu, oyuncu o anı ilk birkaç kez yaşarken gösterilir (yol haritası aşama 5).
         void ShowHint(Hint h, IconKind icon, string text, int times)
@@ -1291,17 +1322,19 @@ namespace SlingRiders
                 ShowHint(Hint.Bridge, IconKind.Runners, track.wallHalf > 0f ? "Crumbling rock bridge! Cross it fast"
                                                                              : "Bridges crumble! Don't stop on them", 3);
             }
-            // Hava numarası: hızlı kalkışta (rampa dudağı, yükselen hava, uçuş) ve yeterince havada kalacaksa; her kalkışta değil.
-            if (wasGrounded && !sled.grounded && !rider.Tricking && Time.time - lastTrick > TrickCooldown && sled.Speed > TrickSpeed
-                && (sled.velocity.y > 3.5f || (cfg.wingArea > 0f && (sled.velocity.y > 1f || track.UpdraftAt(sled.position.z) > 1f))))
+            // Hava numarası: yalnız gerçekten havalanınca (kullanıcı 2026-10-30: "takla eğer havalanıyorsa olsun"). Kalkıştan
+            // sonraki ilk yarım saniyede, yerden en az 0.6 m yüksekte ve kalan uçuş (balistik tahmin) taklayı taşıyacak kadarsa;
+            // yükselen havada her zaman. Eskiden kalkış anındaki dikey hıza bakıyordu: tepeyi sıyıran kızak yere yakın dönüyordu.
+            if (!sled.grounded && !sled.launching && sled.airTime < 0.5f && !rider.Tricking && Time.time - lastTrick > TrickCooldown
+                && sled.Speed > TrickSpeed && trickArmed)
             {
-                lastTrick = Time.time;
-                var kind = (RiderView.Trick)Random.Range(0, 4);
-                rider.StartTrick(kind);
-                ui.Toast(kind == RiderView.Trick.Backflip ? "BACKFLIP!" : kind == RiderView.Trick.Frontflip ? "FRONTFLIP!"
-                         : kind == RiderView.Trick.BarrelRoll ? "BARREL ROLL!" : "360 SPIN!");
-                sfx.Pop();
+                float clear = sled.position.y - track.Height(sled.position.x, sled.position.z);
+                float gv = SledPhysics.Gravity, vy = sled.velocity.y;
+                float tLand = (vy + Mathf.Sqrt(Mathf.Max(0f, vy * vy + 2f * gv * Mathf.Max(clear, 0f)))) / gv;
+                if ((clear > 0.6f && tLand > TrickMinAir) || (cfg.wingArea > 0f && track.UpdraftAt(sled.position.z) > 1f))
+                    StartAirTrick();
             }
+            if (sled.grounded) trickArmed = true;
             wasGrounded = sled.grounded;
             if (sled.Unstable && !warnedBalance && state == State.Run)
             {
@@ -1621,6 +1654,7 @@ namespace SlingRiders
                 save.money += pendingChestCoins * mult;
                 save.gems += pendingChestGems * mult;
                 save.chestReadyTicks = System.DateTime.UtcNow.AddMinutes(ChestMinutes).Ticks;
+                save.chestStreak++;
                 save.Save();
                 sfx.Coin();
                 ui.RefreshHub(save, -1);
@@ -1770,11 +1804,14 @@ namespace SlingRiders
             float frontProgress = Mathf.Clamp01(save.bests[front] / TrackLibrary.Lengths[front]);
             float pay = TrackLibrary.PayFactors[save.track] * TrackLibrary.CostScale[save.track];
             float grow = 1f + 0.25f * save.unlocked + 0.5f * frontProgress;
-            pendingChestCoins = Mathf.RoundToInt(40f * pay * grow * Random.Range(0.9f, 1.3f) / 5f) * 5;
+            if (save.chestStreakFront != save.unlocked) { save.chestStreak = 0; save.chestStreakFront = save.unlocked; }
+            int streakStep = Mathf.Min(save.chestStreak, ChestStreakMax);
+            float streakMult = 1f + ChestStreakStep * streakStep;
+            pendingChestCoins = Mathf.RoundToInt(40f * pay * grow * streakMult * Random.Range(0.9f, 1.3f) / 5f) * 5;
             if (save.Perk == Perk.Chest) pendingChestCoins = Mathf.RoundToInt(pendingChestCoins * 1.25f / 5f) * 5;
             pendingChestGems = 0;   // 2026-10-24: ücretsiz sandıktan elmas çıkmaz (elmas satılır)
             sfx.Coin();
-            ui.ShowChest(pendingChestCoins, pendingChestGems);
+            ui.ShowChest(pendingChestCoins, pendingChestGems, Mathf.RoundToInt(100f * ChestStreakStep * streakStep), streakStep >= ChestStreakMax);
         }
 
         void SetHand(int hand)

@@ -145,7 +145,7 @@ namespace SlingRiders
         readonly List<Label> launchLabels = new List<Label>(), launchTimers = new List<Label>();
         int shownLaunches = -1, shownLaunchSeconds = -1;
         VisualElement chestIcon;
-        Label chestCoins, chestGems, adCount;
+        Label chestCoins, chestGems, adCount, chestStreakLabel;
         Button chestTriple, resTriple;
         int coinFrom;
         float coinStart = 0.6f;
@@ -1565,6 +1565,10 @@ namespace SlingRiders
             chestCoins.style.fontSize = 140;
             coinRow.Add(chestCoins);
             chestCard.Add(coinRow);
+            chestStreakLabel = L("", "outlined");   // orman/manzara arka planında okunur (kenarlı beyaz)
+            chestStreakLabel.style.fontSize = 48;
+            chestStreakLabel.style.display = DisplayStyle.None;
+            chestCard.Add(chestStreakLabel);
 
             chestGemRow = E("row");
             chestGemRow.Add(new Icon(IconKind.Gem, 70));
@@ -3023,8 +3027,11 @@ namespace SlingRiders
             partCard.schedule.Execute(() => partCard.RemoveFromClassList("off")).StartingIn(30);
         }
 
-        public void ShowChest(int coins, int gems)
+        /// streakPct: sandık serisinin ek ödülü (%); 0'da etiket gizli.
+        public void ShowChest(int coins, int gems, int streakPct = 0, bool streakMax = false)
         {
+            chestStreakLabel.text = streakPct > 0 ? "STREAK BONUS +" + streakPct + "%" + (streakMax ? " (MAX)" : "") : "";
+            chestStreakLabel.style.display = streakPct > 0 ? DisplayStyle.Flex : DisplayStyle.None;
             chestCoinValue = coins;
             chestGemValue = gems;
             chestMultiplier = 1;
@@ -4407,7 +4414,11 @@ namespace SlingRiders
             watch.style.alignSelf = Align.Stretch;
             watch.style.marginTop = 30;
             watch.Add(new Icon(IconKind.Video, 70));
-            watch.Add(Sp(L("WATCH · +1 LAUNCH"), 16));
+            // Tek satır (kullanıcı 2026-10-30: büyük düğme yazısı iki satıra bölünüp düğmeden taşıyordu).
+            var watchText = L("WATCH · +1 LAUNCH");
+            watchText.style.fontSize = 50;
+            watchText.style.whiteSpace = WhiteSpace.NoWrap;
+            watch.Add(Sp(watchText, 16));
             launchCard.Add(watch);
 
             var ok = B(HideNoLaunches, "btn", "btn-green", "btn-mid");

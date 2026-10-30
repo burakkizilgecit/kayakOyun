@@ -440,6 +440,9 @@ namespace SlingRiders
         public bool CrashStanding => crashing && crashPhase == 2;
         const float AriseSpeed = 1.3f;   // Meshy kalkış klibi biraz hızlı oynatılır (sahne kısa kalsın)
         public Vector3 CrashHeadTop => avatar != null ? avatar.HeadTop : root.position;
+        /// Ayaktaki karakterin tabanından omzuna (suya gömülme derinliği): ayakta ölçülür, öncesinde son ölçüm.
+        public float ShoulderDepth => 0.8f * standHeight;
+        float standHeight = 0.9f;
 
         /// groundHeight(x, z): zemin yüksekliği. 0) savrularak uçar, seker, yuvarlanır; 1) kameraya dönerek ayağa
         /// kalkar; 2) ayakta durur, gülümser, bir kez sevinçle kollarını kaldırır ("Let's try again!").
@@ -521,6 +524,7 @@ namespace SlingRiders
                 // Ayakta: gülümser, bir kez kollarını sevinçle kaldırır, hafifçe nefes alır.
                 phaseClock += dt;
                 h.rotation = Quaternion.Slerp(h.rotation, face, 3f * dt);
+                if (phaseClock < 0.1f) standHeight = Mathf.Clamp(avatar.HeadTop.y - avatar.LowestPoint(), 0.4f, 2.5f);
                 if (avatar.CheerFrame(phaseClock))
                 {
                     // Meshy: sevinç klibi döngüde, üstüne hafif kafa sallama; kollar açık selam

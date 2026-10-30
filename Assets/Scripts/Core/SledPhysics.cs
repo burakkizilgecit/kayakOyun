@@ -38,6 +38,9 @@ namespace SlingRiders
         const float MaxPitch = 1.2f;     // rad
         /// Kanatsız kızakta burnun uçuş yolundan bu kadar (rad, ~26°) fazla kalkması dengeyi bozar.
         public const float UnstableExcess = 0.45f;
+        /// Kanatlı kızakta burnun akıştan bu kadar (rad, ~32°) fazla kalkması stall: burun kendiliğinden kalkar.
+        public const float WingStallExcess = 0.55f;
+        const float WingTrim = 0.12f, WingSpring = 2.6f;   // kuyruk dengesi: denge açısı ve yay katsayısı (1/s)
         /// Kanatsız kızağın dengesi bozuk (burun fazla kalktı): oyuncu öne itmeli.
         public bool Unstable;
         const float WallSlope = 1.4f;    // ~55°, bundan dik yüzey duvardır
@@ -108,6 +111,11 @@ namespace SlingRiders
         public float BankRoll => bankRoll;
         float stillTime;
         float landHold;                  // inişten hemen sonra kızak zemine bastırılır (aynı tümsekte tekrar seğmez)
+        float groundFor;                 // son inişten beri yerde geçen süre (tepe sıçraması yalnız oturmuş kızakta)
+        /// Tepe sıçraması (kullanıcı 2026-10-30: "100 km/s'de tepede takla atıyor ama havalanmıyor"): yumuşak bir tepede
+        /// zemin uçuş eğrisiyle neredeyse aynı düştüğü için hızlı kızak yalnız sıyırıyordu. Hızlı kalkışta hızla orantılı
+        /// yukarı itiş: 65 km/s altında yok, 80 km/s.te ~1.3 m/s, 110 km/s.te ~3.5 m/s (yaklaşık 1 sn hava).
+        public const float CrestPopSpeed = 18f, CrestPopGain = 0.3f, CrestPopMax = 3.5f;
         Vector2 aimDir = Vector2.up;     // fırlatma yönü (x, z)
 
         readonly TrackProfile track;
@@ -413,12 +421,15 @@ namespace SlingRiders
             // yerçekiminin dik bileşenini aşarsa normal kuvvet sıfırlanır: -κ·v² > g·cosθ
             float curvature = track.CurvatureAt(position.x, position.z);
             landHold -= dt;
+            groundFor += dt;
             // İnişten hemen sonra hafif kavislerde (tümsek tepesi) kızak zemine bastırılır; rampa dudağı gibi keskin
             // kavislerde her zaman havalanır.
             float lift = -curvature * v.z * v.z;
             bool hold = landHold > 0f && lift < 2.5f * normalAcc;
             if (!hold && v.z > 2f && lift > normalAcc)
             {
+                if (!launching && groundFor > 0.5f)
+                    v += n * (Mathf.Clamp((v.magnitude - CrestPopSpeed) * CrestPopGain, 0f, CrestPopMax) * Mathf.Sqrt(Gravity / 9.81f));
                 grounded = false;
                 airTime = 0f;
                 position = next;
@@ -515,7 +526,23 @@ namespace SlingRiders
             }
 
             float gamma = Mathf.Atan2(v.y, Mathf.Max(v.z, 0.01f));   // uçuş yolu açısı
+            // Kanatlı kızak (kullanıcı 2026-10-30: "süzülürken burnu kaldırınca karakter takılmış gibi titriyor; parmakla
+            // kontrol etmeliyim, çok kaldırırsam takla atıp düşmeli"): parmak burnu doğrudan çevirir (eskiden burun akış + 26°
+            // sınırına çarpıp orada titriyordu). Burun akıştan WingStallExcess'ten fazla kalkarsa kanat tutunamaz:
+            // burun kendiliğinden kalkmaya devam eder, oyuncu parmağını öne itip dengelemezse kızak ters iner.
+            // Stall yalnız uçan kızakta (ileri hız 8 m/s üstü): çöken köprüden dik düşerken akış dikeydir, "burnu indir" anlamsız.
+            bool wingFlying = wingsOpen && v.z > 8f;
+            bool wingStall = wingFlying && pitch - gamma > WingStallExcess;
             if (Mathf.Abs(pitchInput) > 0.05f) pitch += pitchInput * PitchRate * dt;
+            // Kuyruk dengesi: stall'dan önce kalkık burun akışa geri yaylanır; tutulan her parmak konumu bir burun açısına
+            // oturur (yarım girdi ~20°, tam girdi stall). Yalnız burnu kaldırmaya karşı: burun aşağı girdisini etkilemez.
+            if (wingFlying && !wingStall && pitch - gamma > WingTrim)
+                pitch -= WingSpring * (pitch - gamma - WingTrim) * dt;
+            if (wingStall)
+            {
+                float ex = pitch - gamma;
+                pitch += (ex - WingStallExcess * 0.5f) * 1.1f * dt;
+            }
             // Dokunulmazsa: kanatlı kızak kendiliğinden sabit bir süzülme yolu tutar (tırmanıp tutunmayı
             // kaybetmez); kanatsız kızak burnunu yavaşça uçuş yönüne çevirir.
             else if (wingsOpen)
@@ -548,9 +575,11 @@ namespace SlingRiders
                 if (updraft <= 0f && position.y - track.Height(position.x, position.z) > 3f) glidePath = Mathf.Max(glidePath, -0.45f);
                 float alpha = Mathf.Clamp(0.12f + 1.5f * (glidePath - gamma), 0f, 0.24f);
                 if (v.y < -7f) alpha = 0.24f;
-                pitch = Mathf.MoveTowards(pitch, gamma + alpha, 1.5f * dt);
+                // Yalnız parmak serbestken (denge buna göre ayarlı: kademeli geçiş pilotun 0.05-0.25'lik girdilerinde
+                // süzülmeyi kısaltıyordu). Titremeyi önleyen parmaktaki dikey ölü bölge (InputReader).
+                if (Mathf.Abs(pitchInput) <= 0.05f) pitch = Mathf.MoveTowards(pitch, gamma + alpha, 1.5f * dt);
             }
-            else
+            else if (Mathf.Abs(pitchInput) <= 0.05f)
             {
                 // Kanatsız (kullanıcı 2026-10-24: "roketle rampada kızağın önü havaya kalkıp geri yatıyor; hafif kalkmalı"):
                 // burun uçuş yoluna hızla döner (0.5 rad/s'de geride kalıp roketle daha da kalkıyordu), hafif yukarıda durur.
@@ -560,14 +589,14 @@ namespace SlingRiders
                 if (excess > UnstableExcess) pitch += (excess - UnstableExcess * 0.5f) * 0.9f * dt;
                 else pitch = Mathf.MoveTowards(pitch, gamma + 0.06f, 1.6f * dt);
             }
-            Unstable = !wingsOpen && pitch - gamma > UnstableExcess;
+            Unstable = wingsOpen ? wingStall : pitch - gamma > UnstableExcess;
             pitch = Mathf.Clamp(pitch, -MaxPitch, MaxPitch);
-            // Kanatlı kızak (kuyruklu planör gibi) kendini akışa hizalar: burun akışın
-            // altına bastırılamaz, böylece eksi g oluşmaz; en fazla ~25° kabartılabilir.
-            if (wingsOpen) pitch = Mathf.Clamp(pitch, gamma, gamma + 0.45f);
+            // Kanatlı kızak (kuyruklu planör gibi) kendini akışa hizalar: burun akışın altına bastırılamaz, böylece eksi g
+            // oluşmaz. Üstte sınır yok (2026-10-30): fazla kaldırılan burun stall olur (yukarıda).
+            if (wingsOpen) pitch = wingFlying ? Mathf.Max(pitch, gamma) : Mathf.Clamp(pitch, gamma, gamma + 0.45f);
             // Hızlı düşüşte kanat kendiliğinden tutunur (burun dalışta bile en az 0.24 rad hücum açısı): oyuncu ya da pilot
             // burnu yamaca indirince taşıma sıfırlanıp kızak yükselen havadan sonra yere çakılıyordu.
-            if (wingsOpen && v.y < -7f) pitch = Mathf.Max(pitch, gamma + 0.24f);
+            if (wingsOpen && v.y < -7f && !wingStall) pitch = Mathf.Max(pitch, gamma + 0.24f);
 
             if (wingsOpen)
             {
@@ -673,6 +702,7 @@ namespace SlingRiders
             velocity = Vector3.ProjectOnPlane(vt, n);
             grounded = true;
             landHold = 0.12f;
+            groundFor = 0f;
         }
 
         /// Havada asılı roket hakkı: içinden geçen kızağa bir ateşleme hakkı ekler.

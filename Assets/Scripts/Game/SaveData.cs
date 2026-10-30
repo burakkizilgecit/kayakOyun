@@ -30,6 +30,8 @@ namespace SlingRiders
         }
         public int gems;              // pembe elmas
         public long chestReadyTicks;  // ücretsiz sandığın açılacağı an (UTC)
+        public int chestStreak;       // bu pistte açılan ücretsiz sandık sayısı (ödül her sandıkta biraz büyür)
+        public int chestStreakFront = -1;   // serinin başladığı en ileri pist (yeni pist açılınca seri sıfırlanır)
 
         /// Fırlatma hakkı: en fazla MaxLaunches; her LaunchRegenMinutes'te bir dolar (oyun kapalıyken de), sınırı aşmaz.
         /// Hak fırlatma anında harcanır. Bitince ya beklenir ya da (ödüllü) reklamla +1 alınır.
@@ -164,7 +166,7 @@ namespace SlingRiders
         static System.Collections.Generic.IEnumerable<string> Keys()
         {
             for (int t = 0; t < TrackLibrary.Count; t++) { PlayerPrefs.DeleteKey(K("money_t" + t)); PlayerPrefs.DeleteKey(K("taken_t" + t)); }
-            foreach (var k in new[] { "dealDay", "dealIndex", "dealEnd", "dealSeen", "adGemDay", "adGemCount", "takenDay", "lday", "lstreak", "qday", "qtrack", "qp0", "qp1", "qp2", "qclaim", "money", "gems", "chest", "launches", "launchTicks", "hand", "sound", "track", "avatar", "avatars", "avatar2", "avatars2", "unlocked",
+            foreach (var k in new[] { "dealDay", "dealIndex", "dealEnd", "dealSeen", "adGemDay", "adGemCount", "takenDay", "lday", "lstreak", "qday", "qtrack", "qp0", "qp1", "qp2", "qclaim", "money", "gems", "chest", "chestStreak", "chestFront", "launches", "launchTicks", "hand", "sound", "track", "avatar", "avatars", "avatar2", "avatars2", "unlocked",
                                       "sens", "tut" })
                 yield return k;
             for (int t = 0; t < TrackLibrary.Count; t++)
@@ -186,6 +188,8 @@ namespace SlingRiders
             {
                 gems = PlayerPrefs.GetInt(K("gems"), 0),
                 chestReadyTicks = long.TryParse(PlayerPrefs.GetString(K("chest"), "0"), out var ticks) ? ticks : 0,
+                chestStreak = PlayerPrefs.GetInt(K("chestStreak"), 0),
+                chestStreakFront = PlayerPrefs.GetInt(K("chestFront"), -1),
                 hand = PlayerPrefs.GetInt(K("hand"), 1),
                 sound = PlayerPrefs.GetInt(K("sound"), 1) != 0,
                 steerSens = Mathf.Clamp(PlayerPrefs.GetInt(K("sens"), 1), 0, 2),
@@ -253,6 +257,8 @@ namespace SlingRiders
             PlayerPrefs.SetInt(K("adGemCount"), adGemCount);
             PlayerPrefs.SetInt(K("gems"), gems);
             PlayerPrefs.SetString(K("chest"), chestReadyTicks.ToString());
+            PlayerPrefs.SetInt(K("chestStreak"), chestStreak);
+            PlayerPrefs.SetInt(K("chestFront"), chestStreakFront);
             PlayerPrefs.SetInt(K("launches"), launches);
             PlayerPrefs.SetString(K("launchTicks"), launchTicks.ToString());
             PlayerPrefs.SetInt(K("hand"), hand);

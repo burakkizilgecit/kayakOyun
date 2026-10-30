@@ -115,7 +115,10 @@ namespace SlingRiders
                 float dead = DeadZone * Screen.width;
                 float dx = Mathf.Sign(d.x) * Mathf.Max(0f, Mathf.Abs(d.x) - dead);
                 px = Mathf.Clamp(dx / (SteerSpan[Mathf.Clamp(sensitivity, 0, 2)] * Screen.width), -1f, 1f);
-                py = Mathf.Clamp(-d.y / (0.12f * Screen.height), -1f, 1f);
+                // Dikeyde de ölü bölge (2026-10-30): direksiyon çevirirken parmağın hafif kayması burnu oynatıp süzülmeyi
+                // titretiyordu.
+                float dy = Mathf.Sign(d.y) * Mathf.Max(0f, Mathf.Abs(d.y) - dead);
+                py = Mathf.Clamp(-dy / (0.12f * Screen.height), -1f, 1f);
             }
             steer = Mathf.Abs(kx) > Mathf.Abs(px) ? kx : px;
             pitch = Mathf.Abs(ky) > Mathf.Abs(py) ? ky : py;
