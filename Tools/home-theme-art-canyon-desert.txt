@@ -1,0 +1,48 @@
+ASSET: Assets/Resources/UI/HomeThemes/canyon/track-plaque.png
+MODE: Built-in image_gen; transparent_background=true
+REFERENCE: Assets/Resources/UI/HomeWinter/track-plaque.png
+PROMPT:
+Use case: style-transfer. Asset: transparent mobile-game UI track-name plaque. Edit the provided winter track plaque into a Sunset Canyon theme. Preserve the same wide approximately 3:1 canvas, rounded rectangular plaque silhouette, raised glossy bevel, lower shadow and generous fully opaque blank central face. Replace every snow/ice decoration with warm sandstone corner caps and very small cactus/dry-scrub accents near outer corners. Replace the centered snowy mountain crest with a compact crown of terracotta canyon mesas, occupying only the same top crest area. Deep warm burgundy blank inner face, polished copper and amber rim, warm terracotta highlights. Premium cheerful 3D cartoon game UI rendering, smooth glossy shading matching the reference. Exact geometry and blank-face layout matter: leave the central face entirely empty for live title, subtitle and progress. No text, numbers, logos, symbols, characters or equipment. No snow, frost or ice. No landscape behind or outside the frame. True transparent alpha outside the single isolated UI sprite; opaque dark interior. Do not add a rectangular backdrop.
+GENERATED SOURCE: C:/Users/burak/.codex/generated_images/01a138b1-c16c-78c1-a777-c279dcbaa431/exec-75b890c6-1a89-4c9e-9d57-6cb2f149c6b2.png
+COPY: unchanged PNG; original retained
+
+ASSET: Assets/Resources/UI/HomeThemes/canyon/play-button.png
+MODE: Built-in image_gen; transparent_background=true
+REFERENCE: Assets/Resources/UI/HomeWinter/play-button.png
+PROMPT:
+Use case: style-transfer. Asset: transparent mobile-game UI PLAY-button background, without any text. Edit the provided winter gold button into a Sunset Canyon themed variant. Preserve its approximately 3:1 canvas, wide rounded gold pill, bright polished yellow-to-orange opaque face, readable empty center, raised bevel, dark lower shadow and small black-and-white racing flag at upper right. Remove all snow/ice. Replace the large snow corner with a small warm sandstone/copper decorative edge and a tiny cactus sprig tucked entirely on the upper left edge; use a copper flagpole. Keep the gold CTA face clear and dominant, with the exact same open space for live play glyph and text. Premium glossy 3D cartoon game UI rendering matching the reference. No text, letters, numbers, logos, characters, vehicles or equipment. No snow/frost, no scene, no ground. True transparent alpha outside the isolated single button; gold face fully opaque.
+GENERATED SOURCE: C:/Users/burak/.codex/generated_images/01a138b1-c16c-78c1-a777-c279dcbaa431/exec-e8d00e97-b261-40b4-a85d-9ad121a34431.png
+COPY: unchanged PNG; original retained
+
+ASSET: Assets/Resources/UI/HomeThemes/canyon/upgrade-panel.png
+MODE: Built-in image_gen; transparent_background=true
+REFERENCE: Assets/Resources/UI/HomeWinter/upgrade-panel.png
+PROMPT:
+Use case: style-transfer. Asset: transparent mobile-game UI equipment-tray panel background. Edit the provided winter rounded panel into a Sunset Canyon variant. Preserve the wide approximately 2:1 canvas, broad rounded rectangle, slim glossy raised frame, lower bevel shadow and large fully opaque dark blank interior. Deep warm burgundy inner face with subtle satin gradient; polished copper/amber frame. Remove every snowcap and all ice blue. Instead add small warm sandstone corner ornaments, a tiny cactus at one upper outer corner and sparse dry scrub at the other, confined to frame edges. Keep the top edge nearly straight, no central mountain crest, no inside decoration: all interior space reserved for native cards and labels. Same premium cheerful glossy 3D cartoon game UI rendering as reference. No text, letters, numbers, logos, characters, equipment or scenery. No snow/frost. True transparent alpha only outside the isolated UI panel, dark interior fully opaque.
+GENERATED SOURCE: C:/Users/burak/.codex/generated_images/01a138b1-c16c-78c1-a777-c279dcbaa431/exec-4c60b6d5-2614-422e-993f-9c964602563c.png
+COPY: unchanged PNG; original retained
+
+ASSET: Assets/Resources/UI/HomeThemes/desert/track-plaque.png
+MODE: Built-in image_gen; transparent_background=true
+REFERENCE: Assets/Resources/UI/HomeWinter/track-plaque.png
+PROMPT:
+Use case: style-transfer. Asset: transparent mobile-game UI track-name plaque. Edit the provided winter plaque into a Golden Dunes desert theme. Preserve exactly the same wide approximately 3:1 canvas, rounded blank plaque, glossy raised bevel, lower shadow and compact centered crest footprint. Replace snow/ice with sculpted golden sand curls along the outer corners and a scarce small palm frond accent; replace snowy central mountain crest with a few low sweeping golden dune ridges attached to the upper frame. Dark warm brown/navy blank interior, polished gold rim, warm honey highlights and one small turquoise gemstone accent on the rim. The central face stays completely blank and fully opaque for live title, subtitle and progress. Premium smooth glossy 3D cartoon game UI matching the reference. No text, numbers, logos, characters, equipment or full landscape. No snow, frost, ice or background scene. True transparent alpha outside the single isolated UI sprite; opaque dark interior.
+GENERATED SOURCE: C:/Users/burak/.codex/generated_images/01a138b1-c16c-78c1-a777-c279dcbaa431/exec-90bc8449-65ab-4be0-ac47-ab9f43b8ccb3.png
+COPY: unchanged PNG; original retained
+
+ASSET: Assets/Resources/UI/HomeThemes/desert/play-button.png
+MODE: Built-in image_gen; transparent_background=true
+REFERENCE: Assets/Resources/UI/HomeWinter/play-button.png
+PROMPT:
+Use case: style-transfer. Asset: transparent mobile-game UI PLAY-button background, no text. Edit the provided winter gold button into a Golden Dunes themed variant. Keep the same approximately 3:1 canvas, broad rounded gold pill, bright polished yellow-to-orange opaque face, layered gold bevel, dark lower shadow and small black-and-white racing flag at upper right. Remove all snow/ice; replace the snow edge with a thin sculpted sand curl and one tiny palm frond tucked against the upper-left rim. Gold flagpole and a restrained small turquoise inset accent on the rim. The large central gold CTA face remains entirely blank and dominant for a live play glyph and text. Premium cheerful glossy 3D cartoon game UI in the reference style. No text, letters, numbers, logos, characters, vehicles or equipment. No snow/frost, no background landscape or ground. True transparent alpha outside the single isolated button; fully opaque gold center.
+GENERATED SOURCE: C:/Users/burak/.codex/generated_images/01a138b1-c16c-78c1-a777-c279dcbaa431/exec-f115b663-827a-4904-8279-c81268a39cba.png
+COPY: unchanged PNG; original retained
+
+ASSET: Assets/Resources/UI/HomeThemes/desert/upgrade-panel.png
+MODE: Built-in image_gen; transparent_background=true
+REFERENCE: Assets/Resources/UI/HomeWinter/upgrade-panel.png
+PROMPT:
+Use case: style-transfer. Asset: transparent mobile-game UI equipment-tray background. Edit the provided winter panel into a Golden Dunes theme. Preserve the wide approximately 2:1 canvas and broad rounded rectangle, slim glossy raised frame, lower bevel shadow and very large entirely blank dark opaque interior. Use a dark warm brown/navy inner face with subtle satin gradient, polished gold rim, honey-gold highlights and one small turquoise gemstone accent along the outer rim. Replace all snowcaps/ice with smooth small golden sand curls on upper outer corners and a scarce palm frond tucked along one outer edge. Top rim should stay nearly straight; no central crest. Decorations must not intrude into the interior reserved for native upgrade cards. Match premium cheerful glossy 3D cartoon game UI reference. No text, letters, numbers, logos, characters, equipment, scenery, snow or frost. True transparent alpha outside the isolated UI panel; fully opaque dark interior.
+GENERATED SOURCE: C:/Users/burak/.codex/generated_images/01a138b1-c16c-78c1-a777-c279dcbaa431/exec-0408cf1e-fe64-40fb-beb7-8edb2af6f56a.png
+COPY: unchanged PNG; original retained
+

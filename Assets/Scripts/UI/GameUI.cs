@@ -1,16 +1,25 @@
 using System;
+using System.Globalization;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Arayüzün her kare ihtiyaç duyduğu oyun durumu.
     public struct HudInfo
     {
         public int money, best, distance, hand;
-        public float progress, bestProgress, speedKmh, fill, pull, runTime;
-        public bool airborne, canGlide, dragging, tiltMode, sound;
+        public bool freeLaunches;   // Çayır bitene kadar hak düşmez: sayaç "∞" gösterir
+        public int sensitivity;     // direksiyon hassasiyeti (0..2)
+        public float milkDanger;    // süt taşmaya ne kadar yakın (0..1)
+        public float milkMult;      // sağlam el çarpanı (1..1.5)
+        public float milkStreakProgress;   // sonraki kademeye ilerleme (0..1)
+        public bool perfectWindow;  // sapan tam gerildi: şimdi bırakırsa mükemmel atış
+        public float progress, bestProgress, speedKmh, fill, pull, runTime, aimAngle;
+        public bool airborne, canGlide, dragging, tiltMode, sound, music;
+        public bool mobileControls, hasWings, rocketNeedsLanding;
+        public float wingSecondsLeft;
         public Rect glassRect;   // bardak kamerasının ekran oranı cinsinden alanı (alt-sol orijinli)
         public float lidLeft;    // kapağın açılmasına kalan mesafe (m); 0 = açık
         public int trackIndex;
@@ -20,6 +29,8 @@ namespace SledSurfers
         public float rocketFuel;              // yanan roketin kalan yakıtı (0..1)
         public int gems, runCoins, runGems;    // elmas bakiyesi, bu atışta toplanan coin/elmas
         public int chestSeconds;              // ücretsiz sandığa kalan süre (0 = hazır)
+        public int launches, launchSeconds;   // fırlatma hakkı ve bir sonrakine kalan süre (s)
+        public bool crashScene;               // karakter düştü: hız göstergesi ve bardak paneli gizlenir
     }
 
     public struct RunSummary
@@ -32,6 +43,12 @@ namespace SledSurfers
         public int unlockedLength;
         public bool lastTrack;                   // son parkur da bitti
         public int coins, gems;                  // pistte toplanan coin ve elmas
+        public string tip;                       // bir sonraki atış için öneri (RunTips); boşsa gösterilmez
+        public int steadyCoins, closeCalls, closeCoins;   // süt becerisi ödülleri
+        public float bestMult;                   // koşudaki en yüksek sağlam el çarpanı
+        public string milkGrade;                 // bitişte süt notu (NOT A DROP! / STEADY HAND), yoksa null
+        public bool milkRecord;                  // pistin süt rekoru kırıldı
+        public int milkBest;                     // pistin süt rekoru (%)
     }
 
     /// UI Toolkit ile koddan kurulan oyun arayüzü: Ana ekran (yükseltmeler) → Nişan → Koşu → Sonuç → Ana ekran.
@@ -40,11 +57,23 @@ namespace SledSurfers
     {
         public enum Page { Hub, Map, Avatars, Aim, Run, Result }
 
+        /// Sonuç ekranında reklam izlenip kazanç 3 katına çıkarıldı (GameController 2 kat daha ekler).
+        public event Action TripleEarnings;
+        /// Ana ekrandaki OYNA düğmesi.
+        public event Action Play;
+        /// Günlük görevler penceresini aç, günlük giriş ödülünü al; görev ödülü al (dizin).
+        public event Action OpenQuests, ClaimLogin;
+        public event Action<int> ClaimQuest;
         public event Action OpenHub, OpenMap, NextTrack, Retry, FireRocket, OpenChest, OpenAvatars;
+        public event Action PauseRequested, ResumeRequested, RetryRun;
         public event Action<int> BrowseAvatar, AvatarAction;
         public event Action<int> ClaimChest;   // çarpan: 1 ya da 3 (reklamla)
         public event Action<int> Buy, SetHand, SelectTrack;
-        public event Action<bool> SetSound;
+        public event Action<bool> SetSound, SetMusic;
+        public event Action<int> SetSensitivity;
+        /// Test düğmeleri (yalnız geliştirme sürümü): geçerli haritanın geliştirmelerini sıfırla, bütün haritaları aç, para ver.
+        public event Action TestResetUpgrades, TestUnlockAll, TestMoney;
+        public event Action WatchLaunchAd;   // hak bitti penceresinde reklam izlendi: +1 hak
 
         static readonly Color Ink = new Color32(0x2B, 0x23, 0x40, 0xFF);
         static readonly Color Muted = new Color32(0x7D, 0x72, 0x90, 0xFF);
@@ -69,16 +98,19 @@ namespace SledSurfers
         static readonly Color GemPink = new Color32(0xF0, 0x4F, 0xB0, 0xFF);
         static readonly Color GemPinkDark = new Color32(0xB8, 0x2A, 0x82, 0xFF);
         static readonly Color CardGrayDark = new Color32(0xA3, 0x9B, 0x90, 0xFF);
-        static readonly System.Globalization.CultureInfo Tr = new System.Globalization.CultureInfo("tr-TR");
+        static readonly System.Globalization.CultureInfo Tr = System.Globalization.CultureInfo.InvariantCulture;   // arayüz İngilizce (2026-10-11)
         static readonly Color[] TrackColors =
         {
             new Color32(0x5C, 0xC4, 0x5A, 0xFF), new Color32(0x2E, 0x8B, 0x57, 0xFF), new Color32(0xE8, 0x74, 0x3B, 0xFF),
-            new Color32(0x4F, 0x9F, 0xE0, 0xFF),
+            new Color32(0x4F, 0x9F, 0xE0, 0xFF), new Color32(0xE8, 0xB9, 0x3B, 0xFF), new Color32(0xD8, 0x3A, 0x2A, 0xFF),
+            new Color32(0xB8, 0x5A, 0x3C, 0xFF), new Color32(0xC0, 0x62, 0x2E, 0xFF), new Color32(0x5A, 0xB4, 0xE6, 0xFF),
+            new Color32(0xC0, 0x6C, 0xD8, 0xFF), new Color32(0x3C, 0x9A, 0x4A, 0xFF),
         };
         static readonly IconKind[] UpgradeIcons =
             { IconKind.Slingshot, IconKind.Runners, IconKind.Glass, IconKind.Income, IconKind.Rocket };
 
         readonly VisualElement root, safe;
+        readonly MenuTrackTheme menuTheme = new MenuTrackTheme();
         readonly Dictionary<Page, VisualElement> pages = new Dictionary<Page, VisualElement>();
         readonly Action click;
         Page page = Page.Hub;
@@ -106,15 +138,23 @@ namespace SledSurfers
         Button chestBtn;
         Label chestLabel;
         VisualElement chestModal, chestCard, chestGemRow, adOverlay;
-        Icon chestIcon;
-        Label chestCoins, chestGems, adCount;
-        Button chestTriple;
+        VisualElement launchModal, launchCard, bubble;
+        Label bubbleText;
+        float bubbleAge = -1f;
+        Label launchModalTimer, launchModalCount;
+        readonly List<Label> launchLabels = new List<Label>(), launchTimers = new List<Label>();
+        int shownLaunches = -1, shownLaunchSeconds = -1;
+        VisualElement chestIcon;
+        Label chestCoins, chestGems, adCount, chestStreakLabel;
+        Button chestTriple, resTriple;
+        int coinFrom;
+        float coinStart = 0.6f;
         int chestCoinValue, chestGemValue, chestMultiplier = 1;
         float chestClock, adClock = -1f;
         Action adDone;
 
         // Sonuç: toplananlar
-        Label resLoot;
+        Label resLoot, resTip;
 
         // Karakterler
         VisualElement hubAvatarPortrait;
@@ -122,33 +162,83 @@ namespace SledSurfers
         Button avAction;
         Icon avActionGem;
         readonly AvatarCard[] avCards = new AvatarCard[AvatarLibrary.Count];
+        ScrollView avScroll;
         int avBrowse;
         float avBump;
 
         class AvatarCard
         {
             public Button root;
-            public VisualElement portrait, priceRow;
+            public VisualElement portrait, priceRow, badge, lockBadge, chip;
             public Label name, price, state;
         }
 
+        // Karakter nadirliği (fiyata göre): ücretsiz yeşil, 10-15 mavi, 20-25 mor, 30+ altın.
+        static readonly Color[] RarityColors =
+        {
+            new Color32(0x3F, 0xD1, 0x5B, 0xFF), new Color32(0x3F, 0xA4, 0xFF, 0xFF),
+            new Color32(0x9B, 0x5C, 0xFF, 0xFF), new Color32(0xFF, 0xB0, 0x20, 0xFF),
+        };
+        static readonly string[] RarityNames = { "FREE", "RARE", "EPIC", "LEGENDARY" };
+        static int Rarity(int price) => price <= 0 ? 0 : price < 25 ? 1 : price < 50 ? 2 : 3;   // 8-20 nadir, 25-42 epik, 50+ efsane
+
+        static IconKind PerkIcon(Perk perk)
+        {
+            switch (perk)
+            {
+                case Perk.Slosh: case Perk.Lid: return IconKind.Glass;
+                case Perk.Sling: return IconKind.Slingshot;
+                case Perk.Magnet: return IconKind.Coin;
+                case Perk.Friction: return IconKind.Runners;
+                case Perk.Chest: return IconKind.Chest;
+                case Perk.Rocket: return IconKind.Rocket;
+                case Perk.Armor: return IconKind.Check;
+                case Perk.Income: return IconKind.Income;
+                case Perk.Glide: return IconKind.Wing;
+                default: return IconKind.Play;
+            }
+        }
+
+        VisualElement avPerkCard, avPerkIconBox, avRarity;
+        Label avRarityLabel;
+        Icon avPerkIcon;
+
         // Ana ekran
-        Label playHint, hubTrackName, hubTrackSub;
+        Label playHint, hubTrackName, hubTrackSub, hubTrackPct;
+        Label homeCoinValue, homeGemValue;
+        VisualElement hubRibbon, playPill;
+        Button playButton;
+        VisualElement homeCanvas, homeChestDot;
+        VisualElement homeBannerArt, homePlayArt, homeTrayArt;
+        Rect? debugHomeSafeArea;
+        Vector2 lastSafeLayout;
+        float homeProgress, homeProgressTarget, homeRelease;
+        int homeTrack = -1;
+        bool homePlayHeld;
+        /// Mağaza ve (test) karşılama teklifi.
+        public event Action OpenShop, TestOffer;
         VisualElement hubTrackFill, settings, settingsCard;
-        Button handLeft, handRight, soundOn, soundOff;
+        VisualElement pauseModal, pauseCard;
+        bool paused;
+        Button handLeft, handRight, soundOn, soundOff, musicOn, musicOff;
+        readonly Button[] sensButtons = new Button[3];
+        float hintTime;
 
         // Harita
         readonly MapCard[] mapCards = new MapCard[TrackLibrary.Count];
+        ScrollView mapScroll;
 
         // Yükseltme kartları
         readonly UpgradeCard[] cards = new UpgradeCard[Upgrades.Count];
 
         // Roket butonu (koşu)
+        int hubAvatar;
         Button rocketBtn;
+        VisualElement rocketGlow;
         VisualElement gaugeBox;
         SpeedGauge gauge;
         VisualElement rocketFill;
-        Label rocketCount;
+        Label rocketCount, rocketLabel;
 
         // Nişan
         VisualElement hint, hintHand, power;
@@ -158,7 +248,7 @@ namespace SledSurfers
 
         // Koşu
         ProgressColumn runColumn;
-        Label distLabel, speedLabel, airLabel;
+        Label distLabel, speedLabel, airLabel, wingLabel;
         VisualElement tutorial;
         public bool debugHideTutorial;   // otomatik ekran görüntüsü testleri için
         bool wasAirborne;
@@ -172,17 +262,19 @@ namespace SledSurfers
 
         // Bardak (nişan + koşu)
         VisualElement glassHud, glassFrame, milkPill, milkFill;
-        Label milkLabel;
+        float milkDangerShown;
+        Label milkLabel, multBadge;
         Icon milkIcon, lidIcon;
         int shownMilk = -1;
 
         // Sonuç
         VisualElement resultCard, resRecord, resRibbon, unlockBox, confetti;
-        Label unlockTitle, unlockName, goLabel;
+        Label unlockTitle, unlockName, unlockProgression, goLabel;
         Icon goIcon;
         bool goNext;
         readonly List<Confetti> bits = new List<Confetti>();
-        Label resTitle, resDist, resMilk, resCoins, resBonus;
+        Label resTitle, resDist, resMilk, resCoins, resBonus, resMilkSkill, resMilkGrade;
+        float shownMult = 1f, multFlash;
         TrackBar resBar;
         RunSummary result;
         float resultClock;
@@ -191,8 +283,9 @@ namespace SledSurfers
         {
             public VisualElement root, fill, bar, pipRow, preview, shine, top;
             public readonly VisualElement[] pips = new VisualElement[Upgrades.StageSize];
-            public Label badge, sub, cost, level;
+            public Label badge, sub, cost, level, gain, title;
             public bool canBuy;
+            public string gainText = "";
             public Button buy;
             public Icon coin, gem, lockIcon;
             public float bump, shake;
@@ -201,8 +294,8 @@ namespace SledSurfers
         class MapCard
         {
             public Button root;
-            public VisualElement badge, fill;
-            public Label number, status;
+            public VisualElement badge, fill, island, lockDisc, pic, bar;
+            public Label number, status, wallet, lockName;
             public Icon lockIcon;
         }
 
@@ -218,6 +311,12 @@ namespace SledSurfers
         {
             const float Top = 70f;   // bayrağın altından itibaren çubuk
             public readonly VisualElement root, track, fill, knob, bestMark, gems;
+
+            public void SetAvatar(StyleBackground portrait)
+            {
+                knob.style.backgroundImage = portrait;
+                knob.style.backgroundColor = Color.white;
+            }
             readonly Label percent, bestLabel;
 
             public ProgressColumn()
@@ -255,7 +354,7 @@ namespace SledSurfers
 
                 bestMark = new VisualElement();
                 bestMark.AddToClassList("vbar-best");
-                bestLabel = new Label("REKOR");
+                bestLabel = new Label("BEST");
                 bestLabel.AddToClassList("vbar-label");
                 bestLabel.AddToClassList("outlined");
                 bestMark.Add(bestLabel);
@@ -263,7 +362,7 @@ namespace SledSurfers
 
                 knob = new VisualElement();
                 knob.AddToClassList("vbar-knob");
-                percent = new Label("%0");
+                percent = new Label("0%");
                 percent.AddToClassList("vbar-label");
                 percent.AddToClassList("outlined");
                 knob.Add(percent);
@@ -292,7 +391,7 @@ namespace SledSurfers
                 progress = Mathf.Clamp01(progress);
                 fill.style.height = Length.Percent(progress * 100f);
                 knob.style.top = Y(progress) - 22f;
-                string text = "%" + Mathf.FloorToInt(progress * 100f);
+                string text = Mathf.FloorToInt(progress * 100f) + "%";
                 if (percent.text != text) percent.text = text;
                 bool showBest = bestProgress > 0.01f && Mathf.Abs(bestProgress - progress) > 0.03f;
                 bestMark.style.display = showBest ? DisplayStyle.Flex : DisplayStyle.None;
@@ -333,16 +432,20 @@ namespace SledSurfers
             click = clickSound;
             var doc = host.AddComponent<UIDocument>();
             doc.panelSettings = Resources.Load<PanelSettings>("UI/PanelSettings");
-            if (doc.panelSettings == null) Debug.LogError("[UI] Resources/UI/PanelSettings bulunamadı (Sled Surfers > Arayüz Varlıklarını Kur)");
+            if (doc.panelSettings == null) Debug.LogError("[UI] Resources/UI/PanelSettings bulunamadı (Sling Riders > Arayüz Varlıklarını Kur)");
 
             root = doc.rootVisualElement;
             root.style.position = Position.Absolute;
             root.style.left = root.style.top = root.style.right = root.style.bottom = 0;
+            var winterStyles = Resources.Load<StyleSheet>("UI/HomeWinter");
+            if (winterStyles != null) root.styleSheets.Add(winterStyles);
 
             glassHud = BuildGlassHud();
             root.Add(glassHud);
 
             safe = E("fill");
+            safe.name = "home-safe";
+            safe.RegisterCallback<GeometryChangedEvent>(_ => ResizeHomeCanvas());
             root.Add(safe);
 
             BuildHub();
@@ -353,6 +456,14 @@ namespace SledSurfers
             BuildAvatars();
             BuildSettings();
             BuildChest();
+            BuildPartUnlock();
+            BuildQuests();
+            BuildLogin();
+            BuildShop();
+            BuildOffer();
+            BuildNoLaunches();
+            BuildPause();
+            ConfigureMenuBackgrounds();
 
             root.Query<VisualElement>().ForEach(e =>
             {
@@ -367,11 +478,47 @@ namespace SledSurfers
 
         // ================================================================ dışarıya açık
 
+        /// Açılış: önce RALP GAMES stüdyo logosu (~2.65 s), solmaya başlayınca altında oyunun açılış ekranı (Sling Riders
+        /// logosu, ~2.8 s ya da dokununca). İkisi de her şeyin üstünde.
+        public void ShowSplash(Action onPop)
+        {
+            StudioIntro studio = null;
+            studio = new StudioIntro(() => root.Insert(root.IndexOf(studio), new SplashScreen(onPop, null)), null);
+            root.Add(studio);
+        }
+
         public Page Current => page;
 
+        /// The controller freezes gameplay; the modal only blocks input and offers an explicit resume.
+        public void SetPaused(bool value)
+        {
+            paused = value;
+            pauseModal.style.display = value ? DisplayStyle.Flex : DisplayStyle.None;
+            if (value)
+            {
+                pauseModal.BringToFront();
+                pauseCard.RemoveFromClassList("off");
+            }
+        }
+
         /// Ekran noktası bir düğmenin ya da modal pencerenin üstünde mi? (Sapan sürüklemesi başlamasın diye.)
+        /// Ekran noktası (alt-sol orijinli) roket düğmesinin üstünde mi? Düğme arayüz tıklamasını beklemeden, her yeni
+        /// dokunuşla kontrol edilir: arayüz yalnızca ilk parmağı tıklama sayar, direksiyonu tutarken ikinci parmakla
+        /// basılan roket ateşlenmiyordu (kullanıcı testi 2026-10-10).
+        public bool OnRocketButton(Vector2 screenPos)
+        {
+            if (paused) return false;
+            var panel = root.panel;
+            if (panel == null || rocketBtn == null || !rocketBtn.enabledSelf || rocketBtn.resolvedStyle.display == DisplayStyle.None) return false;
+            var pos = RuntimePanelUtils.ScreenToPanel(panel, new Vector2(screenPos.x, Screen.height - screenPos.y));
+            var r = rocketBtn.worldBound;
+            float pad = r.width * 0.2f;   // parmak için biraz pay
+            return pos.x >= r.xMin - pad && pos.x <= r.xMax + pad && pos.y >= r.yMin - pad && pos.y <= r.yMax + pad;
+        }
+
         public bool BlocksPointer(Vector2 screenPos)
         {
+            if (paused) return true;
             var panel = root.panel;
             if (panel == null) return false;
             var pos = RuntimePanelUtils.ScreenToPanel(panel, new Vector2(screenPos.x, Screen.height - screenPos.y));
@@ -389,6 +536,7 @@ namespace SledSurfers
 
         public void ShowRun()
         {
+            runColumn.SetAvatar(Portrait(hubAvatar));   // ilerleme çubuğunda seçili karakterin yüzü
             shownRunCoins = shownRunGems = -1;
             wasAirborne = false;
             toastClock = -1f;
@@ -401,15 +549,29 @@ namespace SledSurfers
         {
             result = summary;
             resultClock = 0f;
-            resTitle.text = summary.title.ToUpper(new System.Globalization.CultureInfo("tr-TR"));
+            resTitle.text = summary.title.ToUpper(Tr);
             resRecord.style.display = summary.record ? DisplayStyle.Flex : DisplayStyle.None;
             resBonus.style.display = summary.finished ? DisplayStyle.Flex : DisplayStyle.None;
-            resBonus.text = "Bitiş ödülü: +" + summary.finishBonus;
-            resLoot.text = "Toplanan: " + summary.coins + " coin" + (summary.gems > 0 ? "  ·  " + summary.gems + " pembe elmas" : "");
+            resBonus.text = "Finish bonus: +" + summary.finishBonus;
+            resLoot.text = "Collected: " + summary.coins + " coins" + (summary.gems > 0 ? "  ·  " + summary.gems + " pink gems" : "");
             resLoot.style.display = summary.coins > 0 || summary.gems > 0 ? DisplayStyle.Flex : DisplayStyle.None;
-            resMilk.text = "%" + Mathf.RoundToInt(Mathf.Clamp01(summary.fill) * 100f);
+            resTip.text = summary.tip ?? "";
+            resTip.style.display = string.IsNullOrEmpty(summary.tip) ? DisplayStyle.None : DisplayStyle.Flex;
+            resMilk.text = Mathf.RoundToInt(Mathf.Clamp01(summary.fill) * 100f) + "%";
+            var skill = new System.Collections.Generic.List<string>();
+            if (summary.steadyCoins > 0) skill.Add("Steady hand x" + summary.bestMult.ToString("0.00", Tr) + ": +" + summary.steadyCoins);
+            if (summary.closeCalls > 0) skill.Add("Close calls " + summary.closeCalls + ": +" + summary.closeCoins);
+            if (summary.milkRecord) skill.Add("New milk record: " + summary.milkBest + "%");
+            else if (summary.finished && summary.milkBest > 0) skill.Add("Milk record: " + summary.milkBest + "%");
+            resMilkSkill.text = string.Join("  ·  ", skill);
+            resMilkSkill.style.display = skill.Count > 0 ? DisplayStyle.Flex : DisplayStyle.None;
+            resMilkGrade.text = summary.milkGrade ?? "";
+            resMilkGrade.style.display = summary.milkGrade != null ? DisplayStyle.Flex : DisplayStyle.None;
             resDist.text = "0 m";
             resCoins.text = "+0";
+            coinFrom = 0;
+            coinStart = 0.6f;
+            resTriple.style.display = summary.earned > 0 ? DisplayStyle.Flex : DisplayStyle.None;
             resBar.Set(0f, summary.bestProgress);
 
             bool finished = summary.finished;
@@ -418,18 +580,19 @@ namespace SledSurfers
             confetti.style.display = finished ? DisplayStyle.Flex : DisplayStyle.None;
 
             goNext = summary.unlockedName != null;
-            goLabel.text = goNext ? summary.unlockedName.ToUpper(new System.Globalization.CultureInfo("tr-TR")) + "'A GEÇ" : "DEVAM";
+            goLabel.text = goNext ? "NEXT TRACK" : "CONTINUE";
             unlockBox.style.display = goNext || summary.lastTrack ? DisplayStyle.Flex : DisplayStyle.None;
             if (goNext)
             {
-                unlockTitle.text = "YENİ PARKUR AÇILDI!";
-                unlockName.text = summary.unlockedName + " · " + summary.unlockedLength + " m";
+                unlockTitle.text = "NEW TRACK UNLOCKED!";
+                unlockName.text = summary.unlockedName + " · " + TrackLibrary.Show(summary.unlockedLength) + " m";
             }
             else if (summary.lastTrack)
             {
-                unlockTitle.text = "BÜTÜN PARKURLAR BİTTİ!";
-                unlockName.text = "Şampiyon sensin!";
+                unlockTitle.text = "ALL TRACKS COMPLETE!";
+                unlockName.text = "You're the champion!";
             }
+            unlockProgression.style.display = goNext ? DisplayStyle.Flex : DisplayStyle.None;
             resultCard.AddToClassList("off");
             resultCard.schedule.Execute(() => resultCard.RemoveFromClassList("off")).StartingIn(140);
             SetPage(Page.Result);
@@ -439,8 +602,26 @@ namespace SledSurfers
         public void SetRunGems(IList<float> fractions) => runColumn.SetGems(fractions);
 
         /// Koşuda kapak açılınca kısa bir kutlama yazısı.
-        public void LidOpened()
+        public void LidOpened() => Toast("LID OFF!");
+
+        /// Koşuda ekranın ortasında kısa bir yazı (kapak, roket kilidi...).
+        Label threatLabel;
+        bool? hubChestReadyShown;
+
+        /// Arkadaki tehlikenin mesafesi (m, gösterim ölçeğinde); negatifse gizlenir. Yaklaştıkça kızarır ve nabız atar.
+        public void ShowThreat(string text, float closeness, float time)
         {
+            if (string.IsNullOrEmpty(text)) { threatLabel.style.display = DisplayStyle.None; return; }
+            threatLabel.style.display = DisplayStyle.Flex;
+            threatLabel.text = text;
+            float pulse = 0.5f + 0.5f * Mathf.Sin(time * (6f + 10f * closeness));
+            threatLabel.style.backgroundColor = Color.Lerp(new Color(0.85f, 0.45f, 0.1f, 0.85f), new Color(0.9f, 0.08f, 0.08f, 0.95f), closeness * (0.6f + 0.4f * pulse));
+            threatLabel.style.scale = new Scale(Vector2.one * (1f + 0.08f * closeness * pulse));
+        }
+
+        public void Toast(string text)
+        {
+            toastLabel.text = text;
             toastClock = 0f;
             toastLabel.style.display = DisplayStyle.Flex;
         }
@@ -450,14 +631,30 @@ namespace SledSurfers
 
         public void Tick(float dt, in HudInfo h)
         {
+            if (paused)
+            {
+                UpdateSafeArea();
+                return;
+            }
             time += dt;
             UpdateSafeArea();
             TickOverlays(dt);
             UpdateCoins(dt, h);
+            UpdateLaunches(h);
 
-            bool glass = page == Page.Aim || page == Page.Run;
+            // Hız çizgileri: 55 km/s üstünde belirir, 100 km/s'de tam; fırlatmanın ilk saniyesinde patlama.
+            if (speedLines != null)
+            {
+                float target = page == Page.Run && !h.crashScene
+                    ? Mathf.Max(Mathf.InverseLerp(55f, 100f, h.speedKmh), h.runTime < 1.2f ? 1f - h.runTime / 1.2f : 0f) : 0f;
+                speedLines.intensity = Mathf.MoveTowards(speedLines.intensity, target, dt * 2.5f);
+                speedLines.Tick(dt);
+            }
+
+            bool glass = (page == Page.Aim || page == Page.Run) && !h.crashScene;
+            if (gaugeBox != null) gaugeBox.style.display = h.crashScene ? DisplayStyle.None : DisplayStyle.Flex;
             glassHud.style.display = glass ? DisplayStyle.Flex : DisplayStyle.None;
-            if (glass) UpdateGlass(h);
+            if (glass) UpdateGlass(dt, h);
 
             switch (page)
             {
@@ -474,6 +671,7 @@ namespace SledSurfers
 
         void SetPage(Page p)
         {
+            SetPaused(false);
             page = p;
             foreach (var kv in pages)
             {
@@ -500,6 +698,7 @@ namespace SledSurfers
         VisualElement NewPage(Page p)
         {
             var e = E("page");
+            e.name = "menu-" + p.ToString().ToLowerInvariant();
             pages[p] = e;
             safe.Add(e);
             return e;
@@ -507,16 +706,20 @@ namespace SledSurfers
 
         void UpdateSafeArea()
         {
-            var sa = Screen.safeArea;
+            var sa = debugHomeSafeArea ?? Screen.safeArea;
             float w = root.layout.width, h = root.layout.height;
             // İlk yerleşimden önce boyut NaN olur; o karede güvenli alan hesaplanmaz.
-            if (sa == lastSafe || float.IsNaN(w) || float.IsNaN(h) || w <= 0f || Screen.width <= 0) return;
+            if (float.IsNaN(w) || float.IsNaN(h) || w <= 0f || h <= 0f || Screen.width <= 0 || Screen.height <= 0) return;
+            if (sa == lastSafe && lastSafeLayout == new Vector2(w, h)) return;
+            lastSafeLayout = new Vector2(w, h);
             lastSafe = sa;
             float sx = w / Screen.width, sy = h / Screen.height;
             safe.style.left = sa.xMin * sx;
             safe.style.right = (Screen.width - sa.xMax) * sx;
             safe.style.top = (Screen.height - sa.yMax) * sy;
             safe.style.bottom = sa.yMin * sy;
+            menuTheme.SetSafeInsets(sa.xMin * sx, (Screen.height - sa.yMax) * sy,
+                (Screen.width - sa.xMax) * sx, sa.yMin * sy);
         }
 
         void UpdateCoins(float dt, in HudInfo h)
@@ -526,11 +729,13 @@ namespace SledSurfers
                 if (shownMoney >= 0) coinBump = 1f;
                 shownMoney = h.money;
                 foreach (var l in coinLabels) l.text = h.money.ToString();
+                homeCoinValue.text = ShortWallet(h.money);
+                homeCoinValue.tooltip = h.money.ToString();
             }
             if (h.best != shownBest)
             {
                 shownBest = h.best;
-                foreach (var l in bestLabels) l.text = "En iyi " + h.best + " m";
+                foreach (var l in bestLabels) l.text = "Best " + TrackLibrary.Show(h.best) + " m";
             }
             coinBump = Mathf.MoveTowards(coinBump, 0f, dt * 3f);
             float s = 1f + 0.18f * Mathf.Sin(coinBump * Mathf.PI) * coinBump;
@@ -541,6 +746,8 @@ namespace SledSurfers
                 if (shownGems >= 0) gemBump = 1f;
                 shownGems = h.gems;
                 foreach (var l in gemLabels) l.text = h.gems.ToString();
+                homeGemValue.text = ShortWallet(h.gems);
+                homeGemValue.tooltip = h.gems.ToString();
             }
             gemBump = Mathf.MoveTowards(gemBump, 0f, dt * 3f);
             float g = 1f + 0.2f * Mathf.Sin(gemBump * Mathf.PI) * gemBump;
@@ -551,102 +758,309 @@ namespace SledSurfers
 
         void BuildHub()
         {
-            var p = NewPage(Page.Hub);
+            var pageRoot = NewPage(Page.Hub);
+            pageRoot.style.paddingLeft = pageRoot.style.paddingRight = pageRoot.style.paddingTop = pageRoot.style.paddingBottom = 0;
+            var p = homeCanvas = E("winter-home");
+            p.name = "home-canvas";
+            p.style.position = Position.Absolute;
+            p.style.left = p.style.top = 0;
+            p.style.transformOrigin = new TransformOrigin(0, 0);
+            pageRoot.Add(p);
 
-            var top = E("topbar");
-            var wallet = E("row");
-            wallet.Add(CoinPill());
-            wallet.Add(Sp(GemPill(), 16));
+            var top = E("home-topbar");
+            var wallet = E("home-wallet");
+            var coins = HomeCurrency(CoinPill(), "home-coins-plus");
+            coins.AddToClassList("home-first");
+            wallet.Add(coins);
+            wallet.Add(HomeCurrency(GemPill(), "home-gems-plus"));
+            wallet.Add(LaunchPill());
             top.Add(wallet);
-            var gear = B(() => ShowSettings(true), "btn", "btn-blue", "btn-round");
-            gear.Add(new Icon(IconKind.Gear, 64));
+            var gear = B(() => ShowSettings(true), "btn", "kit-round", "kit-settings");
+            gear.name = "home-settings";
+            gear.style.width = gear.style.height = 120;
             top.Add(gear);
             p.Add(top);
 
-            // Parkur başlığı: dokununca harita açılır.
             var title = B(() => OpenMap?.Invoke(), "hub-title");
-            hubTrackName = L("", "outlined");
-            hubTrackName.style.fontSize = 104;
-            title.Add(hubTrackName);
-            hubTrackSub = L("", "outlined");
-            hubTrackSub.style.fontSize = 36;
-            hubTrackSub.style.marginTop = -18;
+            title.name = "home-track";
+            homeBannerArt = CreateHomeArt(title, "home-banner-art", "home-art-banner");
+            hubRibbon = E("hub-ribbon");
+            hubTrackName = L("", "hub-ribbon-text");
+            hubRibbon.Add(hubTrackName);
+            title.Add(hubRibbon);
+            hubTrackSub = L("", "hub-sub");
             title.Add(hubTrackSub);
-            var slim = E("bar");
-            slim.style.height = 26;
-            slim.style.width = 380;
-            slim.style.marginTop = 8;
-            hubTrackFill = E("bar-fill");
+            var slim = E("hub-bar");
+            hubTrackFill = E("hub-bar-fill");
             slim.Add(hubTrackFill);
+            slim.Add(E("hub-bar-shine"));
+            hubTrackPct = L("0%", "hub-bar-pct");
+            slim.Add(hubTrackPct);
+            var flag = new Icon(IconKind.Finish, 46);
+            flag.AddToClassList("hub-bar-flag");
+            slim.Add(flag);
             title.Add(slim);
+            // MAP kartı kaldırıldı (kullanıcı 2026-10-23): haritalara parkur adına dokunarak gidilir; altında küçük ipucu.
+            var allMaps = L("SHOW ALL MAPS  ›", "heavy");
+            allMaps.name = "home-all-maps";
+            allMaps.style.fontSize = 30;
+            allMaps.style.color = Color.white;
+            allMaps.style.unityTextOutlineWidth = 4;
+            allMaps.style.unityTextOutlineColor = new Color(0f, 0f, 0f, 0.45f);
+            allMaps.style.alignSelf = Align.Center;
+            allMaps.style.marginTop = 4;
+            // Plakanın hemen altında, ona sabitli (ana ekran öğeleri mutlak konumlu: ayrı öğe en tepeye kayıyordu).
+            allMaps.pickingMode = PickingMode.Ignore;
+            allMaps.style.position = Position.Absolute;
+            allMaps.style.left = allMaps.style.right = 0;
+            allMaps.style.bottom = -46;
+            allMaps.style.unityTextAlign = TextAnchor.MiddleCenter;
+            title.Add(allMaps);
             p.Add(title);
 
-            // Orta alan: karakter görünür; sağda harita ve roket kartı.
-            var mid = E("row", "grow");
-            mid.style.alignItems = Align.FlexStart;
-            mid.style.justifyContent = Justify.SpaceBetween;
-            mid.style.marginTop = 30;
-            var leftSide = E("col");
-            var avatarBtn = SideCard(() => OpenAvatars?.Invoke(), new Color32(0x6C, 0x8C, 0xFF, 0xFF), new Color32(0x3B, 0x55, 0xD0, 0xFF));
-            avatarBtn.style.alignSelf = Align.FlexStart;
-            hubAvatarPortrait = E("avatar-portrait");
-            hubAvatarPortrait.style.width = 104;
-            hubAvatarPortrait.style.height = 104;
-            avatarBtn.Add(hubAvatarPortrait);
-            avatarBtn.Add(L("KARAKTER", "side-label"));
-            leftSide.Add(avatarBtn);
-            chestBtn = SideCard(() => OpenChest?.Invoke(), new Color32(0xFF, 0xB0, 0x3A, 0xFF), new Color32(0xD8, 0x6C, 0x0A, 0xFF));
-            chestBtn.style.alignSelf = Align.FlexStart;
-            chestIcon = new Icon(IconKind.Chest, 92);
+            var mid = E("home-stage");
+            var left = E("home-left");
+            var avatar = SideCard(() => OpenAvatars?.Invoke(), new Color32(38, 139, 246, 255), new Color32(23, 86, 197, 255));
+            avatar.name = "home-hero";
+            avatar.AddToClassList("home-hero");
+            hubAvatarPortrait = E("avatar-portrait", "home-side-art");
+            avatar.Add(hubAvatarPortrait);
+            avatar.Add(L("HERO", "side-label"));
+            left.Add(avatar);
+            chestBtn = SideCard(() => OpenChest?.Invoke(), new Color32(255, 185, 31, 255), new Color32(221, 123, 9, 255));
+            chestBtn.name = "home-chest";
+            chestBtn.AddToClassList("home-chest");
+            chestIcon = WinterHomeArt.Chest(144);
+            chestIcon.AddToClassList("home-side-art");
+            chestIcon.style.width = StyleKeyword.Null;
+            chestIcon.style.height = StyleKeyword.Null;
+            chestIcon.style.flexShrink = StyleKeyword.Null;
             chestBtn.Add(chestIcon);
-            chestLabel = L("AÇ!", "side-label");
+            chestLabel = L("OPEN!", "side-label");
             chestBtn.Add(chestLabel);
-            leftSide.Add(chestBtn);
-            mid.Add(leftSide);
-            var side = E("col");
-            var map = SideCard(() => OpenMap?.Invoke(), new Color32(0x3B, 0xD0, 0xB8, 0xFF), new Color32(0x1A, 0x93, 0x80, 0xFF));
-            map.Add(new Icon(IconKind.Map, 84, Color.white));
-            map.Add(L("HARİTA", "side-label"));
-            side.Add(map);
+            homeChestDot = L("!", "home-attention");
+            homeChestDot.style.display = DisplayStyle.None;
+            chestBtn.Add(homeChestDot);
+            left.Add(chestBtn);
+            var quests = SideCard(() => OpenQuests?.Invoke(), new Color32(141, 78, 236, 255), new Color32(86, 43, 186, 255));
+            quests.name = "home-quests";
+            quests.AddToClassList("home-quests");
+            var clipboard = WinterHomeArt.Clipboard(142);
+            clipboard.AddToClassList("home-side-art");
+            clipboard.style.width = StyleKeyword.Null;
+            clipboard.style.height = StyleKeyword.Null;
+            clipboard.style.flexShrink = StyleKeyword.Null;
+            quests.Add(clipboard);
+            quests.Add(L("QUESTS", "side-label"));
+            questDot = L("!", "home-attention");
+            questDot.style.display = DisplayStyle.None;
+            quests.Add(questDot);
+            left.Add(quests);
+            mid.Add(left);
+
+            var right = E("home-right");
+            var map = SideCard(() => OpenMap?.Invoke(), new Color32(29, 189, 213, 255), new Color32(9, 133, 174, 255));
+            map.name = "home-map";
+            map.AddToClassList("home-map");
+            var mapArt = WinterHomeArt.Map(142);
+            mapArt.AddToClassList("home-side-art");
+            mapArt.style.width = StyleKeyword.Null;
+            mapArt.style.height = StyleKeyword.Null;
+            mapArt.style.flexShrink = StyleKeyword.Null;
+            map.Add(mapArt);
+            map.Add(L("MAP", "side-label"));
+            map.style.display = DisplayStyle.None;   // 2026-10-23: haritalar parkur adından açılır
+            right.Add(map);
+            var shop = SideCard(() => OpenShop?.Invoke(), new Color32(242, 68, 167, 255), new Color32(184, 34, 126, 255));
+            shop.name = "home-shop";
+            shop.AddToClassList("home-shop");
+            var storeArt = WinterHomeArt.Shop(144);
+            storeArt.AddToClassList("home-side-art");
+            storeArt.style.width = StyleKeyword.Null;
+            storeArt.style.height = StyleKeyword.Null;
+            storeArt.style.flexShrink = StyleKeyword.Null;
+            shop.Add(storeArt);
+            shop.Add(L("SHOP", "side-label"));
+            right.Add(shop);
             var rocket = BuildUpgradeCard((int)UpgradeType.Rocket);
-            rocket.root.style.width = 214;
-            side.Add(rocket.root);
+            rocket.root.AddToClassList("home-rocket");
+            right.Add(rocket.root);
             cards[(int)UpgradeType.Rocket] = rocket;
-            mid.Add(side);
+            mid.Add(right);
             p.Add(mid);
 
-            // Aşama bitince: kutlama yazısı
             stageLabel = L("", "outlined");
             stageLabel.style.position = Position.Absolute;
             stageLabel.style.left = 0;
             stageLabel.style.right = 0;
-            stageLabel.style.top = 560;
-            stageLabel.style.fontSize = 74;
+            stageLabel.style.top = Length.Percent(54);
+            stageLabel.style.fontSize = 60;
             stageLabel.style.color = Gold;
             stageLabel.style.unityTextAlign = TextAnchor.MiddleCenter;
             stageLabel.style.display = DisplayStyle.None;
-            stageLabel.pickingMode = PickingMode.Ignore;
             p.Add(stageLabel);
 
-            playHint = L("OYNAMAK İÇİN DOKUN", "outlined");
-            playHint.style.fontSize = 62;
-            playHint.style.unityTextAlign = TextAnchor.MiddleCenter;
-            playHint.style.marginBottom = 34;
-            p.Add(playHint);
+            playPill = E("play-wrap", "home-play");
+            var play = B(() => Play?.Invoke(), "btn", "play-btn");
+            play.name = "home-play";
+            homePlayArt = CreateHomeArt(play, "home-play-art", "home-art-play");
+            var triangle = new Icon(IconKind.Play, 74, Color.white);
+            triangle.AddToClassList("home-play-icon");
+            play.Add(triangle);
+            playHint = L("PLAY", "play-text");
+            play.Add(playHint);
+            play.RegisterCallback<PointerDownEvent>(_ => homePlayHeld = true);
+            play.RegisterCallback<PointerUpEvent>(_ => { homePlayHeld = false; homeRelease = 1f; });
+            play.RegisterCallback<PointerCaptureOutEvent>(_ => homePlayHeld = false);
+            play.RegisterCallback<PointerCancelEvent>(_ => homePlayHeld = false);
+            playButton = play;
+            playPill.Add(play);
+            p.Add(playPill);
 
-            var row = E("row");
-            row.style.alignItems = Align.Stretch;
+            var panel = E("upg-panel", "home-upgrades");
+            homeTrayArt = CreateHomeArt(panel, "home-upgrades-art", "home-art-tray");
+            var head = E("row", "upg-head");
+            head.Add(E("upg-line"));
+            head.Add(L("UPGRADES", "upg-title"));
+            head.Add(E("upg-line"));
+            panel.Add(head);
+            var row = E("home-upgrade-row");
+            panel.Add(row);
+            p.Add(panel);
             for (int i = 0; i < (int)UpgradeType.Rocket; i++)
             {
                 var c = BuildUpgradeCard(i);
-                c.root.style.flexGrow = 1;
-                c.root.style.flexBasis = 0;
-                if (i > 0) c.root.style.marginLeft = 12;
+                if (i == 0) c.root.AddToClassList("home-first");
                 cards[i] = c;
                 row.Add(c.root);
             }
-            p.Add(row);
+            // Built-in Button themes can override an inherited Font with their FontDefinition.
+            // Assign the existing game font directly to home labels so headings stay consistently bold.
+            var homeFont = Resources.Load<Font>("UI/Fonts/Baloo2-ExtraBold");
+            if (homeFont != null) p.Query<Label>().ForEach(label =>
+            {
+                label.style.unityFontDefinition = FontDefinition.FromFont(homeFont);
+                label.style.unityFontStyleAndWeight = FontStyle.Bold;
+            });
         }
+
+        VisualElement HomeCurrency(VisualElement pill, string buttonName)
+        {
+            if (buttonName == "home-coins-plus") homeCoinValue = pill.Q<Label>();
+            else homeGemValue = pill.Q<Label>();
+            pill.AddToClassList("home-currency");
+            pill.AddToClassList("pick");
+            // The entire wallet is a touch target; the smaller plus remains keyboard-accessible.
+            pill.RegisterCallback<ClickEvent>(evt =>
+            {
+                if (evt.target != pill) return;
+                click?.Invoke();
+                OpenShop?.Invoke();
+            });
+            var plus = B(() => OpenShop?.Invoke(), "home-plus");
+            plus.name = buttonName;
+            plus.Add(WinterHomeArt.Plus(42));
+            pill.Add(plus);
+            return pill;
+        }
+
+        static string ShortWallet(int value)
+        {
+            if (value >= 1000000000) return (value / 1000000000f).ToString("0.#", CultureInfo.InvariantCulture) + "B";
+            if (value >= 1000000) return (value / 1000000f).ToString("0.#", CultureInfo.InvariantCulture) + "M";
+            if (value >= 10000) return (value / 1000f).ToString("0.#", CultureInfo.InvariantCulture) + "K";
+            return value.ToString();
+        }
+
+        static VisualElement CreateHomeArt(VisualElement parent, string css, string name)
+        {
+            var art = E(css);
+            art.name = name;
+            art.pickingMode = PickingMode.Ignore;
+            parent.AddToClassList("home-has-art");
+            parent.Add(art);
+            return art;
+        }
+
+        void ApplyHomeTheme(int track)
+        {
+            HomeTrackTheme.Apply(track, homeBannerArt, homePlayArt, homeTrayArt, homeCanvas);
+            menuTheme.Apply(track);
+            var palette = HomeTrackTheme.Get(track);
+            // Teklif penceresi her parkurda ortak çerçevede kalır (DealPanel).
+            shopBody.Query<Label>(className: "shop-section").ForEach(section =>
+            {
+                Color color = palette.panel;
+                color.a = 0.88f;
+                section.style.backgroundColor = color;
+                section.style.borderBottomColor = Color.Lerp(palette.panel, Color.black, 0.3f);
+            });
+            bool winter = track == 3;
+            // Keep category colors recognizable; only the rim and surrounding surfaces follow the track.
+            Color rim = winter ? (Color)new Color32(239, 250, 255, 255) : Color.Lerp(palette.edge, Color.white, 0.72f);
+            for (int i = 0; i < cards.Length; i++)
+            {
+                var card = cards[i];
+                card.root.style.borderTopColor = card.root.style.borderLeftColor = card.root.style.borderRightColor = rim;
+                card.sub.style.color = winter ? new StyleColor(StyleKeyword.Null) : new StyleColor(palette.panel);
+                var strip = card.top.Q<VisualElement>(className: "pcard-name");
+                strip.style.backgroundColor = winter ? new StyleColor(StyleKeyword.Null)
+                    : new StyleColor(Color.Lerp(UpgradeDark[i], palette.panel, 0.4f));
+            }
+            hubTrackName.style.unityTextOutlineColor = winter ? new StyleColor(StyleKeyword.Null) : new StyleColor(palette.panel);
+            hubTrackSub.style.color = winter ? new StyleColor(StyleKeyword.Null) : new StyleColor(Color.Lerp(palette.edge, Color.white, 0.7f));
+            var bar = hubTrackFill.parent;
+            bar.style.backgroundColor = winter ? new StyleColor(StyleKeyword.Null) : new StyleColor(Color.Lerp(palette.panel, Color.black, 0.35f));
+            StyleColor barEdge = winter ? new StyleColor(StyleKeyword.Null) : new StyleColor(rim);
+            bar.style.borderTopColor = bar.style.borderRightColor = bar.style.borderBottomColor = bar.style.borderLeftColor = barEdge;
+        }
+
+        void ConfigureMenuBackgrounds()
+        {
+            menuTheme.Register(pages[Page.Map], "map", 0.10f);
+            menuTheme.Register(pages[Page.Result], "result", 0.42f);
+            menuTheme.Register(settings, "settings", 0.40f);
+            menuTheme.Register(chestModal, "chest", 0.38f);
+            menuTheme.Register(questModal, "quests", 0.38f);
+            menuTheme.Register(partModal, "part", 0.40f);
+            menuTheme.Register(shopModal, "shop", 0.06f);
+            menuTheme.Register(offerModal, "offer", 0.38f);
+            menuTheme.Register(launchModal, "launches", 0.40f);
+            menuTheme.Register(pauseModal, "pause", 0.48f);
+            menuTheme.Register(adOverlay, "ad", 0.78f);
+            // Only decorate the hero menu's header and grid: the middle is the live 3D preview.
+            menuTheme.Register(pages[Page.Avatars].Q<VisualElement>(className: "topbar"), "heroes-top", 0.12f);
+            menuTheme.Register(avScroll.contentViewport, "heroes-grid", 0.18f);
+            loginModal.name = "menu-login";
+            offerModal.name = "menu-offer";
+            partModal.name = "menu-part";
+            launchModal.name = "menu-launches";
+            pauseModal.name = "menu-pause";
+            adOverlay.name = "menu-ad";
+        }
+
+        void ResizeHomeCanvas()
+        {
+            if (homeCanvas == null) return;
+            float width = safe.layout.width, height = safe.layout.height;
+            if (float.IsNaN(width) || float.IsNaN(height) || width <= 0 || height <= 0) return;
+            const float designWidth = 1080f;
+            float designHeight = designWidth * height / width;
+            homeCanvas.style.width = designWidth;
+            homeCanvas.style.height = designHeight;
+            homeCanvas.style.scale = new Scale(new Vector2(width / designWidth, width / designWidth));
+            homeCanvas.EnableInClassList("home-compact", designHeight < 2050f);
+        }
+
+        // Available only to the isolated screenshot harness, never to production save/UI flows.
+        public void DebugSetSafeArea(Rect? value)
+        {
+            if (!AutoShot.Requested) return;
+            debugHomeSafeArea = value;
+            lastSafe = default;
+            UpdateSafeArea();
+        }
+
 
         /// Dairesel hız göstergesi: altı açık (270°) gri iz, hızla dolan camgöbeği yay; uçta parlak nokta.
         class SpeedGauge : VisualElement
@@ -701,6 +1115,9 @@ namespace SledSurfers
             Color main = UpgradeColors[i], dark = UpgradeDark[i];
             var c = new UpgradeCard { root = E("pcard", "pick") };
             c.root.style.borderBottomColor = dark;
+            // Icy white rim and coloured lower extrusion match the home design system.
+            Color frame = new Color32(239, 250, 255, 255);
+            c.root.style.borderTopColor = c.root.style.borderLeftColor = c.root.style.borderRightColor = frame;
 
             var top = c.top = E("pcard-top");
             top.style.backgroundImage = new StyleBackground(VGrad(Color.Lerp(main, Color.white, 0.55f), main));
@@ -709,20 +1126,26 @@ namespace SledSurfers
             top.Add(glow);
             c.preview = E("pcard-preview");
             top.Add(c.preview);
+            var gloss = E("pcard-gloss");
+            gloss.pickingMode = PickingMode.Ignore;
+            top.Add(gloss);
 
             var lvl = E("pcard-lvl");
             lvl.style.backgroundColor = dark;
-            var lvlCap = L("SV", "pcard-lvl-cap");
+            var lvlCap = L("LV", "pcard-lvl-cap");
             lvl.Add(lvlCap);
             c.level = L("1", "pcard-lvl-num");
             lvl.Add(c.level);
             top.Add(lvl);
             c.badge = L("0/20", "pcard-count");
             top.Add(c.badge);
+            // Bir sonraki kademenin bu pistte yaklaşık kazandıracağı mesafe (GainPredictor)
+            c.gain = L("", "pcard-gain");
+            c.gain.style.display = DisplayStyle.None;
+            top.Add(c.gain);
 
             var ribbon = E("pcard-name");
-            var name = L(Upgrades.Names[i].ToUpper(Tr), "outlined");
-            name.style.fontSize = 30;
+            var name = c.title = L(Upgrades.Names[i].ToUpperInvariant(), "outlined");
             ribbon.Add(name);
             top.Add(ribbon);
             c.root.Add(top);
@@ -745,17 +1168,28 @@ namespace SledSurfers
             c.root.Add(c.bar);
 
             c.buy = B(() => Buy?.Invoke(i), "btn", "pcard-btn");
+            c.buy.name = "home-upgrade-" + i;
             c.shine = E("pcard-shine");
             c.shine.pickingMode = PickingMode.Ignore;
             c.buy.Add(c.shine);
-            c.coin = new Icon(IconKind.Coin, 42);
-            c.buy.Add(c.coin);
-            c.gem = new Icon(IconKind.Gem, 40);
-            c.buy.Add(c.gem);
-            c.lockIcon = new Icon(IconKind.Lock, 34, Color.white);
-            c.buy.Add(c.lockIcon);
+            // Üstte "UPGRADE", altında ikon + fiyat (iki satır).
+            c.buy.Add(L("UPGRADE", "pcard-btn-cap"));
+            var priceRow = E("row");
+            priceRow.pickingMode = PickingMode.Ignore;
+            priceRow.style.marginTop = -6;
+            priceRow.style.height = 48;
+            priceRow.style.flexShrink = 0;
+            c.coin = new Icon(IconKind.Coin, 38);
+            priceRow.Add(c.coin);
+            c.gem = new Icon(IconKind.Gem, 36);
+            priceRow.Add(c.gem);
+            c.lockIcon = new Icon(IconKind.Lock, 30, Color.white);
+            priceRow.Add(c.lockIcon);
             c.cost = Sp(L(""), 6);
-            c.buy.Add(c.cost);
+            c.cost.style.height = 48;
+            c.cost.style.unityTextAlign = TextAnchor.MiddleCenter;
+            priceRow.Add(c.cost);
+            c.buy.Add(priceRow);
             c.root.Add(c.buy);
             return c;
         }
@@ -812,13 +1246,31 @@ namespace SledSurfers
         }
 
         /// Kartları kayıtla eşitler; bought >= 0 ise o kart "satın alındı" diye zıplar.
+        /// Kartlarda bir sonraki kademenin tahmini mesafe kazancı ("+120 m"); hesaplanmadıysa ya da ihmal edilebilirse gizli.
+        public void SetGains(GainPredictor g)
+        {
+            for (int i = 0; i < cards.Length; i++)
+            {
+                var c = cards[i];
+                if (c == null || c.gain == null) continue;
+                float m = g.Gain(i);
+                string text = m >= 1f ? "+" + TrackLibrary.Show(m) + " m" : "";
+                if (text == c.gainText) continue;
+                c.gainText = text;
+                c.gain.text = text;
+                c.gain.style.display = text.Length > 0 ? DisplayStyle.Flex : DisplayStyle.None;
+            }
+        }
+
         public void RefreshHub(SaveData save, int bought)
         {
             int tier = save.unlocked;
             for (int i = 0; i < Upgrades.Count; i++)
             {
                 var c = cards[i];
-                int lvl = save.levels[i], cap = Upgrades.Cap(i, tier), max = Upgrades.MaxLevel(i);
+                // Yükseltmeler pist başına: kademe sınırı ve kartın adı (Kızak kartı pistin aracı) geçerli pistin.
+                int lvl = save.levels[i], max = Upgrades.MaxLevel(i), cap = max;
+                c.title.text = Upgrades.Name(i).ToUpperInvariant();
                 c.badge.text = lvl + "/" + max;
                 c.level.text = Mathf.Min(lvl / Upgrades.StageSize + 1, Upgrades.Stages).ToString();
                 var preview = PartPreview.Instance;
@@ -850,36 +1302,41 @@ namespace SledSurfers
                 bool afford = !maxed && !tierLocked && save.money >= cost;
                 // Coin yetmiyorsa ama elmas yetiyorsa seviye elmasla alınabilir.
                 int gemCost = maxed || tierLocked ? 0 : Upgrades.GemCost(i, lvl);
-                bool gemPay = !afford && !maxed && !tierLocked && save.gems >= gemCost;
+                bool gemPay = !afford && !maxed && !tierLocked && gemCost > 0 && save.gems >= gemCost;
 
                 c.coin.style.display = !maxed && !tierLocked && !gemPay ? DisplayStyle.Flex : DisplayStyle.None;
                 c.gem.style.display = gemPay ? DisplayStyle.Flex : DisplayStyle.None;
                 c.lockIcon.style.display = tierLocked ? DisplayStyle.Flex : DisplayStyle.None;
-                if (maxed) c.cost.text = "MAKS";
-                else if (tierLocked) c.cost.text = TrackLibrary.Names[Mathf.Max(0, Upgrades.UnlockTier(i, lvl + 1))].ToUpper(Tr);
+                if (maxed) c.cost.text = "MAX";
+                else if (tierLocked) c.cost.text = "MAX";
                 else c.cost.text = gemPay ? gemCost.ToString() : cost.ToString();
-                c.cost.style.fontSize = tierLocked ? 26 : 34;
+                c.cost.style.fontSize = c.cost.text.Length <= 4 ? 48 : c.cost.text.Length == 5 ? 44 : 38;
 
                 // Buton: alınabilirse yeşil (parıltılı), elmasla pembe, tamamlandıysa altın, yetmiyorsa gri.
-                Color green = new Color32(0x3F, 0xD1, 0x5B, 0xFF), greenDark = new Color32(0x22, 0xA0, 0x3C, 0xFF);
-                Color goldC = new Color32(0xFF, 0xC4, 0x2E, 0xFF), goldDark = new Color32(0xD0, 0x8A, 0x0B, 0xFF);
-                Color btnTop = afford ? green : gemPay ? GemPink : maxed ? goldC : CardGray;
-                Color btnDark = afford ? greenDark : gemPay ? GemPinkDark : maxed ? goldDark : CardGrayDark;
-                c.buy.style.backgroundImage = new StyleBackground(VGrad(Color.Lerp(btnTop, Color.white, 0.25f), btnTop));
-                c.buy.style.backgroundColor = btnTop;
-                c.buy.style.borderBottomColor = btnDark;
+                // Ortak görsel seti: alınabilir yeşil, elmasla altın, tamamlandı beyaz, yetmiyor gri
+                KitButton(c.buy, afford ? "btn-green" : gemPay ? "btn-gold" : maxed ? "btn-white" : "btn-gray", 104f);
                 c.canBuy = afford || gemPay;
                 if (i == bought) c.bump = 1f;
             }
 
             hubAvatarPortrait.style.backgroundImage = Portrait(save.avatar);
+            hubAvatar = save.avatar;
 
             int t = save.track;
             float progress = Mathf.Clamp01(save.bests[t] / TrackLibrary.Lengths[t]);
-            hubTrackName.text = TrackLibrary.Names[t].ToUpper(Tr);
-            hubTrackSub.text = (t + 1) + ". PARKUR  ·  %" + Mathf.FloorToInt(progress * 100f);
-            hubTrackFill.style.width = Length.Percent(progress * 100f);
-            hubTrackFill.style.backgroundColor = Col(save.Finished(t), new Color32(0x3F, 0xD1, 0x5B, 0xFF));
+            hubTrackName.text = TrackLibrary.Names[t].ToUpperInvariant();
+            hubTrackSub.text = "Track " + (t + 1) + "  ·  Target: " + TrackLibrary.Show(TrackLibrary.Lengths[t]) + " m";
+            hubTrackPct.text = Mathf.FloorToInt(progress * 100f) + "%";
+            homeProgressTarget = progress;
+            if (homeTrack != t)
+            {
+                ApplyHomeTheme(t);
+                homeTrack = t;
+                homeProgress = progress;
+                hubTrackFill.style.width = Length.Percent(progress * 100f);
+            }
+            var fillCol = save.Finished(t) ? (Color)new Color32(0x3F, 0xD1, 0x5B, 0xFF) : (Color)new Color32(0xFF, 0xB0, 0x20, 0xFF);
+            hubTrackFill.style.backgroundImage = new StyleBackground(VGrad(Color.Lerp(fillCol, Color.white, 0.4f), fillCol));
         }
 
         /// Bir yükseltmenin aşaması tamamlanınca ana ekranda kutlama.
@@ -904,15 +1361,27 @@ namespace SledSurfers
                     stageLabel.style.display = DisplayStyle.None;
                 }
             }
-            float s = 1f + 0.05f * Mathf.Sin(time * 4f);
-            playHint.style.scale = new Scale(new Vector2(s, s));
-            playHint.style.opacity = 0.75f + 0.25f * Mathf.Sin(time * 4f);
+            homeRelease = Mathf.MoveTowards(homeRelease, 0f, dt * 3.5f);
+            float spring = Mathf.Sin((1f - homeRelease) * Mathf.PI * 3f) * homeRelease * 0.04f;
+            float s = homePlayHeld ? 0.96f : 1f + 0.01f * Mathf.Sin(time * 2.2f) + spring;
+            playButton.style.scale = new Scale(new Vector2(s, s));
+            if (Mathf.Abs(homeProgress - homeProgressTarget) > 0.0001f)
+            {
+                homeProgress = Mathf.MoveTowards(homeProgress, homeProgressTarget, dt * 0.8f);
+                hubTrackFill.style.width = Length.Percent(homeProgress * 100f);
+            }
 
             bool chestReady = h.chestSeconds <= 0;
-            string chestText = chestReady ? "AÇ!" : (h.chestSeconds / 60) + ":" + (h.chestSeconds % 60).ToString("00");
+            string chestText = chestReady ? "OPEN!" : (h.chestSeconds / 60) + ":" + (h.chestSeconds % 60).ToString("00");
             if (chestLabel.text != chestText) chestLabel.text = chestText;
             chestLabel.style.color = Color.white;
-            float wiggle = chestReady ? 8f * Mathf.Sin(time * 9f) * Mathf.Max(0f, Mathf.Sin(time * 1.6f)) : 0f;
+            homeChestDot.style.display = chestReady ? DisplayStyle.Flex : DisplayStyle.None;
+            if (chestReady != hubChestReadyShown)
+            {
+                hubChestReadyShown = chestReady;
+                chestIcon.style.backgroundImage = Background.FromTexture2D(Resources.Load<Texture2D>("UI/Kit/" + (chestReady ? "chest-ready" : "chest-closed")));
+            }
+            float wiggle = chestReady ? 3f * Mathf.Sin(time * 5f) * Mathf.Max(0f, Mathf.Sin(time * 0.8f)) : 0f;
             chestIcon.style.rotate = new Rotate(Angle.Degrees(wiggle));
 
             for (int ci = 0; ci < cards.Length; ci++)
@@ -923,23 +1392,24 @@ namespace SledSurfers
                 float k = 1f + 0.12f * Mathf.Sin(c.bump * Mathf.PI);
                 c.root.style.scale = new Scale(new Vector2(k, k));
                 c.root.style.translate = new Translate(Mathf.Sin(time * 60f) * 14f * c.shake, 0f);
-                // Alınabilir kart: butonun üstünden parıltı geçer, buton hafifçe nabız atar.
-                float phase = Mathf.Repeat(time * 0.55f + ci * 0.19f, 1f);
-                c.shine.style.display = c.canBuy && phase < 0.45f ? DisplayStyle.Flex : DisplayStyle.None;
-                c.shine.style.left = Length.Percent(Mathf.Lerp(-30f, 120f, phase / 0.45f));
-                float pulse = c.canBuy ? 1f + 0.035f * Mathf.Sin(time * 5f + ci) : 1f;
-                c.buy.style.scale = new Scale(new Vector2(pulse, pulse));
+                // A short confirmation glint only after a purchase; press states stay under USS control.
+                c.shine.style.display = c.bump > 0f ? DisplayStyle.Flex : DisplayStyle.None;
+                if (c.bump > 0f) c.shine.style.left = Length.Percent(Mathf.Lerp(-30f, 120f, 1f - c.bump));
             }
 
             handLeft.EnableInClassList("on", h.hand < 0);
             handRight.EnableInClassList("on", h.hand > 0);
             soundOn.EnableInClassList("on", h.sound);
             soundOff.EnableInClassList("on", !h.sound);
+            musicOn.EnableInClassList("on", h.music);
+            musicOff.EnableInClassList("on", !h.music);
+            for (int k = 0; k < sensButtons.Length; k++) sensButtons[k]?.EnableInClassList("on", h.sensitivity == k);
         }
 
         void BuildSettings()
         {
             settings = E("fill", "dim", "center", "pick");
+            settings.name = "home-settings-modal";
             settings.style.display = DisplayStyle.None;
 
             settingsCard = E("card", "card-cream", "pop", "off");
@@ -947,30 +1417,75 @@ namespace SledSurfers
             settingsCard.style.paddingLeft = settingsCard.style.paddingRight = 44;
             settingsCard.style.paddingBottom = 44;
 
-            var title = L("AYARLAR", "outlined");
+            var title = L("SETTINGS", "outlined");
             title.style.fontSize = 84;
             title.style.unityTextAlign = TextAnchor.MiddleCenter;
             title.style.marginBottom = 10;
             settingsCard.Add(title);
 
-            settingsCard.Add(SettingLabel("Bardak hangi elinde?"));
+            settingsCard.Add(SettingLabel("Which hand holds the cup?"));
             var hand = E("seg");
-            handLeft = Seg("SOL EL", () => SetHand?.Invoke(-1));
-            handRight = Seg("SAĞ EL", () => SetHand?.Invoke(1));
+            handLeft = Seg("LEFT", () => SetHand?.Invoke(-1));
+            handRight = Seg("RIGHT", () => SetHand?.Invoke(1));
             hand.Add(handLeft);
             hand.Add(handRight);
             settingsCard.Add(hand);
 
-            settingsCard.Add(SettingLabel("Ses"));
+            settingsCard.Add(SettingLabel("Steering sensitivity"));
+            var sens = E("seg");
+            string[] sensNames = { "LOW", "MEDIUM", "HIGH" };
+            for (int k = 0; k < 3; k++)
+            {
+                int v = k;
+                sensButtons[k] = Seg(sensNames[k], () => SetSensitivity?.Invoke(v));
+                sens.Add(sensButtons[k]);
+            }
+            settingsCard.Add(sens);
+
+            settingsCard.Add(SettingLabel("Sound"));
             var sound = E("seg");
-            soundOn = Seg("AÇIK", () => SetSound?.Invoke(true));
-            soundOff = Seg("KAPALI", () => SetSound?.Invoke(false));
+            soundOn = Seg("ON", () => SetSound?.Invoke(true));
+            soundOff = Seg("OFF", () => SetSound?.Invoke(false));
             sound.Add(soundOn);
             sound.Add(soundOff);
             settingsCard.Add(sound);
 
+            settingsCard.Add(SettingLabel("Music"));
+            var musicSeg = E("seg");
+            musicOn = Seg("ON", () => SetMusic?.Invoke(true));
+            musicOff = Seg("OFF", () => SetMusic?.Invoke(false));
+            musicSeg.Add(musicOn);
+            musicSeg.Add(musicOff);
+            settingsCard.Add(musicSeg);
+
+            // Test düğmeleri (kullanıcı isteği 2026-10-10): yalnızca geliştirme sürümünde görünür; yayın sürümünde yok.
+            if (Debug.isDebugBuild)
+            {
+                settingsCard.Add(SettingLabel("Test (dev build only)"));
+                var reset = B(() => { TestResetUpgrades?.Invoke(); ShowSettings(false); }, "btn", "btn-orange", "btn-mid");
+                reset.text = "Reset progress";
+                reset.style.alignSelf = Align.Stretch;
+                settingsCard.Add(reset);
+                var unlock = B(() => { TestUnlockAll?.Invoke(); ShowSettings(false); }, "btn", "btn-white", "btn-mid");
+                unlock.text = "Unlock all tracks";
+                unlock.style.alignSelf = Align.Stretch;
+                unlock.style.marginTop = 14;
+                settingsCard.Add(unlock);
+                var offerTest = B(() => { ShowSettings(false); TestOffer?.Invoke(); }, "btn", "btn-white", "btn-mid");
+                offerTest.text = "Show daily deal";
+                offerTest.style.alignSelf = Align.Stretch;
+                offerTest.style.marginTop = 14;
+                settingsCard.Add(offerTest);
+                var money = B(() => { TestMoney?.Invoke(); ShowSettings(false); }, "btn", "btn-white", "btn-mid");
+                money.text = "+100k coins, +100 gems";
+                money.style.alignSelf = Align.Stretch;
+                money.style.marginTop = 14;
+                settingsCard.Add(money);
+            }
+
             var ok = B(() => ShowSettings(false), "btn", "btn-green", "btn-mid");
-            ok.text = "TAMAM";
+            ok.name = "home-settings-close";
+            ok.text = "OK";
             ok.style.marginTop = 46;
             settingsCard.Add(ok);
 
@@ -1015,46 +1530,60 @@ namespace SledSurfers
 
         // ================================================================ sandık
 
+        RayBurst chestRays;
+        RewardConfetti chestConfetti;
+
+        /// Test: açık bütün pencereleri (görev, ödül, sandık, fırsat...) kapatır.
+        public void DebugScrollMapEnd() => mapScroll.ScrollTo(mapCards[TrackLibrary.Count - 1].root);
+
+        public void DebugCloseModals()
+        {
+            foreach (var child in safe.Children())
+                if (child.ClassListContains("dim")) child.style.display = DisplayStyle.None;
+        }
+
         void BuildChest()
         {
             chestModal = E("fill", "dim", "center", "pick");
+            chestModal.name = "home-chest-modal";
             chestModal.style.display = DisplayStyle.None;
 
-            chestCard = E("card", "card-cream", "col", "pop", "off");
+            // 2026-10-23 (örnek görsele göre): kart yok; dönen ışın patlaması önünde büyük sandık, düşen konfeti.
+            chestCard = E("col", "pop", "off");
             chestCard.style.width = Length.Percent(84);
-            chestCard.style.paddingTop = 0;
-            chestCard.style.paddingLeft = chestCard.style.paddingRight = 40;
-            chestCard.style.paddingBottom = 40;
+            chestCard.style.alignItems = Align.Center;
 
-            var ribbon = E("ribbon");
-            ribbon.style.marginTop = -50;
-            ribbon.style.height = 104;
-            var title = L("SANDIK");
-            title.style.fontSize = 56;
-            ribbon.Add(title);
-            chestCard.Add(ribbon);
-
-            var big = new Icon(IconKind.Chest, 230);
-            big.style.marginTop = 20;
+            var stage = E("center");
+            stage.style.width = 640;
+            stage.style.height = 560;
+            chestRays = new RayBurst();
+            stage.Add(chestRays);
+            var big = new VisualElement { pickingMode = PickingMode.Ignore };   // ortak setin açık, coin dolu sandığı
+            big.style.width = 520;
+            big.style.height = 520f * 512f / 768f;
+            big.style.backgroundImage = Background.FromTexture2D(Resources.Load<Texture2D>("UI/Kit/chest-open-coins"));
+            big.style.unityBackgroundScaleMode = ScaleMode.ScaleToFit;
             big.name = "chest-big";
-            chestCard.Add(big);
-
-            var won = L("KAZANDIN!", "heavy");
-            won.style.fontSize = 44;
-            won.style.color = Muted;
-            chestCard.Add(won);
+            stage.Add(big);
+            chestCard.Add(stage);
+            chestConfetti = new RewardConfetti();
+            chestModal.Add(chestConfetti);
 
             var coinRow = E("row");
             coinRow.Add(new Icon(IconKind.Coin, 90));
             chestCoins = Sp(L("0", "outlined"), 14);
-            chestCoins.style.fontSize = 110;
+            chestCoins.style.fontSize = 140;
             coinRow.Add(chestCoins);
             chestCard.Add(coinRow);
+            chestStreakLabel = L("", "outlined");   // orman/manzara arka planında okunur (kenarlı beyaz)
+            chestStreakLabel.style.fontSize = 48;
+            chestStreakLabel.style.display = DisplayStyle.None;
+            chestCard.Add(chestStreakLabel);
 
             chestGemRow = E("row");
             chestGemRow.Add(new Icon(IconKind.Gem, 70));
             chestGems = Sp(L("+1", "outlined"), 12);
-            chestGems.style.fontSize = 72;
+            chestGems.style.fontSize = 110;
             chestGemRow.Add(chestGems);
             chestCard.Add(chestGemRow);
 
@@ -1062,16 +1591,17 @@ namespace SledSurfers
             chestTriple.style.alignSelf = Align.Stretch;
             chestTriple.style.marginTop = 30;
             chestTriple.Add(new Icon(IconKind.Video, 70));
-            chestTriple.Add(Sp(L("3 KATINI AL"), 16));
+            chestTriple.Add(Sp(L("TRIPLE IT"), 16));
             chestCard.Add(chestTriple);
 
             var go = B(() =>
             {
                 ClaimChest?.Invoke(chestMultiplier);
                 chestCard.AddToClassList("off");
-                chestModal.schedule.Execute(() => chestModal.style.display = DisplayStyle.None).StartingIn(180);
+                chestModal.schedule.Execute(() => { chestModal.style.display = DisplayStyle.None; modalClosedAt = Time.unscaledTime; }).StartingIn(180);
             }, "btn", "btn-green", "btn-mid");
-            go.text = "DEVAM";
+            go.name = "home-chest-claim";
+            go.text = "CONTINUE";
             go.style.alignSelf = Align.Stretch;
             go.style.marginTop = 22;
             chestCard.Add(go);
@@ -1083,10 +1613,10 @@ namespace SledSurfers
             adOverlay = E("fill", "center", "pick");
             adOverlay.style.backgroundColor = new Color(0.05f, 0.04f, 0.08f, 0.94f);
             adOverlay.style.display = DisplayStyle.None;
-            var adTitle = L("REKLAM", "outlined");
+            var adTitle = L("AD", "outlined");
             adTitle.style.fontSize = 90;
             adOverlay.Add(adTitle);
-            var adSub = L("(test modu: gerçek reklam yayına yakın bağlanacak)", "heavy");
+            var adSub = L("(test mode: real ads will be connected before release)", "heavy");
             adSub.style.color = new Color(1f, 1f, 1f, 0.6f);
             adSub.style.fontSize = 32;
             adOverlay.Add(adSub);
@@ -1095,11 +1625,1423 @@ namespace SledSurfers
             adCount.style.marginTop = 30;
             adOverlay.Add(adCount);
             root.Add(adOverlay);
+
+            // Konuşma baloncuğu (düşüp kalkan karakterin başının üstünde): beyaz, yuvarlak, altta sivri kuyruk.
+            bubble = E("bubble");
+            bubble.pickingMode = PickingMode.Ignore;
+            bubble.style.display = DisplayStyle.None;
+            bubbleText = L("", "bubble-text");
+            bubble.Add(bubbleText);
+            var tail = E("bubble-tail");
+            bubble.Add(tail);
+            root.Insert(0, bubble);
         }
 
         /// Sandık ödülünü gösterir; DEVAM ile ClaimChest(çarpan) yayınlanır.
-        public void ShowChest(int coins, int gems)
+        // ================================================================ mağaza ve karşılama teklifi
+
+        /// Mağaza olayları: reklamla ücretsiz elmas, elmasla coin paketi (dizin), gerçek parayla ürün (kimlik; ödeme
+        /// sistemi bağlanana kadar yalnızca "yakında" bilgisi gösterilir).
+        public event Action ShopFreeGem;
+        public event Action<int> ShopBuyCoins;
+        public event Action<string> ShopPurchase;
+
+        VisualElement shopModal, shopBody, offerModal, offerCard;
+        Label shopNote, shopGems, shopPreview;
+        readonly Dictionary<Button, string> purchaseButtons = new Dictionary<Button, string>();
+        readonly Label[] shopCoinAmounts = new Label[6];
+        float shopNoteClock = -1f;
+
+        static readonly int[] GemPacks = { 10, 30, 100, 150, 200, 500 };
+        static readonly string[] GemPrices = { "$1.99", "$4.99", "$9.99", "$13.99", "$17.99", "$19.99" };
+        static readonly int[] LaunchPacks = { 20, 80, 200 };
+        static readonly string[] LaunchPrices = { "$0.99", "$2.49", "$4.99" };
+        /// Elmasla coin paketleri (ödeme gerektirmez, hemen çalışır): elmas fiyatı; coin miktarı parkura göre (GameController).
+        /// Coin paketlerinin miktarları (kullanıcı kararı 2026-10-11: altı sabit paket).
+        public static readonly int[] CoinPackCoins = { 7500, 20000, 50000, 100000, 150000, 200000 };
+
+        VisualElement Section(string text)
         {
+            var l = L(text, "shop-section");
+            return l;
+        }
+
+        Button PriceButton(string productId)
+        {
+            var b = B(() => { if (Store.PurchasesAvailable) ShopPurchase?.Invoke(productId); }, "btn", "btn-green", "shop-price");
+            purchaseButtons[b] = productId;
+            return b;
+        }
+
+        void BuildShop()
+        {
+            shopModal = E("fill", "pick", "shop-page");
+            shopModal.name = "home-shop-modal";
+            shopModal.style.display = DisplayStyle.None;
+            // The shared track landscape is attached after all menu surfaces have been built.
+
+            var top = E("topbar");
+            var wallet = E("row");
+            var gemPill = E("pill");
+            gemPill.Add(new Icon(IconKind.Gem, 60));
+            shopGems = Sp(L("0", "outlined"), 10);
+            shopGems.style.fontSize = 46;
+            gemPill.Add(shopGems);
+            wallet.Add(gemPill);
+            top.Add(wallet);
+            var title = L("SHOP", "outlined");
+            title.style.fontSize = 84;
+            top.Add(title);
+            var close = B(() => { shopModal.style.display = DisplayStyle.None; modalClosedAt = Time.unscaledTime; }, "btn", "kit-round", "kit-close", "shop-close");
+            close.name = "home-shop-close";
+            top.Add(close);
+            shopModal.Add(top);
+
+            shopPreview = L("STORE PREVIEW · Purchases are unavailable in this build.", "preview-note");
+            shopModal.Add(shopPreview);
+
+            shopNote = L("", "shop-note");
+            shopNote.style.display = DisplayStyle.None;
+
+            var scroll = new ScrollView(ScrollViewMode.Vertical);
+            scroll.style.flexGrow = 1;
+            scroll.style.flexShrink = 1;
+            scroll.verticalScrollerVisibility = ScrollerVisibility.Hidden;
+            scroll.horizontalScrollerVisibility = ScrollerVisibility.Hidden;
+            scroll.touchScrollBehavior = ScrollView.TouchScrollBehavior.Elastic;
+            scroll.style.overflow = Overflow.Hidden;
+            var inner = scroll.Q(className: "unity-scroll-view__content-and-vertical-scroll-container");
+            if (inner != null) { inner.style.flexGrow = 1; inner.style.flexShrink = 1; inner.style.flexDirection = FlexDirection.Row; }
+            scroll.contentViewport.style.flexGrow = 1;
+            scroll.contentViewport.style.flexShrink = 1;
+            scroll.contentViewport.style.overflow = Overflow.Hidden;
+            scroll.contentContainer.style.flexShrink = 0;
+            scroll.contentContainer.style.paddingBottom = 40;
+            shopBody = scroll.contentContainer;
+
+            // Mağazada yalnızca elmas, fırlatma hakkı ve coin satılır (kullanıcı kararı 2026-10-11); paketler günlük fırsatlarda.
+            // Elmas: reklamla ücretsiz + paketler
+            shopBody.Add(Section("GEMS"));
+            var free = E("shop-free");
+            free.Add(ShopArt("gem_free", IconKind.Gem, 110));
+            var freeText = L("x1", "outlined");
+            freeText.style.fontSize = 70;
+            freeText.style.flexGrow = 1;
+            freeText.style.marginLeft = 10;
+            free.Add(freeText);
+            // Günde en çok SaveData.FreeGemsPerDay kez; hak bitince düğme söner ve "Tomorrow" yazar.
+            var freeBtn = shopFreeBtn = B(() => { if (shopFreeLeft > 0) ShowAd(() => ShopFreeGem?.Invoke()); }, "btn", "btn-blue", "shop-price");
+            freeBtn.Add(new Icon(IconKind.Video, 56));
+            shopFreeLabel = Sp(L("FREE"), 10);
+            freeBtn.Add(shopFreeLabel);
+            freeBtn.style.width = 340;
+            free.Add(freeBtn);
+            // 2026-10-24: reklamla ücretsiz elmas kaldırıldı (elmas yalnız satın alınır); satır kurulur ama gösterilmez.
+            shopBody.Add(Grid(GemPacks, GemPrices, IconKind.Gem, "gems_", new[] { -1, -1, 2, -1, -1, 5 }, new[] { "POPULAR", "BEST VALUE" }));
+
+            // Fırlatma hakkı
+            shopBody.Add(Section("LAUNCHES"));
+            shopBody.Add(Grid(LaunchPacks, LaunchPrices, IconKind.Slingshot, "launches_", null, null));
+
+            // Coin paketleri
+            shopBody.Add(Section("COINS"));
+            VisualElement coinRow = null;
+            for (int k = 0; k < CoinPackCoins.Length; k++)
+            {
+                if (k % 3 == 0)
+                {
+                    coinRow = E("row", "shop-grid");
+                    shopBody.Add(coinRow);
+                }
+                var cell = E("card", "col", "shop-cell");
+                shopCoinAmounts[k] = L("", "outlined");
+                shopCoinAmounts[k].style.fontSize = 46;
+                cell.Add(shopCoinAmounts[k]);
+                cell.Add(ShopArt("coins_" + (k + 1), IconKind.Coin, 96 + 14 * k));
+                // Coin paketleri gerçek parayla satılır (kullanıcı kararı 2026-10-11); fiyat mağazadan.
+                string coinId = "coins_" + CoinPackCoins[k];
+                cell.Add(PriceButton(coinId));
+                coinRow.Add(cell);
+            }
+
+            shopModal.Add(scroll);
+            shopModal.Add(shopNote);
+            safe.Add(shopModal);
+        }
+
+        /// Ürün görseli: Resources/UI/Shop/<ad>.png varsa o (180 px kutuda), yoksa çizilen ikon.
+        static VisualElement ShopArt(string name, IconKind fallback, float iconSize)
+        {
+            // 2026-10-24: ortak görsel setinin paketleri (UI/Kit/shop-gems-N, shop-coins-N; N = kademe 1..6). Eski
+            // "gems_<miktar>" adı kademeye çevrilir.
+            Texture2D tex = null;
+            if (name.StartsWith("gems_")) tex = Resources.Load<Texture2D>("UI/Kit/shop-gems-" + GemTier(name));
+            else if (name.StartsWith("coins_")) tex = Resources.Load<Texture2D>("UI/Kit/shop-coins-" + name.Substring(6));
+            if (tex == null) tex = Resources.Load<Texture2D>("UI/Shop/" + name);
+            if (tex == null) return new Icon(fallback, iconSize, Ink);   // beyaz kartta koyu ikon
+            var img = new VisualElement();
+            img.style.width = 190;
+            img.style.height = 160;
+            img.style.backgroundImage = new StyleBackground(tex);
+            img.style.unityBackgroundScaleMode = ScaleMode.ScaleToFit;
+            return img;
+        }
+
+        static int GemTier(string id)
+        {
+            int amount = int.TryParse(id.Substring(5), out int v) ? v : 0;
+            int k = System.Array.IndexOf(GemPacks, amount);
+            return Mathf.Clamp(k + 1, 1, 6);
+        }
+
+        VisualElement Grid(int[] amounts, string[] prices, IconKind icon, string idPrefix, int[] tagAt, string[] tags)
+        {
+            // Üçerli satırlar (sarmalı tek satır ikinci sıranın yüksekliğini hesaba katmıyordu: bölümler üst üste biniyordu).
+            var grid = E("col");
+            grid.style.flexShrink = 0;
+            grid.style.alignItems = Align.Stretch;
+            VisualElement line = null;
+            int tagIndex = 0;
+            for (int k = 0; k < amounts.Length; k++)
+            {
+                if (k % 3 == 0)
+                {
+                    line = E("row", "shop-grid");
+                    grid.Add(line);
+                }
+                string id = idPrefix + amounts[k];
+                var cell = E("card", "col", "shop-cell");
+                var amount = L(amounts[k].ToString(), "outlined");
+                amount.style.fontSize = 60;
+                cell.Add(amount);
+                cell.Add(ShopArt(id, icon, 84 + Mathf.Min(40, 8 * k)));
+                cell.Add(PriceButton(id));
+                if (Store.PurchasesAvailable && tagAt != null && System.Array.IndexOf(tagAt, k) >= 0 && tagIndex < tags.Length) cell.Add(L(tags[tagIndex++], "shop-tag"));
+                line.Add(cell);
+            }
+            return grid;
+        }
+
+        /// coinAmounts: elmasla coin paketlerinin bu parkurdaki miktarları.
+        public void ShowShop(int gems, int[] coinAmounts, int freeGemsLeft)
+        {
+            RefreshShop(gems, coinAmounts, freeGemsLeft);
+            shopModal.style.display = DisplayStyle.Flex;
+        }
+
+        Button shopFreeBtn;
+        Label shopFreeLabel;
+        int shopFreeLeft;
+
+        public void DebugShopScroll() { var sv = shopBody.parent?.parent as ScrollView ?? shopModal.Q<ScrollView>(); if (sv != null) sv.ScrollTo(shopBody[shopBody.childCount - 1]); }
+
+        public void RefreshShop(int gems, int[] coinAmounts, int freeGemsLeft)
+        {
+            bool available = Store.PurchasesAvailable;
+            shopPreview.style.display = available ? DisplayStyle.None : DisplayStyle.Flex;
+            foreach (var pair in purchaseButtons)
+            {
+                pair.Key.text = available ? Store.Price(pair.Value) : "UNAVAILABLE";
+                pair.Key.SetEnabled(available);
+                pair.Key.EnableInClassList("purchase-unavailable", !available);
+            }
+            shopFreeLeft = freeGemsLeft;
+            shopFreeLabel.text = freeGemsLeft > 0 ? "FREE " + freeGemsLeft + "/" + SaveData.FreeGemsPerDay : "TOMORROW";
+            shopFreeBtn.style.opacity = freeGemsLeft > 0 ? 1f : 0.5f;
+            shopGems.text = gems.ToString();
+            for (int k = 0; k < shopCoinAmounts.Length; k++) shopCoinAmounts[k].text = coinAmounts[k].ToString("N0", Tr);
+        }
+
+        /// Mağazanın altında kısa bilgi (ör. ödeme henüz bağlı değil, elmas yetmiyor).
+        public void ShopNote(string text)
+        {
+            shopNote.text = text;
+            shopNote.style.display = DisplayStyle.Flex;
+            shopNoteClock = 0f;
+        }
+
+        // ---------------------------------------------------------------- günlük fırsat penceresi
+        // Kullanıcı isteği (2026-10-11, referans görsel): panel, başlık kurdelesi, metinler, kapatma ve satın alma
+        // düğmeleri ayrı bileşenler; illüstrasyon ayrı bir görsel katmanı. Fiyat mağazadan (Store.Price), süre oyun
+        // verisinden (bitiş zamanı) gelir; pencerede hiçbir fiyat elle yazılmaz.
+
+        VisualElement dealRays, dealArt, dealArtFallback, dealHeadline;
+        Label dealTitle, dealInfo, dealCaption, dealPriceLabel, dealOldPrice, dealTimer;
+        Button dealClose, dealBuy;
+        Store.Deal currentDeal;
+        long dealEndTicks;
+        /// Günlük fırsat penceresi kapatıldı / satın alma istendi (ürün kimliği ShopPurchase ile gider).
+        public event Action DealClosed;
+
+        void BuildOffer()
+        {
+            offerModal = E("fill", "dim", "center", "pick");
+            offerModal.style.display = DisplayStyle.None;
+
+            // 1) Panel
+            offerCard = DealPanel();
+            // 2) Başlık kurdelesi (iki ucu kuyruklu)
+            offerCard.Add(DealRibbon(out dealTitle));
+            // 3) Kapatma düğmesi
+            dealClose = DealCloseButton(() => { Close(offerModal, offerCard); DealClosed?.Invoke(); });
+            dealClose.name = "menu-offer-close";
+            offerCard.Add(dealClose);
+            // 4) Büyük metin (vurgulu kelime ayrı renkte)
+            dealHeadline = E("deal-headline");
+            offerCard.Add(dealHeadline);
+            // 5) İllüstrasyon katmanı: ışık huzmesi + görsel (Resources/UI/Offers/<art>); görsel yoksa oyun içi çizim
+            var artBox = E("deal-art-box");
+            dealRays = E("deal-rays");
+            dealRays.style.backgroundImage = new StyleBackground(Radial());
+            dealRays.pickingMode = PickingMode.Ignore;
+            artBox.Add(dealRays);
+            dealArt = E("deal-art");
+            artBox.Add(dealArt);
+            dealArtFallback = E("deal-art-fallback");
+            artBox.Add(dealArtFallback);
+            offerCard.Add(artBox);
+            // 6) Bilgi şeridi
+            var infoRow = E("row", "deal-info");
+            dealInfo = L("", "deal-info-text");
+            infoRow.Add(dealInfo);
+            infoRow.Add(new Icon(IconKind.Video, 60));
+            offerCard.Add(infoRow);
+            // 7) Süre (oyun verisinden) ve indirimsiz fiyat
+            var meta = E("row", "deal-meta");
+            dealTimer = L("", "deal-timer");
+            meta.Add(dealTimer);
+            dealOldPrice = L("", "deal-old");
+            meta.Add(dealOldPrice);
+            offerCard.Add(meta);
+            // 8) Satın alma düğmesi: üstte açıklama satırı, altında mağaza fiyatı
+            dealBuy = DealBuyButton(out dealCaption, out dealPriceLabel, () =>
+            {
+                if (Store.PurchasesAvailable) ShopPurchase?.Invoke(currentDeal.productId);
+            });
+            offerCard.Add(dealBuy);
+
+            offerModal.Add(offerCard);
+            safe.Add(offerModal);
+        }
+
+        VisualElement DealPanel()
+        {
+            // Günlük ödül penceresiyle aynı çerçeve (kullanıcı 2026-10-24: "pack preview görseli kötü"): lacivert panel, mor kenar,
+            // alt köşelerde yaprak; 9-slice.
+            var panel = E("deal-panel", "col", "pop", "off");
+            panel.style.backgroundImage = DR("panel");
+            panel.style.unitySliceLeft = panel.style.unitySliceRight = panel.style.unitySliceTop = 80;
+            panel.style.unitySliceBottom = 170;
+            return panel;
+        }
+
+        VisualElement DealRibbon(out Label title)
+        {
+            var wrap = E("deal-ribbon-wrap");
+            wrap.pickingMode = PickingMode.Ignore;
+            var rib = E("deal-ribbon");
+            rib.style.backgroundImage = Background.FromTexture2D(Resources.Load<Texture2D>("UI/Kit/title-ribbon"));
+            title = L("", "deal-ribbon-text");
+            rib.Add(title);
+            wrap.Add(rib);
+            return wrap;
+        }
+
+        Button DealCloseButton(Action onClick)
+        {
+            // Ortak setin mor X'i (her pencerede aynı kapatma)
+            var b = B(onClick, "btn", "deal-close", "kit-round", "kit-close");
+            b.style.borderTopWidth = b.style.borderBottomWidth = b.style.borderLeftWidth = b.style.borderRightWidth = 0;
+            return b;
+        }
+
+        Button DealBuyButton(out Label caption, out Label price, Action onClick)
+        {
+            var b = B(onClick, "btn", "deal-buy");
+            KitButton(b, "btn-green", 150f);
+            caption = L("", "deal-buy-caption");
+            b.Add(caption);
+            price = L("", "deal-buy-price");
+            b.Add(price);
+            return b;
+        }
+
+        /// "GET {X3} COINS" → satır satır etiketler; { } arası sarı ve büyük.
+        void SetHeadline(string text)
+        {
+            dealHeadline.Clear();
+            foreach (var line in text.Split('\n'))
+            {
+                var row = E("row");
+                row.style.justifyContent = Justify.Center;
+                foreach (var part in System.Text.RegularExpressions.Regex.Split(line, @"(\{[^}]*\})"))
+                {
+                    if (part.Length == 0) continue;
+                    bool hi = part[0] == '{';
+                    var l = L(hi ? part.Substring(1, part.Length - 2) : part, "deal-headline-text");
+                    if (hi) l.AddToClassList("deal-headline-hi");
+                    row.Add(l);
+                }
+                dealHeadline.Add(row);
+            }
+        }
+
+        /// Oyun içi çizim (görsel dosyası yokken): karakterin portresi, çevresinde tema ikonları.
+        void BuildFallbackArt(string art, StyleBackground portrait)
+        {
+            dealArtFallback.Clear();
+            IconKind kind = art == "gems" ? IconKind.Gem : art == "rocket" ? IconKind.Rocket : art == "noads" ? IconKind.Video
+                          : art == "starter" ? IconKind.Chest : IconKind.Coin;
+            // Arkada dağınık ikonlar (iki yay), önde ikon yığını, ortada karakter
+            float[] ax = { -250f, -175f, -70f, 80f, 185f, 255f, -215f, 220f }, ay = { -60f, -150f, -185f, -180f, -140f, -50f, 60f, 70f };
+            float[] asz = { 96f, 82f, 70f, 76f, 88f, 100f, 110f, 104f }, arot = { -24f, 14f, -8f, 18f, -16f, 26f, 10f, -12f };
+            for (int k = 0; k < ax.Length; k++)
+            {
+                var ic = new Icon(kind, asz[k]);
+                ic.style.position = Position.Absolute;
+                ic.style.left = 300f + ax[k] - asz[k] * 0.5f;
+                ic.style.top = 210f + ay[k] - asz[k] * 0.5f;
+                ic.style.rotate = new Rotate(arot[k]);
+                dealArtFallback.Add(ic);
+            }
+            var hero = E("deal-hero");
+            hero.style.backgroundImage = portrait;
+            dealArtFallback.Add(hero);
+            for (int k = 0; k < 9; k++)
+            {
+                float sz = 84f + 10f * (k % 3);
+                var ic = new Icon(kind, sz);
+                ic.style.position = Position.Absolute;
+                ic.style.left = 60f + k * 56f - (k % 2) * 10f;
+                ic.style.top = 318f + (k % 2 == 0 ? 0f : 26f) + (k % 3) * 6f;
+                dealArtFallback.Add(ic);
+            }
+        }
+
+        /// deal: gösterilecek fırsat; endTicks: bitiş anı (UTC, oyun verisi); heroPortrait: illüstrasyon yoksa kullanılan karakter.
+        public void ShowDeal(Store.Deal deal, long endTicks, int heroAvatar)
+        {
+            currentDeal = deal;
+            dealEndTicks = endTicks;
+            bool available = Store.PurchasesAvailable;
+            dealTitle.text = available ? deal.title : "PACK PREVIEW";
+            SetHeadline(deal.headline);
+            dealInfo.text = available ? deal.info : "Purchases are unavailable in this build.";
+            dealCaption.text = available ? deal.buttonCaption : "PREVIEW ONLY";
+            dealPriceLabel.text = available ? Store.Price(deal.productId) : "UNAVAILABLE";
+            dealBuy.SetEnabled(available);
+            dealBuy.EnableInClassList("purchase-unavailable", !available);
+            KitButton(dealBuy, available ? "btn-green" : "btn-gray", 150f);
+            bool hasOld = available && !string.IsNullOrEmpty(deal.regularId);
+            dealOldPrice.text = hasOld ? "Was " + Store.Price(deal.regularId) : "";
+            dealOldPrice.style.display = hasOld ? DisplayStyle.Flex : DisplayStyle.None;
+            var tex = Resources.Load<Texture2D>("UI/Offers/" + deal.art);
+            // Ortak setten teklif görseli (Offers/ altında özel çizim yoksa)
+            if (tex == null)
+            {
+                string kit = deal.art == "coins" ? "chest-open-coins" : deal.art == "gems" ? "shop-gems-6" : deal.art == "starter" ? "chest-open-gems"
+                           : deal.art == "noads" ? "shop-gems-4" : null;
+                if (kit != null) tex = Resources.Load<Texture2D>("UI/Kit/" + kit);
+            }
+            dealArt.style.backgroundImage = tex != null ? new StyleBackground(tex) : new StyleBackground();
+            dealArt.style.display = tex != null ? DisplayStyle.Flex : DisplayStyle.None;
+            dealArtFallback.style.display = tex != null ? DisplayStyle.None : DisplayStyle.Flex;
+            if (tex == null) BuildFallbackArt(deal.art, Portrait(heroAvatar));
+            UpdateDealTimer();
+            Open(offerModal, offerCard);
+        }
+
+        void UpdateDealTimer()
+        {
+            if (!Store.PurchasesAvailable)
+            {
+                dealTimer.text = "";
+                dealTimer.style.display = DisplayStyle.None;
+                return;
+            }
+            dealTimer.style.display = DisplayStyle.Flex;
+            long left = System.Math.Max(0L, (dealEndTicks - System.DateTime.UtcNow.Ticks) / System.TimeSpan.TicksPerSecond);
+            dealTimer.text = "Ends in " + (left / 3600).ToString("00") + ":" + (left / 60 % 60).ToString("00") + ":" + (left % 60).ToString("00");
+            if (left <= 0 && offerModal.style.display.value == DisplayStyle.Flex) Close(offerModal, offerCard);
+        }
+
+        void TickShop(float dt)
+        {
+            if (shopNoteClock >= 0f)
+            {
+                shopNoteClock += dt;
+                shopNote.style.opacity = Mathf.Clamp01(2.6f - shopNoteClock);
+                if (shopNoteClock > 2.6f) { shopNoteClock = -1f; shopNote.style.display = DisplayStyle.None; }
+            }
+            if (offerModal.style.display.value == DisplayStyle.Flex)
+            {
+                UpdateDealTimer();
+                dealRays.style.rotate = new Rotate(time * 18f);
+                float s2 = Store.PurchasesAvailable ? 1f + 0.03f * Mathf.Sin(time * 5f) : 1f;
+                dealBuy.style.scale = new Scale(new Vector2(s2, s2));
+            }
+        }
+
+        // ================================================================ günlük görevler ve giriş ödülü
+
+        VisualElement questModal, questCard, questDot, loginModal, loginCard;
+        readonly VisualElement[] questRows = new VisualElement[DailyQuests.PerDay];
+        readonly Label[] questTexts = new Label[DailyQuests.PerDay], questCounts = new Label[DailyQuests.PerDay],
+                         questRewards = new Label[DailyQuests.PerDay];
+        readonly VisualElement[] questFills = new VisualElement[DailyQuests.PerDay];
+        readonly Button[] questClaims = new Button[DailyQuests.PerDay];
+        Label questTimer;
+
+        static VisualElement Modal(out VisualElement card, string ribbonText, Color ribbonColor, Color ribbonDark)
+        {
+            var modal = new VisualElement();
+            foreach (var c in new[] { "fill", "dim", "center", "pick" }) modal.AddToClassList(c);
+            modal.style.display = DisplayStyle.None;
+            card = new VisualElement();
+            foreach (var c in new[] { "card", "card-cream", "col", "pop", "off" }) card.AddToClassList(c);
+            card.style.width = Length.Percent(90);
+            card.style.paddingTop = 0;
+            card.style.paddingLeft = card.style.paddingRight = 30;
+            card.style.paddingBottom = 34;
+            var ribbon = new VisualElement();
+            ribbon.AddToClassList("ribbon");
+            ribbon.style.marginTop = -50;
+            ribbon.style.height = 104;
+            ribbon.style.backgroundColor = ribbonColor;
+            ribbon.style.borderBottomColor = ribbonDark;
+            var title = new Label(ribbonText);
+            title.style.fontSize = 52;
+            ribbon.Add(title);
+            card.Add(ribbon);
+            modal.Add(card);
+            return modal;
+        }
+
+        static void Open(VisualElement modal, VisualElement card)
+        {
+            modal.style.display = DisplayStyle.Flex;
+            card.AddToClassList("off");
+            card.schedule.Execute(() => card.RemoveFromClassList("off")).StartingIn(30);
+        }
+
+        static void Close(VisualElement modal, VisualElement card)
+        {
+            card.AddToClassList("off");
+            modalClosedAt = Time.unscaledTime;
+            modal.schedule.Execute(() => { modal.style.display = DisplayStyle.None; modalClosedAt = Time.unscaledTime; }).StartingIn(180);
+        }
+
+        /// Son açılır pencerenin kapandığı an: hemen ardından gelen dokunuş ana ekranda oyunu başlatmasın
+        /// (kullanıcı 2026-10-30: günlük ödülü alınca PLAY demeden fırlatma ekranına geçiyordu).
+        static float modalClosedAt = -10f;
+        const float ModalTapGuard = 0.7f;
+        public bool ModalJustClosed => Time.unscaledTime - modalClosedAt < ModalTapGuard;
+
+        void BuildQuests()
+        {
+            // 2026-10-23 (örnek görsele göre; kullanıcı: "daily quest hala çok sade"): pencerenin kendisi iplerle sarkan
+            // tahta pano; tepede çivili, damarlı tahta başlık; saatli sayaç hapı; her görev renkli kenarlı beyaz satır,
+            // parlak ikon kutusu, içinde sayaç yazan kalın ilerleme çubuğu ve coin/gem ödül çipleri.
+            questModal = Modal(out questCard, "DAILY QUESTS", Wood, WoodDark);
+            questModal.name = "home-quests-modal";
+            questCard.RemoveAt(0);   // standart kurdele yerine tahta başlık
+            questCard.style.overflow = Overflow.Visible;
+            questCard.style.backgroundColor = (Color)new Color32(0xFF, 0xF1, 0xD6, 0xFF);
+            questCard.style.borderTopWidth = questCard.style.borderLeftWidth = questCard.style.borderRightWidth = 18;
+            questCard.style.borderBottomWidth = 28;
+            questCard.style.borderTopColor = questCard.style.borderLeftColor = questCard.style.borderRightColor = Wood;
+            questCard.style.borderBottomColor = WoodDark;
+            questCard.style.borderTopLeftRadius = questCard.style.borderTopRightRadius = 44;
+            questCard.style.borderBottomLeftRadius = questCard.style.borderBottomRightRadius = 44;
+            questCard.style.marginTop = 110;
+            // İpler (panonun üstünden ekranın tepesine)
+            for (int r = 0; r < 2; r++)
+            {
+                var rope = E();
+                rope.pickingMode = PickingMode.Ignore;
+                rope.style.position = Position.Absolute;
+                rope.style.width = 14;
+                rope.style.top = -420;
+                rope.style.height = 440;
+                if (r == 0) rope.style.left = Length.Percent(16); else rope.style.right = Length.Percent(16);
+                rope.style.backgroundColor = (Color)new Color32(0xD8, 0xAE, 0x6A, 0xFF);
+                rope.style.borderLeftWidth = rope.style.borderRightWidth = 3;
+                rope.style.borderLeftColor = rope.style.borderRightColor = (Color)new Color32(0x8A, 0x60, 0x2E, 0xFF);
+                questCard.Add(rope);
+            }
+            // Tahta başlık: damar çizgileri, iki uçta çivi
+            var plank = E("center");
+            plank.pickingMode = PickingMode.Ignore;
+            plank.style.alignSelf = Align.Stretch;
+            plank.style.marginLeft = plank.style.marginRight = -46;
+            plank.style.marginTop = -96;
+            plank.style.height = 150;
+            plank.style.backgroundColor = (Color)new Color32(0xC2, 0x7A, 0x3C, 0xFF);
+            plank.style.borderBottomWidth = 16;
+            plank.style.borderBottomColor = WoodDark;
+            plank.style.borderTopWidth = 5;
+            plank.style.borderTopColor = (Color)new Color32(0xE2, 0xA2, 0x5E, 0xFF);
+            plank.style.borderTopLeftRadius = plank.style.borderTopRightRadius = plank.style.borderBottomLeftRadius = plank.style.borderBottomRightRadius = 26;
+            float[] grain = { 0.24f, 0.46f, 0.7f };
+            for (int g = 0; g < grain.Length; g++)
+            {
+                var line = E();
+                line.pickingMode = PickingMode.Ignore;
+                line.style.position = Position.Absolute;
+                line.style.top = Length.Percent(grain[g] * 100f);
+                line.style.left = Length.Percent(6 + g * 9);
+                line.style.right = Length.Percent(4 + (2 - g) * 11);
+                line.style.height = 5;
+                line.style.borderTopLeftRadius = line.style.borderTopRightRadius = line.style.borderBottomLeftRadius = line.style.borderBottomRightRadius = 3;
+                line.style.backgroundColor = new Color(0.43f, 0.24f, 0.09f, 0.35f);
+                plank.Add(line);
+            }
+            for (int n = 0; n < 2; n++)
+            {
+                var nail = E();
+                nail.pickingMode = PickingMode.Ignore;
+                nail.style.position = Position.Absolute;
+                nail.style.width = nail.style.height = 30;
+                nail.style.top = 52;
+                if (n == 0) nail.style.left = 26; else nail.style.right = 26;
+                nail.style.borderTopLeftRadius = nail.style.borderTopRightRadius = nail.style.borderBottomLeftRadius = nail.style.borderBottomRightRadius = 15;
+                nail.style.backgroundColor = (Color)new Color32(0xC9, 0xCC, 0xD6, 0xFF);
+                nail.style.borderBottomWidth = 6;
+                nail.style.borderBottomColor = (Color)new Color32(0x6E, 0x72, 0x80, 0xFF);
+                plank.Add(nail);
+            }
+            var signText = L("DAILY QUESTS", "heavy");
+            signText.style.fontSize = 80;
+            signText.style.color = Color.white;
+            signText.style.unityTextOutlineWidth = 9;
+            signText.style.unityTextOutlineColor = WoodDark;
+            plank.Add(signText);
+            questCard.Add(plank);
+
+            // Sayaç hapı
+            var timerRow = E("row");
+            timerRow.style.alignSelf = Align.Center;
+            timerRow.style.alignItems = Align.Center;
+            timerRow.style.marginTop = 18;
+            timerRow.style.paddingLeft = 14; timerRow.style.paddingRight = 28;
+            timerRow.style.paddingTop = timerRow.style.paddingBottom = 6;
+            timerRow.style.backgroundColor = (Color)new Color32(0x6E, 0x3E, 0x18, 0xFF);
+            timerRow.style.borderTopLeftRadius = timerRow.style.borderTopRightRadius = timerRow.style.borderBottomLeftRadius = timerRow.style.borderBottomRightRadius = 34;
+            timerRow.Add(new ClockIcon(56));
+            questTimer = L("", "heavy");
+            questTimer.style.fontSize = 34;
+            questTimer.style.color = Color.white;
+            questTimer.style.marginLeft = 10;
+            timerRow.Add(questTimer);
+            questCard.Add(timerRow);
+
+            var coinCol = (Color)new Color32(0xD8, 0x8A, 0x0A, 0xFF);
+            for (int i = 0; i < DailyQuests.PerDay; i++)
+            {
+                int index = i;
+                var row = E("row");
+                row.style.alignSelf = Align.Stretch;
+                row.style.marginTop = 12;
+                row.style.paddingTop = row.style.paddingBottom = 10;
+                row.style.paddingLeft = 18; row.style.paddingRight = 18;
+                row.style.alignItems = Align.Center;
+                row.style.backgroundColor = Color.white;
+                row.style.borderTopLeftRadius = row.style.borderTopRightRadius = row.style.borderBottomLeftRadius = row.style.borderBottomRightRadius = 30;
+                row.style.borderLeftWidth = 14;
+                row.style.borderBottomWidth = 8;
+                row.style.borderBottomColor = (Color)new Color32(0xE6, 0xD3, 0xB0, 0xFF);
+                questIcons[i] = E("center");
+                questIcons[i].style.width = questIcons[i].style.height = 104;
+                questIcons[i].style.flexShrink = 0;
+                questIcons[i].style.marginRight = 20;
+                questIcons[i].style.borderTopLeftRadius = questIcons[i].style.borderTopRightRadius = 32;
+                questIcons[i].style.borderBottomLeftRadius = questIcons[i].style.borderBottomRightRadius = 32;
+                questIcons[i].style.borderTopWidth = questIcons[i].style.borderLeftWidth = questIcons[i].style.borderRightWidth = 5;
+                questIcons[i].style.borderTopColor = questIcons[i].style.borderLeftColor = questIcons[i].style.borderRightColor = Color.white;
+                questIcons[i].style.borderBottomWidth = 10;
+                row.Add(questIcons[i]);
+                var col = E("grow");
+                questTexts[i] = L("", "heavy");
+                questTexts[i].style.fontSize = 31;
+                questTexts[i].style.whiteSpace = WhiteSpace.Normal;
+                col.Add(questTexts[i]);
+                // Kalın ilerleme çubuğu, sayaç içinde
+                var bar = E();
+                bar.style.marginTop = 6;
+                bar.style.height = 38;
+                bar.style.backgroundColor = (Color)new Color32(0xEC, 0xE3, 0xD2, 0xFF);
+                bar.style.borderTopWidth = bar.style.borderBottomWidth = bar.style.borderLeftWidth = bar.style.borderRightWidth = 4;
+                bar.style.borderTopColor = bar.style.borderBottomColor = bar.style.borderLeftColor = bar.style.borderRightColor = (Color)new Color32(0xC9, 0xB4, 0x90, 0xFF);
+                bar.style.borderTopLeftRadius = bar.style.borderTopRightRadius = bar.style.borderBottomLeftRadius = bar.style.borderBottomRightRadius = 22;
+                bar.style.overflow = Overflow.Hidden;
+                questFills[i] = E();
+                questFills[i].style.position = Position.Absolute;
+                questFills[i].style.left = questFills[i].style.top = questFills[i].style.bottom = 0;
+                questFills[i].style.borderTopLeftRadius = questFills[i].style.borderTopRightRadius = questFills[i].style.borderBottomLeftRadius = questFills[i].style.borderBottomRightRadius = 18;
+                var shine = E();
+                shine.style.position = Position.Absolute;
+                shine.style.left = 10; shine.style.right = 10; shine.style.top = 4;
+                shine.style.height = 9;
+                shine.style.borderTopLeftRadius = shine.style.borderTopRightRadius = shine.style.borderBottomLeftRadius = shine.style.borderBottomRightRadius = 5;
+                shine.style.backgroundColor = new Color(1f, 1f, 1f, 0.4f);
+                questFills[i].Add(shine);
+                bar.Add(questFills[i]);
+                questCounts[i] = L("", "heavy");
+                questCounts[i].style.position = Position.Absolute;
+                questCounts[i].style.left = questCounts[i].style.right = questCounts[i].style.top = questCounts[i].style.bottom = 0;
+                questCounts[i].style.unityTextAlign = TextAnchor.MiddleCenter;
+                questCounts[i].style.fontSize = 28;
+                questCounts[i].style.color = Color.white;
+                questCounts[i].style.unityTextOutlineWidth = 5;
+                questCounts[i].style.unityTextOutlineColor = (Color)new Color32(0x4A, 0x2A, 0x12, 0xFF);
+                bar.Add(questCounts[i]);
+                col.Add(bar);
+                // Ödül çipleri
+                var chips = E("row");
+                chips.style.marginTop = 6;
+                var coinChip = RewardChip(IconKind.Coin, coinCol, out questRewards[i]);
+                chips.Add(coinChip);
+                questGemChips[i] = RewardChip(IconKind.Gem, (Color)new Color32(0xD0, 0x3F, 0x93, 0xFF), out questGemTexts[i]);
+                questGemChips[i].style.marginLeft = 10;
+                chips.Add(questGemChips[i]);
+                col.Add(chips);
+                row.Add(col);
+                questClaims[i] = B(() => ClaimQuest?.Invoke(index), "btn", "btn-mid");
+                questClaims[i].text = "CLAIM";
+                questClaims[i].style.width = 200;
+                questClaims[i].style.fontSize = 40;
+                questClaims[i].style.marginLeft = 16;
+                row.Add(questClaims[i]);
+                // Alındı damgası
+                questStamps[i] = E("center");
+                questStamps[i].pickingMode = PickingMode.Ignore;
+                questStamps[i].style.position = Position.Absolute;
+                questStamps[i].style.right = 30;
+                questStamps[i].style.width = questStamps[i].style.height = 120;
+                questStamps[i].style.borderTopLeftRadius = questStamps[i].style.borderTopRightRadius = questStamps[i].style.borderBottomLeftRadius = questStamps[i].style.borderBottomRightRadius = 60;
+                questStamps[i].style.backgroundColor = (Color)new Color32(0x3F, 0xD1, 0x5B, 0xFF);
+                questStamps[i].style.borderBottomWidth = 8;
+                questStamps[i].style.borderBottomColor = (Color)new Color32(0x22, 0x9A, 0x3C, 0xFF);
+                questStamps[i].style.rotate = new Rotate(-12f);
+                questStamps[i].Add(new Icon(IconKind.Check, 74, Color.white));
+                row.Add(questStamps[i]);
+                questRows[i] = row;
+                questCard.Add(row);
+            }
+            // Standart kapatma: sağ üstte mor X (ortak görsel seti)
+            var close = B(() => Close(questModal, questCard), "btn", "kit-round", "kit-close");
+            close.name = "home-quests-close";
+            close.style.position = Position.Absolute;
+            close.style.top = -60;
+            close.style.right = -50;
+            close.style.width = close.style.height = 130;
+            questCard.Add(close);
+            safe.Add(questModal);
+        }
+
+        /// Küçük ödül çipi: krem hap içinde ikon ve "+N".
+        VisualElement RewardChip(IconKind kind, Color textColor, out Label text)
+        {
+            var chip = E("row");
+            chip.style.alignItems = Align.Center;
+            chip.style.paddingLeft = 6; chip.style.paddingRight = 16;
+            chip.style.paddingTop = chip.style.paddingBottom = 2;
+            chip.style.backgroundColor = (Color)new Color32(0xFF, 0xF1, 0xC8, 0xFF);
+            chip.style.borderTopLeftRadius = chip.style.borderTopRightRadius = chip.style.borderBottomLeftRadius = chip.style.borderBottomRightRadius = 22;
+            chip.Add(new Icon(kind, 40));
+            text = L("", "heavy");
+            text.style.fontSize = 30;
+            text.style.marginLeft = 6;
+            text.style.color = textColor;
+            chip.Add(text);
+            return chip;
+        }
+
+        readonly VisualElement[] questGemChips = new VisualElement[DailyQuests.PerDay], questStamps = new VisualElement[DailyQuests.PerDay];
+        readonly Label[] questGemTexts = new Label[DailyQuests.PerDay];
+
+        static readonly Color Wood = new Color32(0xB0, 0x6A, 0x32, 0xFF), WoodDark = new Color32(0x6E, 0x3E, 0x18, 0xFF);
+        readonly VisualElement[] questIcons = new VisualElement[DailyQuests.PerDay];
+
+        /// Görev türünün ikonu ve kutu rengi.
+        static (IconKind, Color) QuestLook(QuestKind k)
+        {
+            switch (k)
+            {
+                case QuestKind.Distance: case QuestKind.TotalDistance: return (IconKind.Flag, new Color32(0x9B, 0x6B, 0xFF, 0xFF));
+                case QuestKind.Milk: return (IconKind.Glass, new Color32(0x8E, 0x7C, 0xFF, 0xFF));
+                case QuestKind.Finish: return (IconKind.Finish, new Color32(0x3F, 0xC0, 0x7A, 0xFF));
+                case QuestKind.Coins: return (IconKind.Coin, new Color32(0xFF, 0xB0, 0x20, 0xFF));
+                case QuestKind.Gems: return (IconKind.Gem, new Color32(0xF0, 0x5F, 0xB0, 0xFF));
+                case QuestKind.AirTime: case QuestKind.LongAir: return (IconKind.Wing, new Color32(0x3F, 0xA9, 0xF5, 0xFF));
+                case QuestKind.Perfect: return (IconKind.Slingshot, new Color32(0xFF, 0x8A, 0x3D, 0xFF));
+                case QuestKind.Rocket: return (IconKind.Rocket, new Color32(0xF2, 0x55, 0x55, 0xFF));
+                case QuestKind.Bridges: return (IconKind.Map, new Color32(0x2F, 0xB8, 0xC8, 0xFF));
+                case QuestKind.ForkGood: return (IconKind.Swap, new Color32(0x2F, 0xB8, 0xC8, 0xFF));
+                default: return (IconKind.Runners, new Color32(0x6F, 0x9B, 0xD8, 0xFF));
+            }
+        }
+
+        /// Görev listesini günceller (open: pencereyi de açar); alınabilir ödül varsa ana ekrandaki düğmede kırmızı nokta.
+        public void ShowQuests(DailyQuests.Quest[] quests, int[] progress, int claimed, bool open)
+        {
+            bool any = false;
+            var left = DailyQuests.UntilReset;
+            questTimer.text = "Resets in " + (int)left.TotalHours + " h " + left.Minutes + " min";
+            for (int i = 0; i < quests.Length; i++)
+            {
+                var q = quests[i];
+                int p = Mathf.Min(progress[i], q.target);
+                bool done = p >= q.target, got = (claimed & (1 << i)) != 0;
+                questTexts[i].text = q.text;
+                questCounts[i].text = p + "/" + q.target;
+                questFills[i].style.width = Length.Percent(100f * p / Mathf.Max(1, q.target));
+                questFills[i].style.backgroundColor = done ? (Color)new Color32(0x3F, 0xD1, 0x5B, 0xFF) : (Color)new Color32(0xFF, 0x9A, 0x1F, 0xFF);
+                questFills[i].style.display = p > 0 ? DisplayStyle.Flex : DisplayStyle.None;
+                var (kindIcon, kindColor) = QuestLook(q.kind);
+                if (questIcons[i].userData == null || (QuestKind)questIcons[i].userData != q.kind)
+                {
+                    questIcons[i].Clear();
+                    questIcons[i].Add(new Icon(kindIcon, 66));
+                    questIcons[i].style.backgroundColor = kindColor;
+                    questIcons[i].style.borderBottomColor = Color.Lerp(kindColor, Color.black, 0.25f);
+                    questIcons[i].userData = q.kind;
+                    questRows[i].style.borderLeftColor = kindColor;
+                    var gloss = E();
+                    gloss.pickingMode = PickingMode.Ignore;
+                    gloss.style.position = Position.Absolute;
+                    gloss.style.left = 10; gloss.style.right = 10; gloss.style.top = 6;
+                    gloss.style.height = 30;
+                    gloss.style.borderTopLeftRadius = gloss.style.borderTopRightRadius = gloss.style.borderBottomLeftRadius = gloss.style.borderBottomRightRadius = 15;
+                    gloss.style.backgroundColor = new Color(1f, 1f, 1f, 0.28f);
+                    questIcons[i].Insert(0, gloss);
+                }
+                bool ready = done && !got;
+                KitButton(questClaims[i], ready ? "btn-gold" : "btn-gray", 110f);
+                questClaims[i].style.color = ready ? (Color)new Color32(0x2A, 0x14, 0x05, 0xFF) : Color.white;
+                questRewards[i].text = "+" + q.coins.ToString("N0", Tr);
+                questGemTexts[i].text = "+" + q.gems;
+                questGemChips[i].style.display = q.gems > 0 ? DisplayStyle.Flex : DisplayStyle.None;
+                questStamps[i].style.display = got ? DisplayStyle.Flex : DisplayStyle.None;
+                questClaims[i].style.visibility = got ? Visibility.Hidden : Visibility.Visible;
+                questClaims[i].SetEnabled(done && !got);
+                questClaims[i].text = got ? "CLAIMED" : "CLAIM";
+                questClaims[i].style.opacity = 1f;
+                questRows[i].style.opacity = got ? 0.75f : 1f;
+                if (done && !got) any = true;
+            }
+            questDot.style.display = any ? DisplayStyle.Flex : DisplayStyle.None;
+            if (open) Open(questModal, questCard);
+        }
+
+        // Günlük ödül (kullanıcı 2026-10-24, referans tasarım ve ayrı PNG parçaları; UI/DailyRewards): oyun sahnesi üstünde koyu
+        // perde, 9-slice panel, sağ üstte kapatma; başlık, alt başlık, 7 noktalı ilerleme; 1-6. gün iki sütun üç satır kart,
+        // 7. gün altta geniş kart (sandık), en altta altın CLAIM düğmesi ve sonraki ödül bilgisi. Kartlar ve ikonlar kendi
+        // oranlarında (esnetilmez); bütün pencere ekrana sığacak kadar orantılı küçülür. Ödül miktarları DailyRewardConfig'te.
+        readonly VisualElement[] loginCards = new VisualElement[7], loginChecks = new VisualElement[7], loginLocks = new VisualElement[7],
+                                 loginTodayTags = new VisualElement[7], loginGlows = new VisualElement[7], loginDots = new VisualElement[7],
+                                 loginIcons = new VisualElement[7];
+        VisualElement loginPanel, loginChest, loginFxLayer;
+        Button loginClaimBtn;
+        Label loginClaimText, loginNextText, loginTotalText;
+        int loginToday = -1;
+        bool loginClaiming;
+        float loginOpenT = -1f, loginFit = 1f, loginPressT = -1f;
+
+        static void Outline(Label l, float width, Color color)
+        {
+            l.style.unityTextOutlineWidth = width;
+            l.style.unityTextOutlineColor = color;
+        }
+
+        static void Box(VisualElement e, Color bg, Color border, float bw, float radius)
+        {
+            e.style.backgroundColor = bg;
+            e.style.borderTopColor = e.style.borderBottomColor = e.style.borderLeftColor = e.style.borderRightColor = border;
+            e.style.borderTopWidth = e.style.borderBottomWidth = e.style.borderLeftWidth = e.style.borderRightWidth = bw;
+            e.style.borderTopLeftRadius = e.style.borderTopRightRadius = e.style.borderBottomLeftRadius = e.style.borderBottomRightRadius = radius;
+        }
+
+        /// Üst üste üç altın: altın yığını.
+        static VisualElement CoinPile(float size)
+        {
+            var pile = new VisualElement();
+            pile.style.width = size * 1.7f;
+            pile.style.height = size * 1.25f;
+            pile.style.flexShrink = 0;
+            foreach (var (x, y) in new[] { (0f, 0.35f), (0.7f, 0.35f), (0.35f, 0f) })
+            {
+                var c = new Icon(IconKind.Coin, size);
+                c.style.position = Position.Absolute;
+                c.style.left = x * size;
+                c.style.top = y * size * 0.7f;
+                pile.Add(c);
+            }
+            return pile;
+        }
+
+        /// Ortak setten hap düğme görseli (9-slice; uçlar yuvarlak kalır). height: düğmenin yaklaşık yüksekliği (px).
+        static void KitButton(VisualElement b, string art, float height)
+        {
+            b.style.backgroundImage = Background.FromTexture2D(Resources.Load<Texture2D>("UI/Kit/" + art));
+            b.style.backgroundColor = Color.clear;
+            b.style.borderTopWidth = b.style.borderBottomWidth = b.style.borderLeftWidth = b.style.borderRightWidth = 0;
+            b.style.borderTopLeftRadius = b.style.borderTopRightRadius = b.style.borderBottomLeftRadius = b.style.borderBottomRightRadius = 0;
+            b.style.unitySliceLeft = b.style.unitySliceRight = 150;
+            b.style.unitySliceTop = b.style.unitySliceBottom = 70;
+            b.style.unitySliceScale = height / 280f;
+        }
+
+        // Ortak setteki karşılığı olanlar oradan (coin yığınları, sandık, kapatma, altın düğme); panel ve kartlar günlük ödül paketinden.
+        static string DRPath(string name) => name.StartsWith("coins-") ? "UI/Kit/" + name : name == "chest" ? "UI/Kit/chest-open-coins"
+            : name == "button-close" ? "UI/Kit/btn-close" : name == "button-claim" ? "UI/Kit/btn-gold" : "UI/DailyRewards/" + name;
+        static Background DR(string name) => Background.FromTexture2D(Resources.Load<Texture2D>(DRPath(name)));
+
+        /// Görsel oranında boyutlanan resim (esnetilmez): genişlik verilir, yükseklik dokudan.
+        static VisualElement DRImage(string name, float width)
+        {
+            var e = new VisualElement { pickingMode = PickingMode.Ignore };
+            var tex = Resources.Load<Texture2D>(DRPath(name));
+            if (tex != null)
+            {
+                e.style.backgroundImage = Background.FromTexture2D(tex);
+                e.style.height = width * tex.height / tex.width;
+            }
+            e.style.width = width;
+            e.style.flexShrink = 0;
+            return e;
+        }
+
+        static readonly Color DRGold = new Color32(0xFF, 0xD2, 0x3F, 0xFF), DRInk = new Color32(0x2A, 0x14, 0x05, 0xFF),
+                              DRNavy = new Color32(0x14, 0x1C, 0x4A, 0xFF), DRTeal = new Color32(0x2E, 0xE6, 0xF0, 0xFF);
+
+        void BuildLogin()
+        {
+            const float PanelW = 960f, InnerW = 820f, Gap = 18f;
+            float cardW = (InnerW - Gap) / 2f;
+
+            loginModal = new VisualElement();
+            foreach (var c in new[] { "fill", "center", "pick" }) loginModal.AddToClassList(c);
+            loginModal.style.display = DisplayStyle.None;
+            loginModal.style.backgroundColor = new Color(0.02f, 0.03f, 0.08f, 0.62f);   // oyun sahnesi görünür, koyu perde
+
+            loginPanel = new VisualElement();
+            loginCard = loginPanel;
+            loginPanel.style.width = PanelW;
+            loginPanel.style.flexShrink = 0;
+            loginPanel.style.alignItems = Align.Center;
+            loginPanel.style.paddingTop = 50;
+            loginPanel.style.paddingBottom = 120;   // alt köşelerdeki yapraklar (toplam yazısı üstlerine binmesin)
+            loginPanel.style.paddingLeft = loginPanel.style.paddingRight = (PanelW - InnerW) / 2f;
+            loginPanel.style.backgroundImage = DR("panel");
+            // 9-slice: köşe yarıçapı ve alt köşelerdeki yapraklar esnemez
+            loginPanel.style.unitySliceLeft = 80;
+            loginPanel.style.unitySliceRight = 80;
+            loginPanel.style.unitySliceTop = 80;
+            loginPanel.style.unitySliceBottom = 170;
+            loginModal.Add(loginPanel);
+
+            var close = new Button(() => { click?.Invoke(); if (!loginClaiming) Close(loginModal, loginPanel); }) { name = "menu-login-x" };
+            close.style.position = Position.Absolute;
+            close.style.top = -30;
+            close.style.right = -30;
+            close.style.width = close.style.height = 130;
+            close.style.backgroundImage = DR("button-close");
+            close.style.backgroundColor = Color.clear;
+            close.style.borderTopWidth = close.style.borderBottomWidth = close.style.borderLeftWidth = close.style.borderRightWidth = 0;
+            loginPanel.Add(close);
+
+            var title = L("DAILY REWARDS", "heavy");
+            title.style.fontSize = 104;
+            title.style.color = DRGold;
+            Outline(title, 11, new Color32(0x5A, 0x22, 0x08, 0xFF));
+            loginPanel.Add(title);
+            var sub = L("A bigger reward every day", "heavy");
+            sub.style.fontSize = 44;
+            sub.style.color = new Color(0.94f, 0.95f, 1f);
+            sub.style.marginTop = -6;
+            loginPanel.Add(sub);
+
+            // 7 noktalı ilerleme: noktalar ince çizgiyle bağlı
+            var dots = new VisualElement();
+            dots.style.flexDirection = FlexDirection.Row;
+            dots.style.alignItems = Align.Center;
+            dots.style.marginTop = 22;
+            dots.style.marginBottom = 26;
+            for (int d = 0; d < 7; d++)
+            {
+                if (d > 0)
+                {
+                    var line = new VisualElement();
+                    line.style.width = 48;
+                    line.style.height = 5;
+                    line.style.backgroundColor = new Color(0.35f, 0.42f, 0.7f);
+                    dots.Add(line);
+                }
+                var dot = new VisualElement();
+                dot.style.width = dot.style.height = 34;
+                dot.style.borderTopLeftRadius = dot.style.borderTopRightRadius = dot.style.borderBottomLeftRadius = dot.style.borderBottomRightRadius = 17;
+                dot.style.borderTopWidth = dot.style.borderBottomWidth = dot.style.borderLeftWidth = dot.style.borderRightWidth = 4;
+                loginDots[d] = dot;
+                dots.Add(dot);
+            }
+            loginPanel.Add(dots);
+
+            string[] coinArt = { "coins-small", "coins-small", "coins-medium", "coins-medium", "coins-large", "coins-large" };
+            VisualElement Card(int d)
+            {
+                bool grand = d == 6;
+                float w = grand ? InnerW : cardW;
+                var card = DRImage(grand ? "card-grand" : "card-default", w);
+                card.pickingMode = PickingMode.Ignore;
+                card.style.backgroundSize = new BackgroundSize(Length.Percent(100), Length.Percent(100));
+                loginCards[d] = card;
+                // Bugünün yavaş turkuaz ışıltısı (kartın arkasında, sert yanıp sönme yok)
+                var glow = new VisualElement { pickingMode = PickingMode.Ignore };
+                glow.style.position = Position.Absolute;
+                glow.style.left = glow.style.right = glow.style.top = glow.style.bottom = -10;
+                glow.style.borderTopLeftRadius = glow.style.borderTopRightRadius = glow.style.borderBottomLeftRadius = glow.style.borderBottomRightRadius = 46;
+                glow.style.borderTopWidth = glow.style.borderBottomWidth = glow.style.borderLeftWidth = glow.style.borderRightWidth = 8;
+                glow.style.borderTopColor = glow.style.borderBottomColor = glow.style.borderLeftColor = glow.style.borderRightColor = DRTeal;
+                glow.style.display = DisplayStyle.None;
+                card.Add(glow);
+                loginGlows[d] = glow;
+
+                var day = L("DAY " + (d + 1), "heavy");
+                day.style.position = Position.Absolute;
+                day.style.left = grand ? 48 : 30;
+                day.style.top = grand ? 22 : 16;
+                day.style.fontSize = grand ? 60 : 40;
+                day.style.color = grand ? new Color(0.98f, 0.92f, 1f) : Color.white;
+                Outline(day, 6, DRNavy);
+                card.Add(day);
+
+                var amount = L("", "heavy");
+                amount.name = "login-amount-" + d;
+                amount.style.color = DRGold;
+                Outline(amount, 8, DRInk);
+                if (grand)
+                {
+                    var tag = L("GRAND REWARD", "heavy");
+                    tag.style.position = Position.Absolute;
+                    tag.style.left = 48;
+                    tag.style.top = 92;
+                    tag.style.fontSize = 34;
+                    tag.style.color = DRInk;
+                    tag.style.backgroundColor = (Color)new Color32(0xFF, 0xC9, 0x5A, 0xFF);
+                    tag.style.paddingLeft = tag.style.paddingRight = 24;
+                    tag.style.paddingTop = tag.style.paddingBottom = 4;
+                    tag.style.borderTopLeftRadius = tag.style.borderTopRightRadius = tag.style.borderBottomLeftRadius = tag.style.borderBottomRightRadius = 26;
+                    card.Add(tag);
+                    amount.style.position = Position.Absolute;
+                    amount.style.left = 48;
+                    amount.style.top = 140;
+                    amount.style.fontSize = 76;
+                    loginChest = DRImage("chest", 330);
+                    loginChest.style.position = Position.Absolute;
+                    loginChest.style.right = 40;
+                    loginChest.style.top = 20;
+                    card.Add(loginChest);
+                    loginIcons[d] = loginChest;
+                }
+                else
+                {
+                    var icon = DRImage(coinArt[d], 160);
+                    icon.style.position = Position.Absolute;
+                    icon.style.left = (cardW - 160f) / 2f;
+                    icon.style.top = 48;
+                    card.Add(icon);
+                    loginIcons[d] = icon;
+                    amount.style.position = Position.Absolute;
+                    amount.style.left = 0;
+                    amount.style.right = 0;
+                    amount.style.bottom = 12;
+                    amount.style.unityTextAlign = TextAnchor.MiddleCenter;
+                    amount.style.fontSize = 52;
+                }
+                card.Add(amount);
+
+                // TODAY etiketi (turkuaz hap), kilit, alındı işareti
+                var today = L("TODAY", "heavy");
+                today.style.position = Position.Absolute;
+                today.style.right = grand ? 40 : 22;
+                today.style.top = grand ? 22 : 16;
+                today.style.fontSize = 30;
+                today.style.color = DRNavy;
+                today.style.backgroundColor = DRTeal;
+                today.style.paddingLeft = today.style.paddingRight = 20;
+                today.style.paddingTop = today.style.paddingBottom = 2;
+                today.style.borderTopLeftRadius = today.style.borderTopRightRadius = today.style.borderBottomLeftRadius = today.style.borderBottomRightRadius = 24;
+                card.Add(today);
+                loginTodayTags[d] = today;
+                var lockIcon = new Icon(IconKind.Lock, grand ? 58 : 48, new Color(0.72f, 0.78f, 0.95f));
+                lockIcon.style.position = Position.Absolute;
+                lockIcon.style.right = grand ? 40 : 24;
+                lockIcon.style.top = grand ? 22 : 16;
+                card.Add(lockIcon);
+                loginLocks[d] = lockIcon;
+                var check = new VisualElement { pickingMode = PickingMode.Ignore };
+                check.style.position = Position.Absolute;
+                check.style.width = check.style.height = grand ? 110 : 84;
+                check.style.left = grand ? (InnerW - 110f) / 2f : (cardW - 84f) / 2f;
+                check.style.top = grand ? 70 : 50;
+                check.style.borderTopLeftRadius = check.style.borderTopRightRadius = check.style.borderBottomLeftRadius = check.style.borderBottomRightRadius = 75;
+                check.style.backgroundColor = (Color)new Color32(0x3F, 0xD1, 0x5B, 0xFF);
+                check.style.borderBottomWidth = 8;
+                check.style.borderBottomColor = (Color)new Color32(0x22, 0x9A, 0x3C, 0xFF);
+                check.style.alignItems = Align.Center;
+                check.style.justifyContent = Justify.Center;
+                check.Add(new Icon(IconKind.Check, grand ? 76 : 58, Color.white));
+                card.Add(check);
+                loginChecks[d] = check;
+                return card;
+            }
+
+            for (int r = 0; r < 3; r++)
+            {
+                var row = new VisualElement();
+                row.style.flexDirection = FlexDirection.Row;
+                row.style.justifyContent = Justify.SpaceBetween;
+                row.style.width = InnerW;
+                row.style.marginBottom = Gap;
+                row.Add(Card(r * 2));
+                row.Add(Card(r * 2 + 1));
+                loginPanel.Add(row);
+            }
+            loginPanel.Add(Card(6));
+
+            // Altın CLAIM düğmesi: canlı metin ve coin ikonu
+            loginClaimBtn = new Button(PressClaim) { name = "menu-login-close" };
+            loginClaimBtn.style.width = 720;
+            loginClaimBtn.style.height = 720f * 280f / 880f;
+            loginClaimBtn.style.marginTop = 30;
+            loginClaimBtn.style.backgroundImage = DR("button-claim");
+            loginClaimBtn.style.backgroundColor = Color.clear;
+            loginClaimBtn.style.borderTopWidth = loginClaimBtn.style.borderBottomWidth = loginClaimBtn.style.borderLeftWidth = loginClaimBtn.style.borderRightWidth = 0;
+            loginClaimBtn.style.flexDirection = FlexDirection.Row;
+            loginClaimBtn.style.alignItems = Align.Center;
+            loginClaimBtn.style.justifyContent = Justify.Center;
+            loginClaimBtn.style.paddingBottom = 8;
+            loginClaimText = L("CLAIM", "heavy");
+            loginClaimText.style.fontSize = 70;
+            loginClaimText.style.color = DRNavy;
+            loginClaimBtn.Add(loginClaimText);
+            var btnCoin = new Icon(IconKind.Coin, 84);
+            btnCoin.style.marginLeft = 16;
+            loginClaimBtn.Add(btnCoin);
+            loginPanel.Add(loginClaimBtn);
+
+            loginNextText = L("Next reward unlocks tomorrow", "heavy");
+            loginNextText.style.fontSize = 36;
+            loginNextText.style.color = new Color(0.78f, 0.84f, 1f);
+            loginNextText.style.marginTop = 18;
+            loginPanel.Add(loginNextText);
+            var rule = new VisualElement();
+            rule.style.width = InnerW * 0.8f;
+            rule.style.height = 3;
+            rule.style.marginTop = 16;
+            rule.style.marginBottom = 14;
+            rule.style.backgroundColor = new Color(0.4f, 0.48f, 0.8f, 0.6f);
+            loginPanel.Add(rule);
+            loginTotalText = L("", "heavy");
+            loginTotalText.style.fontSize = 34;
+            loginTotalText.style.color = new Color(0.78f, 0.84f, 1f);
+            loginPanel.Add(loginTotalText);
+
+            loginFxLayer = new VisualElement { pickingMode = PickingMode.Ignore };
+            loginFxLayer.style.position = Position.Absolute;
+            loginFxLayer.style.left = loginFxLayer.style.right = loginFxLayer.style.top = loginFxLayer.style.bottom = 0;
+            loginModal.Add(loginFxLayer);
+
+            // Ekrana sığdır: dar/uzun telefonlarda panel orantılı küçülür (taşmaz)
+            loginModal.RegisterCallback<GeometryChangedEvent>(_ => FitLogin());
+            loginPanel.RegisterCallback<GeometryChangedEvent>(_ => FitLogin());
+
+            safe.Add(loginModal);
+            loginModal.schedule.Execute(TickLogin).Every(16);
+        }
+
+        void FitLogin()
+        {
+            var m = loginModal.layout;
+            var p = loginPanel.layout;
+            if (p.height < 10f || m.height < 10f) return;
+            loginFit = Mathf.Min(1f, 0.95f * m.height / p.height, 0.97f * m.width / p.width);
+        }
+
+        void TickLogin()
+        {
+            if (loginModal.style.display == DisplayStyle.None) return;
+            float t = Time.unscaledTime;
+            // Açılış: ~250 ms solma ve 0.95 -> 1 ölçek
+            float open = 1f;
+            if (loginOpenT >= 0f)
+            {
+                open = Mathf.Clamp01((t - loginOpenT) / 0.25f);
+                if (open >= 1f) loginOpenT = -1f;
+            }
+            float press = 1f;
+            if (loginPressT >= 0f)
+            {
+                float u = (t - loginPressT) / 0.16f;
+                press = u >= 1f ? 1f : 1f - 0.03f * Mathf.Sin(u * Mathf.PI);   // 1 -> 0.97 -> 1
+                if (u >= 1f) loginPressT = -1f;
+            }
+            float e = 1f - (1f - open) * (1f - open);
+            loginPanel.style.opacity = e;
+            loginPanel.style.scale = new Scale(Vector2.one * loginFit * Mathf.Lerp(0.95f, 1f, e));
+            loginClaimBtn.style.scale = new Scale(Vector2.one * press);
+            // Bugünün kartı: yavaş, hafif ışıltı
+            if (loginToday >= 0) loginGlows[loginToday].style.opacity = 0.35f + 0.45f * (0.5f + 0.5f * Mathf.Sin(t * 2.4f));
+            // Sandık: hafif sallanma
+            if (loginChest != null) loginChest.style.rotate = new Rotate(2.5f * Mathf.Sin(t * 1.6f));
+        }
+
+        /// day: bugün alınacak (claimed=false) ya da bugün alınmış (claimed=true) gün (1..7); coins: 7 günün ödülü.
+        public void ShowLogin(int day, int[] coins, bool claimed)
+        {
+            var tr = Tr;
+            loginToday = claimed ? -1 : day - 1;
+            loginClaiming = false;
+            int total = 0;
+            for (int d = 0; d < 7; d++)
+            {
+                total += coins[d];
+                bool done = d < day - 1 || (claimed && d == day - 1), today = !claimed && d == day - 1, future = !done && !today;
+                loginCards[d].Q<Label>("login-amount-" + d).text = coins[d].ToString("N0", tr);
+                if (d < 6) loginCards[d].style.backgroundImage = DR(today ? "card-active" : "card-default");
+                loginGlows[d].style.display = today ? DisplayStyle.Flex : DisplayStyle.None;
+                loginTodayTags[d].style.display = today ? DisplayStyle.Flex : DisplayStyle.None;
+                loginLocks[d].style.display = future ? DisplayStyle.Flex : DisplayStyle.None;
+                loginChecks[d].style.display = done ? DisplayStyle.Flex : DisplayStyle.None;
+                loginIcons[d].style.opacity = done ? 0.45f : 1f;
+                loginCards[d].style.opacity = done ? 0.72f : 1f;
+                // İlerleme noktası: alınmış dolu turkuaz, bugün parlak halka, gelecek koyu
+                var dot = loginDots[d];
+                Color fill = done ? DRTeal : today ? new Color(0.75f, 1f, 1f) : new Color(0.2f, 0.25f, 0.5f);
+                Color ring = today ? DRTeal : done ? new Color(0.6f, 0.95f, 1f) : new Color(0.38f, 0.45f, 0.75f);
+                dot.style.backgroundColor = fill;
+                dot.style.borderTopColor = dot.style.borderBottomColor = dot.style.borderLeftColor = dot.style.borderRightColor = ring;
+                dot.style.scale = new Scale(Vector2.one * (today ? 1.25f : 1f));
+            }
+            int amountNow = coins[Mathf.Clamp(day - 1, 0, 6)];
+            loginClaimText.text = claimed ? "COME BACK TOMORROW" : "CLAIM " + amountNow.ToString("N0", tr);
+            loginClaimText.style.fontSize = claimed ? 48 : 70;
+            loginClaimBtn.SetEnabled(!claimed);
+            loginClaimBtn.style.opacity = claimed ? 0.7f : 1f;
+            loginNextText.text = claimed || day < 7 ? "Next reward unlocks tomorrow" : "Tomorrow the streak starts again";
+            loginTotalText.text = "7-day total: " + total.ToString("N0", tr) + " coins";
+            loginPanel.RemoveFromClassList("off");
+            loginModal.style.display = DisplayStyle.Flex;
+            loginOpenT = Time.unscaledTime;
+            loginPanel.style.opacity = 0f;
+            FitLogin();
+        }
+
+        /// CLAIM: tek sefer (hızlı tekrar dokunma ikinci kez vermez; kayıt GameController.ClaimLoginReward'da, bugün işaretiyle
+        /// birlikte tek Save). Basış animasyonu, parıltı ve bakiyeye uçan jetonlar; sonra pencere kapanır.
+        void PressClaim()
+        {
+            if (loginClaiming || loginToday < 0) return;
+            loginClaiming = true;
+            loginClaimBtn.SetEnabled(false);
+            loginPressT = Time.unscaledTime;
+            click?.Invoke();
+            ClaimLogin?.Invoke();
+            int today = loginToday;
+            loginToday = -1;
+            loginGlows[today].style.display = DisplayStyle.None;
+            loginTodayTags[today].style.display = DisplayStyle.None;
+            loginChecks[today].style.display = DisplayStyle.Flex;
+            loginIcons[today].style.opacity = 0.45f;
+            // Parıltı: düğme üstünde kısa ışın patlaması
+            var b = loginClaimBtn.worldBound;
+            var fx = loginFxLayer.worldBound;
+            var burst = new RayBurst();
+            burst.style.left = b.center.x - fx.x - 220;
+            burst.style.top = b.center.y - fx.y - 220;
+            burst.style.right = StyleKeyword.Auto;
+            burst.style.bottom = StyleKeyword.Auto;
+            burst.style.width = burst.style.height = 440;
+            loginFxLayer.Add(burst);
+            // Jetonlar coin sayacına uçar
+            Vector2 from = b.center - fx.position;
+            Vector2 to = from + new Vector2(0f, -900f);
+            foreach (var pill in coinPills)
+                if (pill.panel != null && pill.resolvedStyle.display != DisplayStyle.None && pill.worldBound.width > 1f)
+                {
+                    to = pill.worldBound.center - fx.position;
+                    break;
+                }
+            float start = Time.unscaledTime;
+            var flying = new System.Collections.Generic.List<VisualElement>();
+            for (int k = 0; k < 9; k++)
+            {
+                var c = new Icon(IconKind.Coin, 72);
+                c.style.position = Position.Absolute;
+                c.style.left = from.x - 36;
+                c.style.top = from.y - 36;
+                loginFxLayer.Add(c);
+                flying.Add(c);
+            }
+            IVisualElementScheduledItem item = null;
+            item = loginFxLayer.schedule.Execute(() =>
+            {
+                float t = Time.unscaledTime - start;
+                for (int k = 0; k < flying.Count; k++)
+                {
+                    float u = Mathf.Clamp01((t - k * 0.05f) / 0.6f);
+                    float e = u * u * (3f - 2f * u);
+                    Vector2 spread = new Vector2(Mathf.Sin(k * 2.1f) * 140f, Mathf.Cos(k * 1.3f) * 60f - 80f) * Mathf.Sin(u * Mathf.PI);
+                    Vector2 pos = Vector2.Lerp(from, to, e) + spread;
+                    flying[k].style.left = pos.x - 36;
+                    flying[k].style.top = pos.y - 36;
+                    flying[k].style.opacity = u >= 1f ? 0f : 1f;
+                    flying[k].style.scale = new Scale(Vector2.one * Mathf.Lerp(1f, 0.6f, e));
+                }
+                burst.style.opacity = Mathf.Clamp01(1f - t / 0.7f);
+                if (t > 0.6f + flying.Count * 0.05f + 0.15f)
+                {
+                    item.Pause();
+                    loginFxLayer.Clear();
+                    Close(loginModal, loginPanel);
+                    loginClaiming = false;
+                }
+            }).Every(16);
+        }
+
+        public void DebugPressClaim() => PressClaim();
+
+        /// Test: bütün kodla çizilen ikonlar ızgarada (asset kataloğu için).
+        public void DebugIconSheet(bool on)
+        {
+            var old = root.Q<VisualElement>("debug-icons");
+            old?.RemoveFromHierarchy();
+            if (!on) return;
+            var sheet = new VisualElement { name = "debug-icons" };
+            sheet.style.position = Position.Absolute;
+            sheet.style.left = sheet.style.top = sheet.style.right = sheet.style.bottom = 0;
+            sheet.style.backgroundColor = new Color(0.93f, 0.93f, 0.95f);
+            sheet.style.flexDirection = FlexDirection.Row;
+            sheet.style.flexWrap = Wrap.Wrap;
+            sheet.style.paddingTop = 40; sheet.style.paddingLeft = 20;
+            foreach (IconKind k in System.Enum.GetValues(typeof(IconKind)))
+            {
+                var cell = new VisualElement();
+                cell.style.width = 255; cell.style.height = 220;
+                cell.style.alignItems = Align.Center;
+                cell.style.justifyContent = Justify.Center;
+                cell.Add(new Icon(k, 120));
+                var l = new Label(k.ToString());
+                l.style.fontSize = 34;
+                l.style.color = Ink;
+                cell.Add(l);
+                sheet.Add(cell);
+            }
+            root.Add(sheet);
+        }
+        public string DebugLoginLayout()
+        {
+            var c = loginCards[0];
+            var tex = Resources.Load<Texture2D>("UI/DailyRewards/card-default");
+            return "card layout " + c.layout + " tex " + (tex != null ? tex.width + "x" + tex.height : "null") + " panel " + loginPanel.layout + " fit " + loginFit;
+        }
+
+        // ================================================================ kalıcı parça duyurusu
+
+        VisualElement partModal, partCard, partRays, partImage;
+        Label partName, partText;
+        float partClock = -1f;
+
+        /// Parkur bitince açılan kalıcı parça: ışık halesi önünde aracın önizlemesi, adı ve etkisi (kullanıcının
+        /// gönderdiği "yeni kızak açıldı" ekranı gibi).
+        void BuildPartUnlock()
+        {
+            partModal = E("fill", "dim", "center", "pick");
+            partModal.style.display = DisplayStyle.None;
+            partCard = E("card", "card-cream", "col", "pop", "off");
+            partCard.style.width = Length.Percent(86);
+            partCard.style.paddingTop = 0;
+            partCard.style.paddingLeft = partCard.style.paddingRight = 36;
+            partCard.style.paddingBottom = 36;
+
+            var ribbon = E("ribbon");
+            ribbon.style.marginTop = -50;
+            ribbon.style.height = 104;
+            ribbon.style.backgroundColor = (Color)new Color32(0x3F, 0xA4, 0xFF, 0xFF);
+            ribbon.style.borderBottomColor = (Color)new Color32(0x1E, 0x78, 0xD0, 0xFF);
+            var title = L("NEW PART UNLOCKED!");
+            title.style.fontSize = 50;
+            ribbon.Add(title);
+            partCard.Add(ribbon);
+
+            var stage = E();
+            stage.style.width = Length.Percent(100);
+            stage.style.height = 400;
+            stage.style.marginTop = 10;
+            stage.style.alignItems = Align.Center;
+            stage.style.justifyContent = Justify.Center;
+            partRays = E();
+            partRays.style.position = Position.Absolute;
+            partRays.style.width = partRays.style.height = 420;
+            partRays.style.backgroundImage = new StyleBackground(Radial());
+            partRays.style.unityBackgroundImageTintColor = new Color(1f, 0.92f, 0.55f, 0.9f);
+            stage.Add(partRays);
+            partImage = E();
+            partImage.style.width = 520;
+            partImage.style.height = 390;
+            stage.Add(partImage);
+            partCard.Add(stage);
+
+            partName = L("", "outlined");
+            partName.style.fontSize = 76;
+            partCard.Add(partName);
+            partText = L("", "heavy");
+            partText.style.fontSize = 36;
+            partText.style.color = Muted;
+            partText.style.whiteSpace = WhiteSpace.Normal;
+            partText.style.unityTextAlign = TextAnchor.MiddleCenter;
+            partText.style.marginTop = 6;
+            partCard.Add(partText);
+
+            var go = B(() =>
+            {
+                partCard.AddToClassList("off");
+                partClock = -1f;
+                partModal.schedule.Execute(() => { partModal.style.display = DisplayStyle.None; modalClosedAt = Time.unscaledTime; }).StartingIn(180);
+            }, "btn", "btn-green", "btn-big");
+            go.text = "CONTINUE";
+            go.style.alignSelf = Align.Stretch;
+            go.style.marginTop = 30;
+            go.name = "menu-part-close";
+            partCard.Add(go);
+
+            partModal.Add(partCard);
+            safe.Add(partModal);
+        }
+
+        public void DebugClosePart()
+        {
+            partClock = -1f;
+            partModal.style.display = DisplayStyle.None;
+        }
+
+        public void ShowPartUnlock(string name, string text, Texture preview)
+        {
+            partName.text = name.ToUpper(Tr);
+            partText.text = text;
+            partImage.style.backgroundImage = Background.FromRenderTexture(preview as RenderTexture);
+            partClock = 0f;
+            partModal.style.display = DisplayStyle.Flex;
+            partCard.AddToClassList("off");
+            partCard.schedule.Execute(() => partCard.RemoveFromClassList("off")).StartingIn(30);
+        }
+
+        /// streakPct: sandık serisinin ek ödülü (%); 0'da etiket gizli.
+        public void ShowChest(int coins, int gems, int streakPct = 0, bool streakMax = false)
+        {
+            chestStreakLabel.text = streakPct > 0 ? "STREAK BONUS +" + streakPct + "%" + (streakMax ? " (MAX)" : "") : "";
+            chestStreakLabel.style.display = streakPct > 0 ? DisplayStyle.Flex : DisplayStyle.None;
             chestCoinValue = coins;
             chestGemValue = gems;
             chestMultiplier = 1;
@@ -1138,11 +3080,21 @@ namespace SledSurfers
             if (chestModal.style.display.value == DisplayStyle.Flex)
             {
                 chestClock += dt;
-                var big = chestCard.Q<Icon>("chest-big");
+                var big = chestCard.Q<VisualElement>("chest-big");
                 float bounce = 1f + 0.12f * Mathf.Exp(-chestClock * 3f) * Mathf.Sin(chestClock * 14f);
                 big.style.scale = new Scale(new Vector2(bounce, bounce));
                 float pulse = 1f + 0.04f * Mathf.Sin(time * 5f);
                 chestTriple.style.scale = new Scale(new Vector2(pulse, pulse));
+            }
+            TickShop(dt);
+            if (partClock >= 0f)
+            {
+                partClock += dt;
+                partRays.style.rotate = new Rotate(Angle.Degrees(partClock * 25f));
+                float s = 1f + 0.06f * Mathf.Sin(partClock * 3f);
+                partRays.style.scale = new Scale(new Vector2(s, s));
+                float bob = EaseOutBack(Mathf.Clamp01(partClock / 0.5f));
+                partImage.style.scale = new Scale(new Vector2(bob, bob));
             }
             if (adClock >= 0f)
             {
@@ -1175,12 +3127,13 @@ namespace SledSurfers
             var p = NewPage(Page.Avatars);
 
             var top = E("topbar");
-            var back = B(() => OpenHub?.Invoke(), "btn", "btn-white", "btn-round");
-            back.Add(new Icon(IconKind.Back, 58, Ink));
+            var back = B(() => OpenHub?.Invoke(), "btn", "kit-round", "kit-back");
+            back.name = "avatar-back";
             top.Add(back);
-            var title = L("KARAKTERLER", "outlined");
+            var title = L("HEROES", "outlined");
             title.style.fontSize = 72;
             top.Add(title);
+            HeaderBand(top);
             top.Add(GemPill());
             p.Add(top);
 
@@ -1189,28 +3142,32 @@ namespace SledSurfers
             avName.style.unityTextAlign = TextAnchor.MiddleCenter;
             avName.style.marginTop = 6;
             p.Add(avName);
-            var perk = E("pill", "pill-light");
-            perk.style.alignSelf = Align.Center;
-            perk.style.height = StyleKeyword.Auto;
-            perk.style.paddingTop = 10;
-            perk.style.paddingBottom = 10;
-            perk.style.paddingLeft = 30;
-            perk.style.flexDirection = FlexDirection.Column;
-            avPerkTitle = L("", "heavy");
-            avPerkTitle.style.fontSize = 34;
-            avPerkTitle.style.color = (Color)new Color32(0xD8, 0x62, 0x0A, 0xFF);
-            avPerkTitle.style.marginLeft = 0;
-            perk.Add(avPerkTitle);
-            avPerkText = L("");
-            avPerkText.style.fontSize = 32;
-            avPerkText.style.marginLeft = 0;
-            avPerkText.style.marginTop = -4;
-            perk.Add(avPerkText);
-            p.Add(perk);
+            avRarity = E("av-rarity");
+            avRarityLabel = L("", "av-rarity-text");
+            avRarity.Add(avRarityLabel);
+            p.Add(avRarity);
+
+            // Avantaj kartı: renkli ikon kutusu + başlık + açıklama
+            avPerkCard = E("av-perk");
+            avPerkIconBox = E("av-perk-icon");
+            avPerkIcon = new Icon(IconKind.Glass, 64, Color.white);
+            avPerkIconBox.Add(avPerkIcon);
+            avPerkCard.Add(avPerkIconBox);
+            var perkText = E("col");
+            perkText.style.flexShrink = 1;
+            var perkCap = L("PERK", "av-perk-cap");
+            perkText.Add(perkCap);
+            avPerkTitle = L("", "av-perk-title");
+            perkText.Add(avPerkTitle);
+            avPerkText = L("", "av-perk-text");
+            perkText.Add(avPerkText);
+            avPerkCard.Add(perkText);
+            p.Add(avPerkCard);
 
             p.Add(E("grow"));
 
             avAction = B(() => AvatarAction?.Invoke(avBrowse), "btn", "btn-green", "btn-big");
+            avAction.name = "avatar-action";
             avAction.style.alignSelf = Align.Center;
             avAction.style.width = Length.Percent(70);
             avAction.style.marginBottom = 26;
@@ -1220,33 +3177,78 @@ namespace SledSurfers
             avAction.Add(avActionLabel);
             p.Add(avAction);
 
-            for (int r = 0; r < 3; r++)
+            // Kart ızgarası: 4 sütun; kart sayısı arttıkça satır eklenir, ızgara kaydırılır
+            // (~2,75 satır görünür: alttaki yarım satır kaydırılabildiğini gösterir).
+            avScroll = new ScrollView(ScrollViewMode.Vertical);
+            avScroll.style.height = 740;
+            avScroll.style.flexShrink = 0;
+            avScroll.verticalScrollerVisibility = ScrollerVisibility.Hidden;
+            avScroll.horizontalScrollerVisibility = ScrollerVisibility.Hidden;
+            avScroll.touchScrollBehavior = ScrollView.TouchScrollBehavior.Elastic;
+            // Tema yalnızca Game.uss'i içeriyor (Unity'nin varsayılan teması yok): ScrollView'un iç yerleşimi elle.
+            avScroll.style.overflow = Overflow.Hidden;
+            var inner = avScroll.Q(className: "unity-scroll-view__content-and-vertical-scroll-container");
+            if (inner != null) { inner.style.flexGrow = 1; inner.style.flexShrink = 1; inner.style.flexDirection = FlexDirection.Row; }
+            avScroll.contentViewport.style.flexGrow = 1;
+            avScroll.contentViewport.style.flexShrink = 1;
+            avScroll.contentViewport.style.overflow = Overflow.Hidden;
+            avScroll.contentContainer.style.flexShrink = 0;
+            p.Add(avScroll);
+            int rows = (AvatarLibrary.Count + 3) / 4;
+            for (int r = 0; r < rows; r++)
             {
                 var row = E("row");
                 row.style.alignItems = Align.Stretch;
                 row.style.marginTop = r > 0 ? 14 : 0;
+                row.style.flexShrink = 0;   // kaydırma alanında satırlar sıkışmasın, taşan kısım kaydırılsın
                 for (int k = 0; k < 4; k++)
                 {
                     int i = r * 4 + k;
                     if (i >= AvatarLibrary.Count) break;
-                    var c = new AvatarCard { root = B(() => BrowseAvatar?.Invoke(i), "btn", "btn-white", "avatar-card") };
+                    var info = AvatarLibrary.All[i];
+                    var rc = RarityColors[Rarity(info.price)];
+                    var c = new AvatarCard { root = B(() => BrowseAvatar?.Invoke(i), "btn", "av-card") };
+                    c.root.name = "avatar-card-" + i;
                     if (k > 0) c.root.style.marginLeft = 14;
-                    c.portrait = E("avatar-portrait");
+                    c.root.style.borderBottomColor = Color.Lerp(rc, Color.black, 0.25f);
+                    var cardTop = E("av-top");
+                    cardTop.style.backgroundImage = new StyleBackground(VGrad(Color.Lerp(rc, Color.white, 0.6f), rc));
+                    var glow = E("av-glow");
+                    glow.style.backgroundImage = new StyleBackground(Radial());
+                    cardTop.Add(glow);
+                    c.portrait = E("av-portrait");
                     c.portrait.style.backgroundImage = Portrait(i);
-                    c.root.Add(c.portrait);
-                    c.name = L(AvatarLibrary.All[i].name, "avatar-name");
+                    cardTop.Add(c.portrait);
+                    c.badge = E("av-badge");
+                    c.badge.Add(new Icon(IconKind.Check, 26, Color.white));
+                    cardTop.Add(c.badge);
+                    c.lockBadge = E("av-lock");
+                    c.lockBadge.Add(new Icon(IconKind.Lock, 22, Color.white));
+                    cardTop.Add(c.lockBadge);
+                    c.root.Add(cardTop);
+                    c.name = L(info.name, "av-name");
                     c.root.Add(c.name);
+                    c.chip = E("av-chip");
                     c.priceRow = E("row");
-                    c.priceRow.Add(new Icon(IconKind.Gem, 34));
-                    c.price = Sp(L(AvatarLibrary.All[i].price.ToString(), "avatar-name"), 4);
+                    c.priceRow.Add(new Icon(IconKind.Gem, 30));
+                    c.price = Sp(L(info.price.ToString(), "av-chip-text"), 4);
                     c.priceRow.Add(c.price);
-                    c.root.Add(c.priceRow);
-                    c.state = L("", "avatar-state");
-                    c.root.Add(c.state);
+                    c.chip.Add(c.priceRow);
+                    c.state = L("", "av-chip-text");
+                    c.chip.Add(c.state);
+                    c.root.Add(c.chip);
                     avCards[i] = c;
                     row.Add(c.root);
                 }
-                p.Add(row);
+                // Son satır eksikse boş yer tutucular: kartlar öbür satırlarla aynı genişlikte kalsın
+                for (int k = row.childCount; k < 4; k++)
+                {
+                    var pad = E("av-card");
+                    pad.style.marginLeft = 14;
+                    pad.style.visibility = Visibility.Hidden;
+                    row.Add(pad);
+                }
+                avScroll.Add(row);
             }
         }
 
@@ -1254,6 +3256,9 @@ namespace SledSurfers
         {
             RefreshAvatars(save, browse);
             SetPage(Page.Avatars);
+            // Seçili kart görünür olsun (yerleşim hesaplandıktan sonra)
+            var card = avCards[browse].root;
+            avScroll.schedule.Execute(() => avScroll.ScrollTo(card)).ExecuteLater(30);
         }
 
         public void RefreshAvatars(SaveData save, int browse)
@@ -1263,25 +3268,44 @@ namespace SledSurfers
             avName.text = info.name.ToUpper(Tr);
             avPerkTitle.text = info.perkTitle;
             avPerkText.text = info.perkText;
+            int rarity = Rarity(info.price);
+            var rcol = RarityColors[rarity];
+            avRarityLabel.text = RarityNames[rarity];
+            avRarity.style.backgroundColor = rcol;
+            avPerkIconBox.style.backgroundImage = new StyleBackground(VGrad(Color.Lerp(rcol, Color.white, 0.35f), rcol));
+            avPerkIcon.Kind = PerkIcon(info.perk);
 
             bool owned = save.Owns(browse);
             bool selected = save.avatar == browse;
             bool afford = save.gems >= info.price;
             avActionGem.style.display = owned ? DisplayStyle.None : DisplayStyle.Flex;
-            avActionLabel.text = selected ? "SEÇİLİ" : owned ? "SEÇ" : info.price + "  SATIN AL";
-            avAction.style.backgroundColor = selected ? CardGray : owned ? (Color)new Color32(0x3F, 0xD1, 0x5B, 0xFF) : afford ? GemPink : CardGray;
-            avAction.style.borderBottomColor = selected ? CardGrayDark : owned ? (Color)new Color32(0x22, 0xA0, 0x3C, 0xFF) : afford ? GemPinkDark : CardGrayDark;
+            avActionLabel.text = selected ? "SELECTED" : owned ? "SELECT" : info.price + "  BUY";
+            // Seçili: sıcak turuncu (kullanımda); sahip olunan: yeşil; alınabilir: pembe; yetmiyor: gri.
+            var orange = (Color)new Color32(0xFF, 0x9A, 0x1F, 0xFF);
+            var orangeDark = (Color)new Color32(0xD8, 0x62, 0x0A, 0xFF);
+            Color bg = selected ? orange : owned ? (Color)new Color32(0x3F, 0xD1, 0x5B, 0xFF) : afford ? GemPink : CardGray;
+            Color bd = selected ? orangeDark : owned ? (Color)new Color32(0x22, 0xA0, 0x3C, 0xFF) : afford ? GemPinkDark : CardGrayDark;
+            avAction.style.backgroundImage = new StyleBackground(VGrad(Color.Lerp(bg, Color.white, 0.3f), bg));
+            avAction.style.backgroundColor = bg;
+            avAction.style.borderBottomColor = bd;
 
             for (int i = 0; i < avCards.Length; i++)
             {
                 var c = avCards[i];
                 bool own = save.Owns(i);
+                bool sel = save.avatar == i;
                 c.priceRow.style.display = own ? DisplayStyle.None : DisplayStyle.Flex;
                 c.state.style.display = own ? DisplayStyle.Flex : DisplayStyle.None;
-                c.state.text = save.avatar == i ? "SEÇİLİ" : "SENİN";
-                c.state.style.color = save.avatar == i ? (Color)new Color32(0xD8, 0x62, 0x0A, 0xFF) : (Color)new Color32(0x22, 0xA0, 0x3C, 0xFF);
-                c.portrait.style.unityBackgroundImageTintColor = own ? Color.white : new Color(0.55f, 0.55f, 0.6f);
-                c.root.EnableInClassList("map-current", i == browse);
+                c.state.text = sel ? "SELECTED" : "OWNED";
+                c.chip.style.backgroundColor = sel ? (Color)new Color32(0xFF, 0x9A, 0x1F, 0xFF)
+                                             : own ? (Color)new Color32(0x3F, 0xD1, 0x5B, 0xFF)
+                                             : save.gems >= AvatarLibrary.All[i].price ? GemPink : CardGray;
+                c.badge.style.display = sel ? DisplayStyle.Flex : DisplayStyle.None;
+                c.lockBadge.style.display = own ? DisplayStyle.None : DisplayStyle.Flex;
+                // Sahip olunmayan: hafif soluk (karanlık değil)
+                c.portrait.style.unityBackgroundImageTintColor = own ? Color.white : new Color(0.82f, 0.82f, 0.88f);
+                c.root.EnableInClassList("av-browse", i == browse);
+                c.root.EnableInClassList("av-selected", sel);
             }
             avBump = 1f;
         }
@@ -1295,28 +3319,56 @@ namespace SledSurfers
 
         // ================================================================ harita
 
+        /// Başlık satırının arkasında yarı saydam mavi bant (örnek görseldeki başlık şeridi).
+        static void HeaderBand(VisualElement top)
+        {
+            top.style.backgroundColor = new Color(0.27f, 0.58f, 0.96f, 0.55f);
+            top.style.borderTopLeftRadius = top.style.borderTopRightRadius = top.style.borderBottomLeftRadius = top.style.borderBottomRightRadius = 34;
+            top.style.paddingLeft = top.style.paddingRight = 10;
+            top.style.borderBottomWidth = 6;
+            top.style.borderBottomColor = new Color(0.12f, 0.36f, 0.75f, 0.6f);
+        }
+
         void BuildMap()
         {
             var p = NewPage(Page.Map);
 
             var top = E("topbar");
-            var back = B(() => OpenHub?.Invoke(), "btn", "btn-white", "btn-round");
-            back.Add(new Icon(IconKind.Back, 58, Ink));
+            var back = B(() => OpenHub?.Invoke(), "btn", "kit-round", "kit-back");
+            back.name = "map-back";
             top.Add(back);
-            var title = L("PARKURLAR", "outlined");
+            var title = L("TRACKS", "outlined");
             title.style.fontSize = 80;
             top.Add(title);
+            HeaderBand(top);
             top.Add(CoinPill());
             p.Add(top);
 
-            var list = E("grow");
-            list.style.justifyContent = Justify.Center;
+            p.Add(L("Coins and upgrades stay with each track. Return here anytime.\nGems, heroes and unlocked parts carry across tracks.", "track-economy-note"));
+
+            // 7 parkur ekrana sığmıyor: liste kaydırılır, açılışta güncel parkura gidilir.
+            mapScroll = new ScrollView(ScrollViewMode.Vertical);
+            mapScroll.style.flexGrow = 1;
+            mapScroll.style.flexShrink = 1;
+            mapScroll.verticalScrollerVisibility = ScrollerVisibility.Hidden;
+            mapScroll.horizontalScrollerVisibility = ScrollerVisibility.Hidden;
+            mapScroll.touchScrollBehavior = ScrollView.TouchScrollBehavior.Elastic;
+            mapScroll.style.overflow = Overflow.Hidden;
+            var inner = mapScroll.Q(className: "unity-scroll-view__content-and-vertical-scroll-container");
+            if (inner != null) { inner.style.flexGrow = 1; inner.style.flexShrink = 1; inner.style.flexDirection = FlexDirection.Row; }
+            mapScroll.contentViewport.style.flexGrow = 1;
+            mapScroll.contentViewport.style.flexShrink = 1;
+            mapScroll.contentViewport.style.overflow = Overflow.Hidden;
+            mapScroll.contentContainer.style.flexShrink = 0;
+            mapScroll.contentContainer.style.paddingTop = mapScroll.contentContainer.style.paddingBottom = 20;
+            var list = mapScroll.contentContainer;
             for (int i = 0; i < TrackLibrary.Count; i++)
             {
                 if (i > 0)
                 {
                     // Kartları birleştiren noktalı yol
                     var dots = E("col");
+                    dots.style.flexShrink = 0;
                     dots.style.paddingTop = dots.style.paddingBottom = 6;
                     for (int k = 0; k < 3; k++)
                     {
@@ -1332,39 +3384,128 @@ namespace SledSurfers
                 }
 
                 int index = i;
-                var c = new MapCard { root = B(() => SelectTrack?.Invoke(index), "btn", "btn-white", "map-card") };
-                c.badge = E("map-badge");
-                c.badge.style.backgroundColor = TrackColors[i];
-                c.number = L((i + 1).ToString(), "outlined");
-                c.number.style.fontSize = 72;
-                c.badge.Add(c.number);
-                c.lockIcon = new Icon(IconKind.Lock, 64, Color.white);
-                c.badge.Add(c.lockIcon);
-                c.root.Add(c.badge);
+                // Ada düğümü (kullanıcı 2026-10-23, örnek görsele göre): açık parkur, üstü parkur renginde çimen, altı toprak
+                // kalınlığında oval ada; üstünde adı ve ilerleme çubuğu. Kilitli parkur: tahta disk ve altın asma kilit.
+                var c = new MapCard { root = B(() => SelectTrack?.Invoke(index)) };
+                c.root.name = "map-track-" + i;
+                c.root.style.flexShrink = 0;
+                c.root.style.backgroundColor = Color.clear;
+                c.root.style.borderTopWidth = c.root.style.borderBottomWidth = c.root.style.borderLeftWidth = c.root.style.borderRightWidth = 0;
+                c.root.style.flexDirection = FlexDirection.Column;
+                c.root.style.alignItems = Align.Center;
+                c.root.style.alignSelf = Align.Center;
+                c.root.style.paddingTop = c.root.style.paddingBottom = 0;
+                c.root.style.marginLeft = c.root.style.marginRight = 0;
+                c.root.style.translate = new Translate((i % 2 == 0 ? -1 : 1) * 70, 0);   // yol hafifçe kıvrılır
 
-                var info = E("grow");
-                info.style.marginLeft = 24;
-                var name = L(TrackLibrary.Names[i] + "  ·  " + TrackLibrary.Lengths[i] + " m", "heavy");
-                name.style.fontSize = 50;
-                name.style.marginBottom = -6;
-                info.Add(name);
+                // Parkur manzarası (kullanıcı 2026-10-23: "görseller parkur teması olabilir; karlı, ağaçlık, Mars gibi"):
+                // her ada o parkurun menü manzarasından kırpılmış bir pencere; altta toprak kalınlığı, üstte ad şeridi.
+                // Kilitli parkur da manzarasını gösterir ama karartılır ve ortasında altın kilit durur.
+                var theme = HomeTrackTheme.Get(i);
+                c.island = E("col");
+                c.island.style.width = 600;
+                c.island.style.alignItems = Align.Center;
+                var pic = E();
+                pic.style.width = 600;
+                pic.style.height = 270;
+                pic.style.backgroundImage = Background.FromTexture2D(Resources.Load<Texture2D>("UI/MapThumbs/" + HomeTrackTheme.Thumb(i)));
+                pic.style.backgroundSize = new BackgroundSize(BackgroundSizeType.Cover);
+                pic.style.backgroundColor = theme.panel;
+                pic.style.borderTopLeftRadius = pic.style.borderTopRightRadius = 70;
+                pic.style.borderBottomLeftRadius = pic.style.borderBottomRightRadius = 90;
+                pic.style.borderTopWidth = pic.style.borderLeftWidth = pic.style.borderRightWidth = 8;
+                pic.style.borderBottomWidth = 34;
+                pic.style.borderTopColor = pic.style.borderLeftColor = pic.style.borderRightColor = Color.white;
+                pic.style.borderBottomColor = (Color)new Color32(0x8A, 0x5A, 0x33, 0xFF);
+                pic.style.overflow = Overflow.Hidden;
+                c.island.Add(pic);
+                c.pic = pic;
+                // Üst parlaklık şeridi
+                var gloss = E();
+                gloss.pickingMode = PickingMode.Ignore;
+                gloss.style.position = Position.Absolute;
+                gloss.style.left = 30; gloss.style.right = 30; gloss.style.top = 10;
+                gloss.style.height = 40;
+                gloss.style.borderTopLeftRadius = gloss.style.borderTopRightRadius = 30;
+                gloss.style.borderBottomLeftRadius = gloss.style.borderBottomRightRadius = 30;
+                gloss.style.backgroundColor = new Color(1f, 1f, 1f, 0.22f);
+                pic.Add(gloss);
+                // Kilit örtüsü
+                c.lockDisc = E("center");
+                c.lockDisc.pickingMode = PickingMode.Ignore;
+                c.lockDisc.style.position = Position.Absolute;
+                c.lockDisc.style.left = c.lockDisc.style.right = c.lockDisc.style.top = c.lockDisc.style.bottom = 0;
+                c.lockDisc.style.backgroundColor = new Color(0.08f, 0.06f, 0.16f, 0.4f);
+                var lockRing = E("center");
+                lockRing.style.width = lockRing.style.height = 130;
+                lockRing.style.borderTopLeftRadius = lockRing.style.borderTopRightRadius = 65;
+                lockRing.style.borderBottomLeftRadius = lockRing.style.borderBottomRightRadius = 65;
+                lockRing.style.backgroundColor = (Color)new Color32(0xB0, 0x7A, 0x45, 0xFF);
+                lockRing.style.borderBottomWidth = 10;
+                lockRing.style.borderBottomColor = (Color)new Color32(0x7A, 0x4A, 0x22, 0xFF);
+                c.lockIcon = new Icon(IconKind.Lock, 84, (Color)new Color32(0xFF, 0xC9, 0x3C, 0xFF));
+                lockRing.Add(c.lockIcon);
+                c.lockDisc.Add(lockRing);
+                pic.Add(c.lockDisc);
+
+                // Ad şeridi: resmin alt kenarına biner, parkurun renginde
+                var plate = E("col");
+                plate.style.alignItems = Align.Center;
+                plate.style.marginTop = -44;
+                plate.style.paddingLeft = plate.style.paddingRight = 34;
+                plate.style.paddingTop = 6; plate.style.paddingBottom = 12;
+                plate.style.backgroundColor = Color.Lerp(theme.panel, theme.edge, 0.3f);
+                plate.style.borderTopLeftRadius = plate.style.borderTopRightRadius = 26;
+                plate.style.borderBottomLeftRadius = plate.style.borderBottomRightRadius = 26;
+                plate.style.borderBottomWidth = 10;
+                plate.style.borderBottomColor = Color.Lerp(theme.panel, Color.black, 0.4f);
+                plate.style.borderTopWidth = plate.style.borderLeftWidth = plate.style.borderRightWidth = 4;
+                plate.style.borderTopColor = plate.style.borderLeftColor = plate.style.borderRightColor = Color.white;
+                var name = L(TrackLibrary.Names[i], "heavy");
+                name.style.fontSize = 52;
+                name.style.color = Color.white;
+                name.style.unityTextOutlineWidth = 6;
+                name.style.unityTextOutlineColor = (Color)new Color32(0x2B, 0x23, 0x40, 0xFF);
+                plate.Add(name);
+                var slim = E("bar");
+                slim.style.width = 380;
+                slim.style.height = 26;
+                slim.style.marginTop = 2;
+                slim.style.borderTopWidth = slim.style.borderBottomWidth = slim.style.borderLeftWidth = slim.style.borderRightWidth = 4;
+                slim.style.borderTopColor = slim.style.borderBottomColor = slim.style.borderLeftColor = slim.style.borderRightColor = (Color)new Color32(0x2B, 0x23, 0x40, 0xFF);
+                slim.style.backgroundColor = (Color)new Color32(0x3A, 0x34, 0x55, 0xFF);
+                c.fill = E("bar-fill");
+                slim.Add(c.fill);
+                plate.Add(slim);
+                c.bar = slim;
+                c.island.Add(plate);
+                c.root.Add(c.island);
+                c.lockName = new Label();
+
+                // Durum ve kumbara: manzara üstünde okunsun diye yarı saydam koyu hap içinde
+                var info = E("col");
+                info.style.alignItems = Align.Center;
+                info.style.marginTop = 8;
+                info.style.paddingLeft = info.style.paddingRight = 26;
+                info.style.paddingTop = 4; info.style.paddingBottom = 6;
+                info.style.backgroundColor = new Color(0.1f, 0.08f, 0.2f, 0.62f);
+                info.style.borderTopLeftRadius = info.style.borderTopRightRadius = info.style.borderBottomLeftRadius = info.style.borderBottomRightRadius = 26;
                 c.status = L("", "heavy");
                 c.status.style.fontSize = 32;
                 info.Add(c.status);
-                var slim = E("bar");
-                slim.style.height = 24;
-                slim.style.borderTopWidth = slim.style.borderBottomWidth = slim.style.borderLeftWidth = slim.style.borderRightWidth = 3;
-                slim.style.marginTop = 6;
-                slim.style.backgroundColor = (Color)new Color32(0xED, 0xE6, 0xDC, 0xFF);
-                c.fill = E("bar-fill");
-                slim.Add(c.fill);
-                info.Add(slim);
+                c.wallet = L("", "heavy");
+                c.wallet.style.fontSize = 28;
+                c.wallet.style.color = new Color(1f, 1f, 1f, 0.85f);
+                info.Add(c.wallet);
                 c.root.Add(info);
+                // Eski rozet alanları (ShowMap uyumu)
+                c.badge = new VisualElement();
+                c.number = new Label();
 
                 mapCards[i] = c;
                 list.Add(c.root);
             }
-            p.Add(list);
+            p.Add(mapScroll);
         }
 
         public void ShowMap(SaveData save)
@@ -1375,33 +3516,65 @@ namespace SledSurfers
                 bool open = i <= save.unlocked;
                 bool done = save.Finished(i);
                 float progress = Mathf.Clamp01(save.bests[i] / TrackLibrary.Lengths[i]);
-                c.number.style.display = open ? DisplayStyle.Flex : DisplayStyle.None;
-                c.lockIcon.style.display = open ? DisplayStyle.None : DisplayStyle.Flex;
-                c.badge.style.backgroundColor = open ? TrackColors[i] : (Color)new Color32(0xB8, 0xB0, 0xA6, 0xFF);
-                c.root.EnableInClassList("map-current", i == save.track);
-                c.root.style.opacity = open ? 1f : 0.75f;
+                c.lockDisc.style.display = open ? DisplayStyle.None : DisplayStyle.Flex;
+                c.bar.style.display = open ? DisplayStyle.Flex : DisplayStyle.None;
+                // Güncel parkur: altın çerçeve ve hafif büyük
+                bool isCur = i == save.track;
+                Color rim = isCur ? (Color)new Color32(0xFF, 0xD8, 0x4A, 0xFF) : Color.white;
+                c.pic.style.borderTopColor = c.pic.style.borderLeftColor = c.pic.style.borderRightColor = rim;
+                c.pic.style.borderTopWidth = c.pic.style.borderLeftWidth = c.pic.style.borderRightWidth = isCur ? 12 : 8;
+                c.root.style.scale = new Scale(isCur ? new Vector2(1.06f, 1.06f) : Vector2.one);
+                c.root.style.opacity = 1f;
+                c.wallet.text = open ? save.trackMoney[i].ToString("N0", Tr) + " coins saved here" : "";
+                c.wallet.style.display = open ? DisplayStyle.Flex : DisplayStyle.None;
                 c.fill.style.width = Length.Percent(progress * 100f);
-                c.fill.style.backgroundColor = Col(done, new Color32(0x3F, 0xD1, 0x5B, 0xFF));
+                c.fill.style.backgroundColor = done || progress > 0.66f ? (Color)new Color32(0x3F, 0xD1, 0x5B, 0xFF) : (Color)new Color32(0xFF, 0x8A, 0x2E, 0xFF);
                 if (done)
                 {
-                    c.status.text = "Tamamlandı! · En iyi " + save.bests[i] + " m";
-                    c.status.style.color = (Color)new Color32(0x22, 0xA0, 0x3C, 0xFF);
+                    c.status.text = "Complete! · Best " + TrackLibrary.Show(save.bests[i]) + " m";
+                    c.status.style.color = (Color)new Color32(0x7C, 0xF0, 0x8E, 0xFF);
                 }
                 else if (open)
                 {
-                    c.status.text = save.bests[i] > 0 ? "En iyi " + save.bests[i] + " m · %" + Mathf.FloorToInt(progress * 100f) : "Yeni! Hemen dene";
-                    c.status.style.color = (Color)new Color32(0xD8, 0x62, 0x0A, 0xFF);
+                    c.status.text = save.bests[i] > 0 ? "Best " + TrackLibrary.Show(save.bests[i]) + " m · " + Mathf.FloorToInt(progress * 100f) + "%" : "Unlocked · 0%";
+                    c.status.style.color = (Color)new Color32(0xFF, 0xC9, 0x3C, 0xFF);
                 }
                 else
                 {
-                    c.status.text = "Kilitli · önce " + TrackLibrary.Names[i - 1] + " parkurunu bitir";
-                    c.status.style.color = Muted;
+                    c.status.text = "Locked · finish " + TrackLibrary.Names[i - 1] + " first";
+                    c.status.style.color = new Color(1f, 1f, 1f, 0.8f);
                 }
             }
             SetPage(Page.Map);
+            // Yerleşim hesaplanınca güncel parkuru görünür yap
+            var cur = mapCards[Mathf.Clamp(save.track, 0, TrackLibrary.Count - 1)].root;
+            mapScroll.schedule.Execute(() => mapScroll.ScrollTo(cur)).StartingIn(30);
         }
 
         // ================================================================ nişan
+
+        Button PauseButton()
+        {
+            var button = B(() => PauseRequested?.Invoke(), "btn", "kit-round", "kit-pause");
+            button.style.width = button.style.height = 104;
+            return button;
+        }
+
+        void BuildPause()
+        {
+            pauseModal = Modal(out pauseCard, "PAUSED", new Color32(0x3F, 0xA4, 0xFF, 0xFF), new Color32(0x1E, 0x78, 0xD0, 0xFF));
+            var note = L("Take your time. Your run will continue\nfrom the same spot when you resume.", "pause-note");
+            pauseCard.Add(note);
+            var resume = B(() => ResumeRequested?.Invoke(), "btn", "btn-green", "btn-big");
+            resume.name = "menu-pause-resume";
+            resume.text = "RESUME";
+            resume.style.alignSelf = Align.Stretch;
+            resume.style.marginTop = 24;
+            pauseCard.Add(resume);
+            safe.Add(pauseModal);
+        }
+
+        AimArrows aimArrows;
 
         void BuildAim()
         {
@@ -1409,24 +3582,44 @@ namespace SledSurfers
 
             var top = E("topbar");
             top.Add(BestPill());
+            top.Add(PauseButton());
             top.Add(CoinPill());
             p.Add(top);
 
-            hint = E("card", "col");
+            // Nişan okları (güce göre renk ve boy, nişana göre yön); ipucu ve güç yazısının arkasında.
+            aimArrows = new AimArrows();
+            p.Add(aimArrows);
+
+            // İpucu (kullanıcı 2026-10-23, örnek görsele göre): parmak yok; yarı saydam cam panel, büyük iki renkli başlık.
+            hint = E("col");
             hint.style.alignSelf = Align.Center;
-            hint.style.marginTop = 90;
-            hint.style.width = Length.Percent(84);
-            hint.style.paddingTop = 18;
-            var handBox = E();
-            handBox.style.height = 150;
-            hintHand = new Icon(IconKind.Hand, 120, new Color32(0xFF, 0xB8, 0x6B, 0xFF));
-            handBox.Add(hintHand);
-            hint.Add(handBox);
-            var hl = L("Geri çek ve bırak!", "heavy");
-            hl.style.fontSize = 58;
-            hint.Add(hl);
-            hintSub = L("", "muted");
-            hintSub.style.fontSize = 32;
+            hint.style.marginTop = 70;
+            hint.style.width = Length.Percent(86);
+            hint.style.paddingTop = 26;
+            hint.style.paddingBottom = 30;
+            hint.style.paddingLeft = hint.style.paddingRight = 24;
+            hint.style.alignItems = Align.Center;
+            hint.style.backgroundColor = new Color(1f, 1f, 1f, 0.42f);
+            hint.style.borderTopColor = hint.style.borderBottomColor = hint.style.borderLeftColor = hint.style.borderRightColor = new Color(1f, 1f, 1f, 0.85f);
+            hint.style.borderTopWidth = hint.style.borderBottomWidth = hint.style.borderLeftWidth = hint.style.borderRightWidth = 4;
+            hint.style.borderTopLeftRadius = hint.style.borderTopRightRadius = hint.style.borderBottomLeftRadius = hint.style.borderBottomRightRadius = 44;
+            hintHand = new VisualElement();   // eski parmak ikonu (artık gösterilmiyor)
+            var hl1 = L("PULL BACK", "heavy");
+            var hl2 = L("& RELEASE!", "heavy");
+            foreach (var (l, c) in new[] { (hl1, (Color)new Color32(0xFF, 0xD2, 0x3F, 0xFF)), (hl2, (Color)new Color32(0xFF, 0x7E, 0x4A, 0xFF)) })
+            {
+                l.style.fontSize = 112;
+                l.style.color = c;
+                l.style.unityTextOutlineWidth = 9;
+                l.style.unityTextOutlineColor = (Color)new Color32(0x4A, 0x24, 0x48, 0xFF);
+                l.style.marginTop = -18;
+                l.style.marginBottom = -18;
+                hint.Add(l);
+            }
+            hintSub = L("", "heavy");
+            hintSub.style.fontSize = 34;
+            hintSub.style.color = (Color)new Color32(0x2B, 0x23, 0x40, 0xFF);
+            hintSub.style.marginTop = 22;
             hintSub.style.unityTextAlign = TextAnchor.MiddleCenter;
             hint.Add(hintSub);
             p.Add(hint);
@@ -1435,7 +3628,7 @@ namespace SledSurfers
             power.style.marginTop = 70;
             power.style.alignSelf = Align.Center;
             power.style.width = Length.Percent(70);
-            powerLabel = L("GÜÇ %0", "outlined");
+            powerLabel = L("POWER 0%", "outlined");
             powerLabel.style.fontSize = 72;
             power.Add(powerLabel);
             powerBar = new TrackBar();
@@ -1444,60 +3637,151 @@ namespace SledSurfers
             p.Add(power);
 
             p.Add(E("grow"));
-            var back = B(() => OpenHub?.Invoke(), "btn", "btn-blue", "btn-mid");
-            back.text = "GERİ";
-            back.style.width = 340;
-            back.style.alignSelf = Align.Center;
-            back.style.marginBottom = 20;
+            var back = B(() => OpenHub?.Invoke(), "btn", "kit-round", "kit-back");
+            back.name = "aim-back";
+            back.style.alignSelf = Align.FlexStart;
+            back.style.marginLeft = 24;
+            back.style.marginBottom = 30;
             p.Add(back);
         }
 
         void TickAim(in HudInfo h)
         {
             string text = h.tiltMode
-                ? "Yana çekersen ters yöne fırlarsın.\nBardak: telefonu eğerek dengede tut."
-                : "Yana çekersen ters yöne fırlarsın.\nBoşluk + ←/→ da olur · Bardak: I J K L";
+                ? "Pull sideways to launch the other way.\nCup: tilt the phone to keep it level."
+                : h.mobileControls ? "Pull sideways to launch the other way.\nCup balance assist is on for this device."
+                : "Pull sideways to launch the other way.\nSpace + ←/→ also works · Cup: I J K L";
             if (hintSub.text != text) hintSub.text = text;
 
             bool pulling = h.pull > 0.01f;
             hint.style.opacity = Mathf.MoveTowards(hint.resolvedStyle.opacity, pulling ? 0f : 1f, 0.15f);
-            float cycle = (time % 1.4f) / 1.4f;
-            float down = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(cycle / 0.7f));
-            hintHand.style.translate = new Translate(0f, 70f * down - 10f);
-            hintHand.style.opacity = cycle < 0.85f ? 1f : 1f - (cycle - 0.85f) / 0.15f;
+            aimArrows.power = h.pull;
+            aimArrows.aim = h.aimAngle;
+            aimArrows.time = time;
+            aimArrows.MarkDirtyRepaint();
 
             power.style.display = pulling ? DisplayStyle.Flex : DisplayStyle.None;
             if (pulling)
             {
-                powerLabel.text = "GÜÇ %" + Mathf.RoundToInt(h.pull * 100f);
+                // Tam gerilince kısa bir an "RELEASE!": o anda bırakmak mükemmel atış (lastik %6 güçlü).
+                powerLabel.text = h.perfectWindow ? "RELEASE!" : "POWER " + Mathf.RoundToInt(h.pull * 100f) + "%";
                 powerBar.Set(h.pull, 0f);
-                powerBar.fill.style.backgroundColor = Color.Lerp(new Color32(0xFF, 0xC9, 0x3C, 0xFF), new Color32(0xFF, 0x4D, 0x3D, 0xFF), h.pull);
-                float s = 1f + 0.04f * h.pull * Mathf.Sin(time * 40f);
+                powerBar.fill.style.backgroundColor = h.perfectWindow ? (Color)new Color32(0x3F, 0xD1, 0x5B, 0xFF)
+                    : Color.Lerp(new Color32(0xFF, 0xC9, 0x3C, 0xFF), new Color32(0xFF, 0x4D, 0x3D, 0xFF), h.pull);
+                float s = h.perfectWindow ? 1.18f + 0.06f * Mathf.Sin(time * 30f) : 1f + 0.04f * h.pull * Mathf.Sin(time * 40f);
                 powerLabel.style.scale = new Scale(new Vector2(s, s));
             }
         }
 
         // ================================================================ koşu
 
+        /// Hız çizgileri (videodaki gibi): ekranın alt ve yan kenarlarından merkeze doğru akan ince beyaz çizgiler.
+        /// Yoğunluk hızla artar; fırlatma anında kısa bir patlama.
+        class SpeedLines : VisualElement
+        {
+            struct Streak { public float angle, offset, speed, length, width; }
+            readonly Streak[] streaks = new Streak[38];
+            readonly System.Random rnd = new System.Random(7);
+            public float intensity;
+            float clock;
+
+            public SpeedLines()
+            {
+                pickingMode = PickingMode.Ignore;
+                style.position = Position.Absolute;
+                style.left = style.right = style.top = style.bottom = 0;
+                for (int i = 0; i < streaks.Length; i++) Respawn(ref streaks[i], (float)rnd.NextDouble());
+                generateVisualContent += Draw;
+            }
+
+            void Respawn(ref Streak s, float offset)
+            {
+                // Çoğunluk altta (kızağın iki yanından), birkaçı yanlarda
+                float a = (float)rnd.NextDouble();
+                s.angle = a < 0.7f ? Mathf.Lerp(200f, 340f, (float)rnd.NextDouble()) : (a < 0.85f ? Mathf.Lerp(160f, 200f, (float)rnd.NextDouble())
+                                                                                                    : Mathf.Lerp(-20f, 20f, (float)rnd.NextDouble()));
+                s.offset = offset;
+                s.speed = 0.8f + (float)rnd.NextDouble() * 0.9f;
+                s.length = 0.08f + (float)rnd.NextDouble() * 0.14f;
+                s.width = 2f + (float)rnd.NextDouble() * 3f;
+            }
+
+            public void Tick(float dt)
+            {
+                clock += dt;
+                if (intensity <= 0.01f) { style.display = DisplayStyle.None; return; }
+                style.display = DisplayStyle.Flex;
+                for (int i = 0; i < streaks.Length; i++)
+                {
+                    streaks[i].offset += dt * streaks[i].speed * (0.6f + intensity);
+                    if (streaks[i].offset > 1f) Respawn(ref streaks[i], 0f);
+                }
+                MarkDirtyRepaint();
+            }
+
+            void Draw(MeshGenerationContext ctx)
+            {
+                var r = contentRect;
+                if (r.width <= 0f) return;
+                var c = new Vector2(r.width * 0.5f, r.height * 0.42f);
+                float reach = Mathf.Max(r.width, r.height) * 0.75f;
+                var p = ctx.painter2D;
+                p.lineCap = LineCap.Round;
+                int shown = Mathf.RoundToInt(streaks.Length * Mathf.Clamp01(intensity));
+                for (int i = 0; i < shown; i++)
+                {
+                    var s = streaks[i];
+                    var dir = new Vector2(Mathf.Cos(s.angle * Mathf.Deg2Rad), -Mathf.Sin(s.angle * Mathf.Deg2Rad));
+                    // İçeriden dışarı akar (kamera ileri gidiyor): merkezden 0.35..1.1 uzaklık arasında
+                    float d0 = Mathf.Lerp(0.35f, 1.1f, s.offset), d1 = d0 + s.length;
+                    float fade = Mathf.Sin(s.offset * Mathf.PI) * intensity;
+                    p.strokeColor = new Color(1f, 1f, 1f, 0.55f * fade);
+                    p.lineWidth = s.width;
+                    p.BeginPath();
+                    p.MoveTo(c + dir * reach * d0);
+                    p.LineTo(c + dir * reach * d1);
+                    p.Stroke();
+                }
+            }
+        }
+
+        SpeedLines speedLines;
+
         void BuildRun()
         {
             var p = NewPage(Page.Run);
+            speedLines = new SpeedLines();
+            p.Add(speedLines);
 
             runColumn = new ProgressColumn();
             p.Add(runColumn.root);
 
-            distLabel = L("0 m", "outlined");
-            distLabel.style.fontSize = 140;
-            distLabel.style.unityTextAlign = TextAnchor.MiddleCenter;
-            distLabel.style.marginTop = -6;
-            p.Add(distLabel);
+            var pause = PauseButton();
+            pause.style.position = Position.Absolute;
+            pause.style.right = 36;
+            pause.style.top = 36;
+            p.Add(pause);
+            // Kötü atışta durmayı beklemeden yeniden (kullanıcı 2026-10-19): yeni atış bir hak harcar.
+            // Yuvarlak, yazısız yeniden dene (kullanıcı 2026-10-24); ortak setin mor düğme ailesinde
+            var again = B(() => RetryRun?.Invoke(), "btn", "kit-round", "kit-retry");
+            again.name = "run-retry";
+            again.style.width = again.style.height = 104;
+            again.style.position = Position.Absolute;
+            again.style.right = 36;
+            again.style.top = 152;
+            p.Add(again);
 
+            // Sol üst köşe (kullanıcı isteği): toplanan coin ve elmas; gidilen mesafe onların altında, ortada.
+            var runCorner = E("col");
+            runCorner.style.position = Position.Absolute;
+            runCorner.style.left = 36;
+            runCorner.style.top = 36;
+            runCorner.style.alignItems = Align.FlexStart;
+            runCorner.pickingMode = PickingMode.Ignore;
+            p.Add(runCorner);
 
-            // Toplanan coin/elmas (sol üstte, ilerleme çubuğunun altında)
             runLoot = E("row");
-            runLoot.style.position = Position.Absolute;
-            runLoot.style.left = 36;
-            runLoot.style.top = 230;
+            runLoot.style.transformOrigin = new TransformOrigin(0, Length.Percent(50));
             var coinBox = E("pill");
             coinBox.style.height = 72;
             coinBox.Add(new Icon(IconKind.Coin, 52));
@@ -1513,22 +3797,46 @@ namespace SledSurfers
             runGemLabel.style.fontSize = 38;
             runGemBox.Add(runGemLabel);
             runLoot.Add(runGemBox);
-            p.Add(runLoot);
+            runCorner.Add(runLoot);
 
-            airLabel = L("HAVADA!", "outlined");
-            airLabel.style.fontSize = 96;
+            distLabel = L("0 m", "outlined");
+            distLabel.style.fontSize = 120;
+            distLabel.style.unityTextAlign = TextAnchor.MiddleCenter;
+            distLabel.style.marginTop = 96;   // coin/elmas satırının altında
+            distLabel.pickingMode = PickingMode.Ignore;
+            p.Add(distLabel);
+
+            airLabel = L("AIRBORNE!", "outlined");
+            airLabel.style.fontSize = 76;
             airLabel.style.color = Gold;
             airLabel.style.unityTextAlign = TextAnchor.MiddleCenter;
             airLabel.style.marginTop = 40;
             p.Add(airLabel);
 
-            toastLabel = L("KAPAK AÇILDI!", "outlined");
+            wingLabel = L("", "outlined", "wing-status");
+            wingLabel.style.display = DisplayStyle.None;
+            p.Add(wingLabel);
+
+            toastLabel = L("LID OFF!", "outlined");
             toastLabel.style.fontSize = 84;
             toastLabel.style.color = (Color)new Color32(0xFF, 0xB3, 0x4A, 0xFF);
             toastLabel.style.unityTextAlign = TextAnchor.MiddleCenter;
             toastLabel.style.marginTop = 10;
             toastLabel.style.display = DisplayStyle.None;
             p.Add(toastLabel);
+
+            // Arkadan gelen tehlike (kovalayan taş): kırmızı hap içinde canlı mesafe
+            threatLabel = L("", "outlined");
+            threatLabel.style.alignSelf = Align.Center;
+            threatLabel.style.fontSize = 54;
+            threatLabel.style.color = Color.white;
+            threatLabel.style.paddingLeft = threatLabel.style.paddingRight = 30;
+            threatLabel.style.paddingTop = threatLabel.style.paddingBottom = 6;
+            threatLabel.style.marginTop = 6;
+            threatLabel.style.borderTopLeftRadius = threatLabel.style.borderTopRightRadius = 30;
+            threatLabel.style.borderBottomLeftRadius = threatLabel.style.borderBottomRightRadius = 30;
+            threatLabel.style.display = DisplayStyle.None;
+            p.Add(threatLabel);
 
             p.Add(E("grow"));
 
@@ -1546,12 +3854,29 @@ namespace SledSurfers
             gaugeBox.Add(gauge);
             speedLabel = L("0", "gauge-speed");
             gaugeBox.Add(speedLabel);
-            var unit = L("km/sa", "gauge-unit");
+            var unit = L("km/h", "gauge-unit");
             gaugeBox.Add(unit);
+            // Roket düğmesi (kullanıcı kararı 2026-10-11: yeri aynı, görünüşü yenilendi): mavi cam balon, içinde roket;
+            // hazırken çevresinde ışık halkası, yanarken alev rengi yakıt aşağı iner.
+            rocketGlow = E("rocket-glow");
+            rocketGlow.style.backgroundImage = new StyleBackground(Radial());
+            rocketGlow.pickingMode = PickingMode.Ignore;
+            gaugeBox.Add(rocketGlow);
             rocketBtn = B(() => FireRocket?.Invoke(), "btn", "rocket-btn");
+            rocketBtn.style.backgroundImage = new StyleBackground(VGrad(new Color32(0x8F, 0xD8, 0xFF, 0xFF), new Color32(0x2F, 0x86, 0xE8, 0xFF)));
             rocketFill = E("rocket-fill");
+            rocketFill.style.backgroundImage = new StyleBackground(VGrad(new Color32(0xFF, 0xD0, 0x3A, 0xFF), new Color32(0xFF, 0x5A, 0x1A, 0xFF)));
             rocketBtn.Add(rocketFill);
-            rocketBtn.Add(new Icon(IconKind.Flame, 92));
+            var rocketGloss = E("rocket-gloss");
+            rocketGloss.pickingMode = PickingMode.Ignore;
+            rocketBtn.Add(rocketGloss);
+            // Gemini örneğindeki gibi: balonun içinde roket ve altında BOOST yazısı.
+            var rocketIcon = new Icon(IconKind.Rocket, 92);
+            rocketIcon.style.marginTop = -22;
+            rocketBtn.Add(rocketIcon);
+            rocketLabel = L("BOOST", "rocket-label");
+            rocketLabel.pickingMode = PickingMode.Ignore;
+            rocketBtn.Add(rocketLabel);
             rocketCount = L("", "rocket-count");
             rocketBtn.Add(rocketCount);
             gaugeBox.Add(rocketBtn);
@@ -1565,7 +3890,7 @@ namespace SledSurfers
             if (h.distance != shownDist)
             {
                 shownDist = h.distance;
-                distLabel.text = h.distance + " m";
+                distLabel.text = TrackLibrary.Show(h.distance) + " m";
             }
             int kmh = Mathf.RoundToInt(h.speedKmh);
             if (kmh != shownSpeed)
@@ -1578,12 +3903,13 @@ namespace SledSurfers
             if (h.airborne && !wasAirborne)
             {
                 airClock = 0f;
-                airLabel.text = h.canGlide ? "SÜZÜL!" : "HAVADA!";
+                airLabel.text = h.canGlide ? "GLIDE!" : "AIRBORNE!";
                 airLabel.style.display = DisplayStyle.Flex;
             }
             wasAirborne = h.airborne;
             if (h.airborne)
             {
+                airLabel.text = h.hasWings ? h.canGlide ? "GLIDING" : "DESCENDING" : "AIRBORNE!";
                 airClock += dt;
                 float t = Mathf.Clamp01(airClock / 0.35f);
                 float s = EaseOutBack(t) * (1f + 0.04f * Mathf.Sin(time * 9f));
@@ -1591,6 +3917,15 @@ namespace SledSurfers
                 airLabel.style.rotate = new Rotate(Angle.Degrees(-4f + 3f * Mathf.Sin(time * 5f)));
             }
             else airLabel.style.display = DisplayStyle.None;
+
+            wingLabel.style.display = h.airborne && h.hasWings ? DisplayStyle.Flex : DisplayStyle.None;
+            if (h.airborne && h.hasWings)
+            {
+                wingLabel.text = h.wingSecondsLeft > 0f
+                    ? "FULL LIFT  " + h.wingSecondsLeft.ToString("0.0", Tr) + " s"
+                    : "LIFT REDUCED · AIM FOR A SAFE LANDING";
+                wingLabel.style.color = h.wingSecondsLeft > 2f ? Color.white : Gold;
+            }
 
             if (toastClock >= 0f)
             {
@@ -1613,7 +3948,6 @@ namespace SledSurfers
                 runCoinLabel.text = h.runCoins.ToString();
                 runGemLabel.text = h.runGems.ToString();
             }
-            runGemBox.style.display = h.runGems > 0 ? DisplayStyle.Flex : DisplayStyle.None;
             lootBump = Mathf.MoveTowards(lootBump, 0f, dt * 4f);
             float lb = 1f + 0.22f * Mathf.Sin(lootBump * Mathf.PI) * lootBump;
             runLoot.style.scale = new Scale(new Vector2(lb, lb));
@@ -1625,25 +3959,35 @@ namespace SledSurfers
             if (h.hasRocket)
             {
                 bool firing = h.rocketFuel > 0f;
+                rocketLabel.text = h.rocketNeedsLanding ? "LAND FIRST" : firing ? "BOOSTING" : h.rocketReady ? "BOOST" : h.rocketCharges > 0 ? "WAIT" : "EMPTY";
+                rocketLabel.style.fontSize = h.rocketNeedsLanding || firing ? 27 : 34;
+                rocketBtn.SetEnabled(h.rocketReady);
                 rocketFill.style.height = Length.Percent(firing ? h.rocketFuel * 100f : h.rocketReady ? 100f : 0f);
-                rocketBtn.style.opacity = h.rocketReady || firing ? 1f : 0.45f;
+                rocketBtn.style.opacity = h.rocketReady || firing ? 1f : 0.5f;
+                rocketGlow.style.opacity = h.rocketReady ? 0.55f + 0.35f * Mathf.Sin(time * 6f) : 0f;
+                rocketGlow.style.rotate = new Rotate(time * 30f);
                 rocketCount.text = h.rocketCharges > 1 ? "x" + h.rocketCharges : "";
                 float pulse = h.rocketReady ? 1f + 0.05f * Mathf.Sin(time * 6f) : 1f;
                 rocketBtn.style.scale = new Scale(new Vector2(pulse, pulse));
             }
 
-            bool tut = h.runTime < 3.5f && !debugHideTutorial;
+            // Aşamalı öğretim: ilgili an gelince tek ipucu (GameController.ShowHint), birkaç saniye görünür.
+            hintTime -= dt;
+            bool tut = hintTime > 0f && !debugHideTutorial;
             tutorial.style.display = tut ? DisplayStyle.Flex : DisplayStyle.None;
-            if (tut && tutorial.childCount == 0)
-            {
-                tutorial.Add(TutorialRow(IconKind.Swap, h.tiltMode ? "Sağa-sola sürükle: yön" : "A / D: yön · W / S: burun"));
-                tutorial.Add(TutorialRow(IconKind.Glass, h.tiltMode ? "Telefonu eğ: bardak dengesi" : "I J K L: bardak dengesi"));
-                if (h.hasRocket)
-                    tutorial.Add(TutorialRow(IconKind.Rocket, h.tiltMode ? "Roket butonu: kısa itiş" : "R: roketi ateşle"));
-                tutorial.Query<VisualElement>().ForEach(e => e.pickingMode = PickingMode.Ignore);
-            }
-            if (tut) tutorial.style.opacity = Mathf.Clamp01((3.5f - h.runTime) / 0.4f);
+            if (tut) tutorial.style.opacity = Mathf.Clamp01(hintTime / 0.4f);
         }
+
+        /// Koşuda tek satırlık ipucu kartı (aşamalı öğretim).
+        public void ShowHint(IconKind icon, string text, float seconds = 3.2f)
+        {
+            tutorial.Clear();
+            tutorial.Add(TutorialRow(icon, text));
+            tutorial.Query<VisualElement>().ForEach(e => e.pickingMode = PickingMode.Ignore);
+            hintTime = seconds;
+        }
+
+        public void HideHint() => hintTime = 0f;
 
         VisualElement TutorialRow(IconKind kind, string text)
         {
@@ -1663,6 +4007,8 @@ namespace SledSurfers
         {
             var hud = E("fill");
             glassFrame = E("glass-frame");
+            glassFrame.Add(E("glass-outline"));
+            glassFrame.Add(E("glass-gloss"));
             hud.Add(glassFrame);
 
             milkPill = E("milk-pill");
@@ -1673,13 +4019,17 @@ namespace SledSurfers
             lidIcon = new Icon(IconKind.Lock, 46, (Color)new Color32(0xE0, 0x7A, 0x10, 0xFF));
             lidIcon.style.marginLeft = 4;
             milkPill.Add(lidIcon);
-            milkLabel = L("SÜT %100");
+            milkLabel = L("MILK 100%");
             milkPill.Add(milkLabel);
             hud.Add(milkPill);
+            // Sağlam el çarpanı: bardak çerçevesinin sağ üst köşesinde altın rozet (hap dar, etikete sığmıyordu).
+            multBadge = L("x1.05", "outlined", "mult-badge");
+            multBadge.style.display = DisplayStyle.None;
+            hud.Add(multBadge);
             return hud;
         }
 
-        void UpdateGlass(in HudInfo h)
+        void UpdateGlass(float dt, in HudInfo h)
         {
             float W = root.layout.width, H = root.layout.height;
             if (!(W > 0f) || !(H > 0f)) return;
@@ -1691,16 +4041,33 @@ namespace SledSurfers
             glassFrame.style.width = width + 2f * b;
             glassFrame.style.height = height + 2f * b;
 
-            milkPill.style.left = left - b;
-            milkPill.style.width = width + 2f * b;
-            milkPill.style.top = top - b - 84f;
+            // Hap çerçevenin üst kenarına sekme gibi oturur (ayrı yüzen hap yerine).
+            milkPill.style.left = left + 6f;
+            milkPill.style.width = width - 12f;
+            milkPill.style.top = top - b - 48f;
 
             float fill = Mathf.Clamp01(h.fill);
             int pct = Mathf.RoundToInt(fill * 100f);
             bool lid = h.lidLeft > 0f;
             lidIcon.style.display = lid ? DisplayStyle.Flex : DisplayStyle.None;
             milkIcon.style.display = lid ? DisplayStyle.None : DisplayStyle.Flex;
-            string text = lid ? "KAPAK " + Mathf.CeilToInt(h.lidLeft) + " m" : "SÜT %" + pct;
+            // Sağlam el çarpanı x1.1 ve üstünde etikette görünür; arttığında hap altın renkte parlar, bozulunca söner.
+            float mult = Mathf.Max(1f, h.milkMult);
+            if (Mathf.Abs(mult - shownMult) > 0.001f) { multFlash = mult > shownMult ? 1f : 0f; shownMult = mult; }
+            multFlash = Mathf.MoveTowards(multFlash, 0f, dt * 2f);
+            string text = lid ? "LID " + TrackLibrary.Show(h.lidLeft) + " m" : "MILK " + pct + "%";
+            bool showMult = !lid && mult > 1.001f;
+            multBadge.style.display = showMult ? DisplayStyle.Flex : DisplayStyle.None;
+            if (showMult)
+            {
+                string mt = "x" + mult.ToString("0.00", Tr);
+                if (multBadge.text != mt) multBadge.text = mt;
+                multBadge.style.left = left + width - 140f;
+                multBadge.style.top = top - b - 48f - 72f;
+                float bs = 1f + 0.35f * multFlash;
+                multBadge.style.scale = new Scale(new Vector2(bs, bs));
+                multBadge.style.rotate = new Rotate(-6f);
+            }
             if (milkLabel.text != text) milkLabel.text = text;
             if (pct != shownMilk)
             {
@@ -1711,8 +4078,22 @@ namespace SledSurfers
                                                : fill > 0.25f ? (Color)new Color32(0xFF, 0xE0, 0x8A, 0xFF)
                                                : (Color)new Color32(0xFF, 0x9C, 0x8F, 0xFF);
             }
-            float s = fill < 0.3f ? 1f + 0.06f * Mathf.Abs(Mathf.Sin(time * 7f)) : 1f;
+            // Süt ağza yaklaşınca gösterge büyür ve kızarır (dikkat bardağa); güvendeyken sade kalır.
+            float risk = lid ? 0f : Mathf.Max(Mathf.InverseLerp(0.55f, 0.95f, h.milkDanger), fill < 0.3f ? 0.6f : 0f);
+            milkDangerShown = Mathf.MoveTowards(milkDangerShown, risk, dt * 6f);
+            milkPill.style.opacity = 1f;
+            glassFrame.style.opacity = 1f;
+            // Tehlikede çerçeve kızarır ve nabız gibi atar.
+            float pulse = milkDangerShown * (0.5f + 0.5f * Mathf.Sin(time * 9f));
+            glassFrame.style.borderTopColor = glassFrame.style.borderBottomColor = glassFrame.style.borderLeftColor = glassFrame.style.borderRightColor
+                = Color.Lerp(Color.white, new Color(1f, 0.36f, 0.25f), Mathf.Max(milkDangerShown * 0.6f, pulse));
+            float fs = 1f + 0.03f * pulse;
+            glassFrame.style.scale = new Scale(new Vector2(fs, fs));
+            float s = 1f + 0.12f * milkDangerShown + (fill < 0.3f ? 0.06f * Mathf.Abs(Mathf.Sin(time * 7f)) : 0f);
             milkPill.style.scale = new Scale(new Vector2(s, s));
+            var calm = Color.Lerp(Color.white, new Color(1f, 0.88f, 0.45f), multFlash);
+            milkPill.style.backgroundColor = Color.Lerp(calm, new Color(1f, 0.45f, 0.35f), milkDangerShown);
+            if (multFlash > 0f) milkPill.style.scale = new Scale(Vector2.one * (s + 0.1f * multFlash));
         }
 
         // ================================================================ sonuç
@@ -1770,7 +4151,7 @@ namespace SledSurfers
             resRecord.style.rotate = new Rotate(Angle.Degrees(10f));
             resRecord.style.backgroundColor = (Color)new Color32(0xFF, 0x4D, 0x3D, 0xFF);
             resRecord.style.borderBottomColor = (Color)new Color32(0xC0, 0x2A, 0x1E, 0xFF);
-            resRecord.Add(L("YENİ REKOR!"));
+            resRecord.Add(L("NEW BEST!"));
 
             resDist = L("0 m", "outlined");
             resDist.style.fontSize = 170;
@@ -1784,15 +4165,43 @@ namespace SledSurfers
             var stats = E("row");
             stats.style.marginTop = 30;
             stats.style.alignSelf = Align.Stretch;
-            stats.Add(Stat(IconKind.Glass, "Kalan süt", out resMilk));
-            stats.Add(Sp(Stat(IconKind.Coin, "Kazanç", out resCoins), 22));
+            stats.Add(Stat(IconKind.Glass, "Milk left", out resMilk));
+            stats.Add(Sp(Stat(IconKind.Coin, "Earned", out resCoins), 22));
             resultCard.Add(stats);
+
+            // Süt becerisi: sağlam el ve kıl payı ödülü; bitişte süt notu ve pist süt rekoru (2026-10-28)
+            resMilkGrade = L("", "outlined");
+            resMilkGrade.style.fontSize = 56;
+            resMilkGrade.style.marginTop = 16;
+            resMilkGrade.style.color = (Color)new Color32(0x6E, 0xC8, 0xFF, 0xFF);
+            resultCard.Add(resMilkGrade);
+            resMilkSkill = L("", "heavy");
+            resMilkSkill.style.fontSize = 36;
+            resMilkSkill.style.marginTop = 10;
+            resMilkSkill.style.whiteSpace = WhiteSpace.Normal;
+            resMilkSkill.style.unityTextAlign = TextAnchor.MiddleCenter;
+            resMilkSkill.style.color = (Color)new Color32(0x1E, 0x7F, 0xC9, 0xFF);
+            resultCard.Add(resMilkSkill);
 
             resLoot = L("", "heavy");
             resLoot.style.fontSize = 36;
             resLoot.style.marginTop = 14;
             resLoot.style.color = Muted;
             resultCard.Add(resLoot);
+
+            // Bir sonraki atış için öneri (neden + yapılacak şey)
+            resTip = L("", "heavy");
+            resTip.style.fontSize = 34;
+            resTip.style.marginTop = 16;
+            resTip.style.paddingLeft = resTip.style.paddingRight = 22;
+            resTip.style.paddingTop = resTip.style.paddingBottom = 12;
+            resTip.style.whiteSpace = WhiteSpace.Normal;
+            resTip.style.unityTextAlign = TextAnchor.MiddleCenter;
+            resTip.style.backgroundColor = (Color)new Color32(0xFF, 0xF1, 0xC9, 0xFF);
+            resTip.style.borderTopLeftRadius = resTip.style.borderTopRightRadius = 22;
+            resTip.style.borderBottomLeftRadius = resTip.style.borderBottomRightRadius = 22;
+            resTip.style.color = (Color)new Color32(0x6B, 0x4A, 0x10, 0xFF);
+            resultCard.Add(resTip);
 
             resBonus = L("", "heavy");
             resBonus.style.color = (Color)new Color32(0x22, 0xA0, 0x3C, 0xFF);
@@ -1806,6 +4215,8 @@ namespace SledSurfers
             unlockBox.style.borderBottomColor = (Color)new Color32(0xFF, 0x8F, 0x1F, 0x88);
             unlockBox.Add(new Icon(IconKind.Map, 84, new Color32(0x3F, 0xA4, 0xFF, 0xFF)));
             var unlockCol = E();
+            unlockCol.style.flexShrink = 1;
+            unlockCol.style.flexGrow = 1;
             unlockCol.style.marginLeft = 18;
             unlockTitle = L("", "heavy");
             unlockTitle.style.fontSize = 34;
@@ -1813,10 +4224,28 @@ namespace SledSurfers
             unlockTitle.style.marginBottom = -8;
             unlockCol.Add(unlockTitle);
             unlockName = L("", "heavy");
-            unlockName.style.fontSize = 48;
+            unlockName.style.fontSize = 42;
+            unlockName.style.whiteSpace = WhiteSpace.Normal;
             unlockCol.Add(unlockName);
             unlockBox.Add(unlockCol);
             resultCard.Add(unlockBox);
+            unlockProgression = L("Prepare a new vehicle on the next track. Your parts and gems carry over.\nYour previous coins and upgrades are saved — revisit them from Tracks.", "progression-note");
+            resultCard.Add(unlockProgression);
+
+            // Kullanıcı isteği: kazanç reklamla 3 katına çıkarılabilir (sandıktaki gibi test reklamı).
+            resTriple = B(() => ShowAd(() =>
+            {
+                coinFrom = result.earned;
+                result.earned *= 3;
+                coinStart = resultClock;
+                resTriple.style.display = DisplayStyle.None;
+                TripleEarnings?.Invoke();
+            }), "btn", "btn-orange", "btn-big");
+            resTriple.style.alignSelf = Align.Stretch;
+            resTriple.style.marginTop = 30;
+            resTriple.Add(new Icon(IconKind.Video, 64));
+            resTriple.Add(Sp(L("TRIPLE EARNINGS"), 14));
+            resultCard.Add(resTriple);
 
             var go = B(() =>
             {
@@ -1824,10 +4253,11 @@ namespace SledSurfers
                 else OpenHub?.Invoke();
             }, "btn", "btn-green", "btn-big");
             go.style.alignSelf = Align.Stretch;
-            go.style.marginTop = 36;
+            go.style.marginTop = 22;
             goIcon = new Icon(IconKind.Play, 60);
             go.Add(goIcon);
-            goLabel = Sp(L("DEVAM"), 16);
+            goLabel = Sp(L("CONTINUE"), 16);
+            go.name = "menu-result-continue";
             go.Add(goLabel);
             resultCard.Add(go);
 
@@ -1835,7 +4265,7 @@ namespace SledSurfers
             retry.style.alignSelf = Align.Stretch;
             retry.style.marginTop = 22;
             retry.Add(new Icon(IconKind.Play, 50, Ink));
-            retry.Add(Sp(L("Hemen tekrar fırlat"), 12));
+            retry.Add(Sp(L("Launch again"), 12));
             resultCard.Add(retry);
 
             resultCard.Add(resRecord);
@@ -1878,10 +4308,15 @@ namespace SledSurfers
             }
             float t = Mathf.Clamp01((resultClock - 0.25f) / 0.9f);
             float e = 1f - (1f - t) * (1f - t) * (1f - t);
-            resDist.text = Mathf.RoundToInt(result.distance * e) + " m";
+            resDist.text = TrackLibrary.Show(result.distance * e) + " m";
             resBar.Set(result.progress * e, result.bestProgress);
-            float tc = Mathf.Clamp01((resultClock - 0.6f) / 0.8f);
-            resCoins.text = "+" + Mathf.RoundToInt(result.earned * (1f - (1f - tc) * (1f - tc)));
+            float tc = Mathf.Clamp01((resultClock - coinStart) / 0.8f);
+            resCoins.text = "+" + Mathf.RoundToInt(Mathf.Lerp(coinFrom, result.earned, 1f - (1f - tc) * (1f - tc)));
+            if (resTriple.style.display.value == DisplayStyle.Flex)
+            {
+                float pulse = 1f + 0.04f * Mathf.Sin(time * 5f);
+                resTriple.style.scale = new Scale(new Vector2(pulse, pulse));
+            }
 
             if (result.record)
             {
@@ -1904,6 +4339,154 @@ namespace SledSurfers
             return pill;
         }
 
+        /// Fırlatma hakkı göstergesi: "7/8" ve doluyorsa altında kalan süre.
+        VisualElement LaunchPill()
+        {
+            var pill = E("pill", "pill-launch");
+            pill.Add(new Icon(IconKind.Slingshot, 60));
+            var col = E("col");
+            var l = L(SaveData.MaxLaunches + "/" + SaveData.MaxLaunches);
+            l.AddToClassList("launch-count");
+            col.Add(l);
+            var timer = L("");
+            timer.AddToClassList("launch-timer");
+            col.Add(timer);
+            pill.Add(col);
+            launchLabels.Add(l);
+            launchTimers.Add(timer);
+            return pill;
+        }
+
+        static string Clock(int seconds) => (seconds / 60).ToString("00") + ":" + (seconds % 60).ToString("00");
+
+        void UpdateLaunches(in HudInfo h)
+        {
+            int key = h.freeLaunches ? -2 : h.launches;
+            if (key != shownLaunches)
+            {
+                shownLaunches = key;
+                foreach (var l in launchLabels) l.text = h.freeLaunches ? "∞" : h.launches + "/" + SaveData.MaxLaunches;
+                if (launchModalCount != null) launchModalCount.text = h.launches + "/" + SaveData.MaxLaunches;
+                // Hak geldiyse pencere kendiliğinden kapanır.
+                if (h.launches > 0 && launchModal != null && launchModal.style.display.value == DisplayStyle.Flex) HideNoLaunches();
+            }
+            int secs = h.freeLaunches ? 0 : h.launchSeconds;
+            if (secs != shownLaunchSeconds)
+            {
+                shownLaunchSeconds = secs;
+                string t = secs > 0 ? Clock(secs) : "";
+                foreach (var l in launchTimers)
+                {
+                    l.text = t;
+                    l.style.display = secs > 0 ? DisplayStyle.Flex : DisplayStyle.None;
+                }
+                if (launchModalTimer != null) launchModalTimer.text = "Next launch: " + (h.launchSeconds > 0 ? Clock(h.launchSeconds) : "ready");
+            }
+        }
+
+        /// Fırlatma hakkı bitti penceresi: bekle ya da reklam izle (+1 hak).
+        void BuildNoLaunches()
+        {
+            launchModal = E("fill", "dim", "center", "pick");
+            launchModal.style.display = DisplayStyle.None;
+            launchCard = E("card", "card-cream", "col", "pop", "off");
+            launchCard.style.width = Length.Percent(84);
+            launchCard.style.paddingTop = 0;
+            launchCard.style.paddingLeft = launchCard.style.paddingRight = 40;
+            launchCard.style.paddingBottom = 40;
+
+            var ribbon = E("ribbon");
+            ribbon.style.marginTop = -50;
+            ribbon.style.height = 104;
+            var title = L("LAUNCHES");
+            title.style.fontSize = 50;
+            ribbon.Add(title);
+            launchCard.Add(ribbon);
+
+            var big = new Icon(IconKind.Slingshot, 200, Ink);
+            big.style.marginTop = 24;
+            launchCard.Add(big);
+            launchModalCount = L("0/" + SaveData.MaxLaunches, "outlined");
+            launchModalCount.style.fontSize = 96;
+            launchCard.Add(launchModalCount);
+            var info = L("Out of launches! One refills every 25 minutes.", "heavy");
+            info.style.fontSize = 34;
+            info.style.color = Muted;
+            info.style.whiteSpace = WhiteSpace.Normal;
+            info.style.unityTextAlign = TextAnchor.MiddleCenter;
+            launchCard.Add(info);
+            launchModalTimer = L("Next launch: 25:00", "heavy");
+            launchModalTimer.style.fontSize = 44;
+            launchModalTimer.style.marginTop = 10;
+            launchCard.Add(launchModalTimer);
+
+            var watch = B(() => ShowAd(() => { WatchLaunchAd?.Invoke(); HideNoLaunches(); }), "btn", "btn-orange", "btn-big");
+            watch.style.alignSelf = Align.Stretch;
+            watch.style.marginTop = 30;
+            watch.Add(new Icon(IconKind.Video, 70));
+            // Tek satır (kullanıcı 2026-10-30: büyük düğme yazısı iki satıra bölünüp düğmeden taşıyordu).
+            var watchText = L("WATCH · +1 LAUNCH");
+            watchText.style.fontSize = 50;
+            watchText.style.whiteSpace = WhiteSpace.NoWrap;
+            watch.Add(Sp(watchText, 16));
+            launchCard.Add(watch);
+
+            var ok = B(HideNoLaunches, "btn", "btn-green", "btn-mid");
+            ok.name = "menu-launches-close";
+            ok.text = "OK";
+            ok.style.alignSelf = Align.Stretch;
+            ok.style.marginTop = 22;
+            launchCard.Add(ok);
+
+            launchModal.Add(launchCard);
+            safe.Add(launchModal);
+        }
+
+        /// screenPos: Unity ekran koordinatı (alt-sol orijin). Baloncuğun kuyruğu bu noktayı gösterir.
+        public void ShowBubble(string text, Vector3 screenPos)
+        {
+            var panel = root.panel;
+            if (panel == null) return;
+            if (bubble.style.display.value == DisplayStyle.None)
+            {
+                bubble.style.display = DisplayStyle.Flex;
+                bubbleAge = 0f;
+            }
+            bubbleText.text = text;
+            var p = RuntimePanelUtils.ScreenToPanel(panel, new Vector2(screenPos.x, Screen.height - screenPos.y));
+            float w = float.IsNaN(bubble.layout.width) ? 0f : bubble.layout.width;
+            float h = float.IsNaN(bubble.layout.height) ? 0f : bubble.layout.height;
+            bubble.style.left = p.x - w * 0.5f;
+            bubble.style.top = p.y - h - 6f;
+            // Açılırken hafif büyüyerek belirir.
+            bubbleAge += Time.unscaledDeltaTime;
+            float k = Mathf.Clamp01(bubbleAge / 0.25f);
+            float s = 0.6f + 0.4f * k + 0.08f * Mathf.Sin(k * Mathf.PI);
+            bubble.style.scale = new Scale(new Vector2(s, s));
+            bubble.style.opacity = k;
+        }
+
+        public void HideBubble()
+        {
+            if (bubble != null && bubble.style.display.value != DisplayStyle.None) bubble.style.display = DisplayStyle.None;
+        }
+
+        /// Test: arayüzün tamamını gizler/gösterir (sahne yakın çekimleri).
+        public void DebugSetVisible(bool visible) => root.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
+
+        public void ShowNoLaunches()
+        {
+            launchModal.style.display = DisplayStyle.Flex;
+            launchCard.AddToClassList("off");
+            launchCard.schedule.Execute(() => launchCard.RemoveFromClassList("off")).StartingIn(30);
+        }
+
+        public void HideNoLaunches()
+        {
+            launchCard.AddToClassList("off");
+            launchModal.schedule.Execute(() => { launchModal.style.display = DisplayStyle.None; modalClosedAt = Time.unscaledTime; }).StartingIn(180);
+        }
+
         VisualElement GemPill()
         {
             var pill = E("pill");
@@ -1919,7 +4502,7 @@ namespace SledSurfers
         {
             var pill = E("pill");
             pill.Add(new Icon(IconKind.Flag, 58, Color.white));
-            var l = L("En iyi 0 m");
+            var l = L("Best 0 m");
             l.style.fontSize = 38;
             pill.Add(l);
             bestLabels.Add(l);

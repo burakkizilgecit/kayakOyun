@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Beş bardak modelinin görselleri. Kabuk, iç ve dış duvarı, kalın ağzı ve tabanı olan döndürülmüş profil;
     /// süt (çapı d·0.92 olan silindir) her modelde iç duvara sığar. Süslemeler (kulp, bantlar, kapak, pipet, ayaklar)
@@ -96,10 +96,25 @@ namespace SledSurfers
                     break;
                 }
             }
+            Shine(deco, shell, h, side, layer);
             return shell;
         }
 
         static Vector2 V(float radius, float y) => new Vector2(radius, y);
+
+        /// Her modelde: ağızda ince parlak halka ve kameraya bakan yanda dikey parlama şeridi (cam okunsun).
+        static void Shine(Transform deco, Mesh shell, float h, float side, int layer)
+        {
+            float top = shell.bounds.extents.x;
+            var glint = Mats.Glow(Color.white, new Color(0.75f, 0.78f, 0.8f), 0.95f);
+            Band(deco, top * 0.985f, h * 0.975f, h * 1.005f, top * 0.05f, glint, layer);
+            // Parlama: kamera arkadan-üstten ve tutulan yanın biraz dışından bakar; şerit arka yüzde, tutulan yana yakın.
+            float a = Mathf.Deg2Rad * (180f + 38f * side);
+            var dir = new Vector3(Mathf.Sin(a), 0f, Mathf.Cos(a));
+            var go = Mats.Prim(PrimitiveType.Cube, "Glint", deco, dir * (top * 0.93f) + Vector3.up * h * 0.55f,
+                               new Vector3(top * 0.14f, h * 0.5f, top * 0.02f), glint, Quaternion.LookRotation(dir), layer);
+            go.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        }
 
         /// Dış profil (aşağıdan yukarı) + duvar kalınlığı → dış duvar, yuvarlatılmamış ağız, iç duvar ve iç taban.
         static Mesh Shell(Vector2[] outer, float wall, float bottom)

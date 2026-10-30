@@ -2,7 +2,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace SledSurfers.EditorTools
+namespace SlingRiders.EditorTools
 {
     /// Arayüzün PanelSettings varlığını oluşturur. Çalışma anında oluşturulan PanelSettings'in
     /// shader referansları build'de boş kalabildiği için varlık editörde üretilip Resources'ta saklanır.
@@ -20,7 +20,7 @@ namespace SledSurfers.EditorTools
             };
         }
 
-        [MenuItem("Sled Surfers/Arayüz Varlıklarını Kur")]
+        [MenuItem("Sling Riders/Arayüz Varlıklarını Kur")]
         public static void Ensure()
         {
             var theme = AssetDatabase.LoadAssetAtPath<ThemeStyleSheet>(ThemePath);

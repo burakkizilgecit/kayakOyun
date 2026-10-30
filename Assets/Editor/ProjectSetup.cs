@@ -5,15 +5,15 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 
-namespace SledSurfers.EditorTools
+namespace SlingRiders.EditorTools
 {
     /// Sahneyi, malzeme şablonlarını ve oyuncu ayarlarını oluşturur.
-    /// Menü: Sled Surfers > Projeyi Kur
+    /// Menü: Sling Riders > Projeyi Kur
     public static class ProjectSetup
     {
         const string ScenePath = "Assets/Scenes/Main.unity";
 
-        [MenuItem("Sled Surfers/Projeyi Kur")]
+        [MenuItem("Sling Riders/Projeyi Kur")]
         public static void Setup()
         {
             Directory.CreateDirectory("Assets/Resources");
@@ -21,8 +21,8 @@ namespace SledSurfers.EditorTools
             CreateMaterials();
             CreateScene();
 
-            PlayerSettings.companyName = "SledSurfers";
-            PlayerSettings.productName = "Sled Surfers";
+            PlayerSettings.companyName = "SlingRiders";
+            PlayerSettings.productName = "Sling Riders";
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
@@ -75,8 +75,8 @@ namespace SledSurfers.EditorTools
         {
             EditorApplication.delayCall += () =>
             {
-                if (Application.isBatchMode || SessionState.GetBool("SledSurfers.Opened", false)) return;
-                SessionState.SetBool("SledSurfers.Opened", true);
+                if (Application.isBatchMode || SessionState.GetBool("SlingRiders.Opened", false)) return;
+                SessionState.SetBool("SlingRiders.Opened", true);
                 if (string.IsNullOrEmpty(SceneManager.GetActiveScene().path) && File.Exists("Assets/Scenes/Main.unity"))
                     EditorSceneManager.OpenScene("Assets/Scenes/Main.unity");
             };

@@ -1,12 +1,16 @@
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Zemin için döşenebilir (tekrar eden) gri tonlu dokular. Malzeme rengiyle çarpılır: 1 = rengin kendisi,
     /// daha koyu tonlar desen verir. Düz renkli yüzeylere çim, toprak ve taş dokusu katar.
     public static class TextureKit
     {
-        static Texture2D grass, dirt, rock, snow;
+        static Texture2D grass, dirt, rock, snow, macro;
+
+        /// Büyük ölçekli lekeler (detay haritası, 0.5 = etkisiz): geniş zeminde tekdüze düz renk yerine doğal tonlama.
+        public static Texture2D Macro() => macro != null ? macro : macro = Make("Macro", 128, (x, y) =>
+            0.5f + (Noise(x, y, 4, 41) - 0.5f) * 0.2f + (Noise(x, y, 8, 43) - 0.5f) * 0.1f + (Noise(x, y, 16, 47) - 0.5f) * 0.04f);
 
         public static Texture2D Grass() => grass != null ? grass : grass = Make("Grass", 128, (x, y) =>
         {

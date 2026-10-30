@@ -1,11 +1,11 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
-    /// Kızaktaki karakter (Quaternius modeli). Oturma pozu animasyondan bir kez örneklenir;
-    /// her karede o poza dönülür, üstüne gövde eğilmesi ve iki kemikli IK ile kollar eklenir:
-    /// bir el bardağı tutar, öbürü kızağın ipini.
+    /// Kızaktaki karakter (Quaternius ya da Meshy modeli). Oturma pozu animasyondan bir kez örneklenir
+    /// (Meshy modellerinde T-pozdan kurulur); her karede o poza dönülür, üstüne gövde eğilmesi ve iki kemikli
+    /// IK ile kollar eklenir: bir el bardağı tutar, öbürü kızağın ipini.
     public class AvatarRig
     {
         const float SeatedHeight = 0.98f;   // oturur karakterin kızak üstü yüksekliği (m)
@@ -25,6 +25,19 @@ namespace SledSurfers
         readonly Quaternion[] footRotInShin = new Quaternion[2];
         Transform[] contact, allBones;
         float seatGap;   // oturma kemiklerinin en alçağı ile gerçek oturma yüzeyi arası (m)
+        AnimationClip arise, cheer, walk;   // Meshy: yerden kalkma, sevinç ve (iskeletle gelen) yürüme klipleri
+        float headTop, headTopScale;  // kafa kemiğinden modelin tepesine (şapka dahil), ölçüldüğü andaki ölçekle
+        readonly bool meshy;
+
+        /// Meshy iskeletinin (Mixamo adları) Quaternius karşılıkları.
+        static readonly Dictionary<string, string> MeshyBones = new Dictionary<string, string>
+        {
+            { "Abdomen", "Spine" }, { "Torso", "Spine02" },
+            { "UpperArm.L", "LeftArm" }, { "LowerArm.L", "LeftForeArm" }, { "Fist.L", "LeftHand" },
+            { "UpperArm.R", "RightArm" }, { "LowerArm.R", "RightForeArm" }, { "Fist.R", "RightHand" },
+            { "UpperLeg.L", "LeftUpLeg" }, { "LowerLeg.L", "LeftLeg" }, { "Foot.L", "LeftFoot" },
+            { "UpperLeg.R", "RightUpLeg" }, { "LowerLeg.R", "RightLeg" }, { "Foot.R", "RightFoot" },
+        };
 
         /// Oturur modelin en alt noktası, tutucunun (holder) orijinine göre (dik dururken, aşağı eksi).
         public float BottomOffset { get; private set; }
@@ -50,18 +63,58 @@ namespace SledSurfers
 
             var bones = new Dictionary<string, Transform>();
             foreach (var t in model.GetComponentsInChildren<Transform>(true)) bones[t.name] = t;
-            Transform B(string n) => bones.TryGetValue(n, out var t) ? t : null;
+            Transform B(string n) => bones.TryGetValue(n, out var t) ? t
+                                   : MeshyBones.TryGetValue(n, out var alias) && bones.TryGetValue(alias, out t) ? t : null;
+            meshy = modelName.StartsWith("Meshy/");
+            if (meshy) SetupMeshy(modelName, B);
             hips = B("Hips");
             abdomen = B("Abdomen");
             torso = B("Torso");
             upper[0] = B("UpperArm.L"); lower[0] = B("LowerArm.L"); fist[0] = B("Fist.L");
             upper[1] = B("UpperArm.R"); lower[1] = B("LowerArm.R"); fist[1] = B("Fist.R");
 
-            // Oturma pozu: SitDown animasyonunun son karesi.
-            AnimationClip sit = null;
+            // Ayakta durma (Idle ilk karesi) ve sevinç (Victory ortası) pozları: düşüp kalkma sahnesi için saklanır.
+            AnimationClip sit = null, idle = null, cheer = null;
             foreach (var clip in Resources.LoadAll<AnimationClip>("Avatars/" + modelName))
+            {
                 if (clip.name.Contains("SitDown")) sit = clip;
-            if (sit != null) sit.SampleAnimation(model, sit.length);
+                else if (clip.name.Contains("Idle")) idle = clip;
+                else if (clip.name.Contains("Victory")) cheer = clip;
+            }
+            if (idle != null)
+            {
+                idle.SampleAnimation(model, 0f);
+                foreach (var t in model.GetComponentsInChildren<Transform>(true)) standPose[t] = (t.localRotation, t.localPosition);
+            }
+            if (cheer != null)
+            {
+                cheer.SampleAnimation(model, cheer.length * 0.45f);
+                foreach (var n in new[] { "UpperArm.L", "LowerArm.L", "Fist.L", "UpperArm.R", "LowerArm.R", "Fist.R" })
+                    if (B(n) != null) cheerArms[B(n)] = B(n).localRotation;
+            }
+            if (meshy)
+            {
+                // Ayakta durma: kalkış klibinin son karesi. Sevinç kolları: sevinç klibinin ortası.
+                // Kalkış klibi yoksa (henüz üretilmedi) iskeletle gelen yürüme klibinin ilk karesi ayakta duruş olur.
+                var standClip = arise ?? walk;
+                if (standClip != null)
+                {
+                    standClip.SampleAnimation(model, arise != null ? arise.length : 0f);
+                    foreach (var t in model.GetComponentsInChildren<Transform>(true)) standPose[t] = (t.localRotation, t.localPosition);
+                }
+                if (cheer != null)
+                {
+                    cheer.SampleAnimation(model, cheer.length * 0.5f);
+                    foreach (var n in new[] { "UpperArm.L", "LowerArm.L", "Fist.L", "UpperArm.R", "LowerArm.R", "Fist.R" })
+                        if (B(n) != null) cheerArms[B(n)] = B(n).localRotation;
+                }
+                RestoreBind();
+                // T-pozdan oturuş: kollar yanlara iner (her karede IK ile yeniden kurulur).
+                for (int s = 0; s < 2; s++)
+                    if (upper[s] != null && lower[s] != null)
+                        Aim(upper[s], lower[s].position, -parent.up + parent.forward * 0.3f);
+            }
+            else if (sit != null) sit.SampleAnimation(model, sit.length);
             else Debug.LogWarning("[AVATAR] SitDown animasyonu yok: " + modelName);
 
             // Sandalye oturuşu → kızak oturuşu: bacaklar öne uzanır, dizler hafif kalkık.
@@ -82,7 +135,11 @@ namespace SledSurfers
                 foot.rotation = Quaternion.AngleAxis(-25f, rt) * shin.rotation * footRot;   // ayak uçları yukarı
             }
 
-            foreach (var t in model.GetComponentsInChildren<Transform>(true)) basePose[t] = t.localRotation;
+            foreach (var t in model.GetComponentsInChildren<Transform>(true))
+            {
+                basePose[t] = t.localRotation;
+                basePos[t] = t.localPosition;
+            }
             for (int s = 0; s < 2; s++)
             {
                 thigh[s] = B(s == 0 ? "UpperLeg.L" : "UpperLeg.R");
@@ -98,6 +155,13 @@ namespace SledSurfers
                                                     fist[0], fist[1], thigh[0], thigh[1], shin[0], shin[1], foot[0], foot[1] }, t => t != null);
 
             FitToSled();
+            var headBone = B("Head");
+            if (headBone != null)
+            {
+                // Konuşma baloncuğu için modelin tepesi (şapka, tüy dahil): kafa kemiğinden yukarı uzaklık.
+                headTop = PosedBounds().max.y - parent.InverseTransformPoint(headBone.position).y;
+                headTopScale = holder.lossyScale.y;
+            }
             // Kızakta (doğru oturmuş) iken oturma kemiklerinin güverteye uzaklığı: yerde de aynı payla oturur.
             seatGap = Lowest(contact) - parent.TransformPoint(new Vector3(0f, DeckTop, 0f)).y;
             foreach (var r in model.GetComponentsInChildren<Renderer>()) r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
@@ -262,7 +326,77 @@ namespace SledSurfers
         }
 
         public Transform Hips => hips;
-        public Vector3 HeadTop => head != null ? head.position + holder.up * 0.45f * holder.lossyScale.y / 0.37f : holder.position;
+        public Vector3 HeadTop => head == null ? holder.position
+            : meshy ? head.position + holder.up * headTop * holder.lossyScale.y / Mathf.Max(headTopScale, 1e-4f)
+            : head.position + holder.up * 0.45f * holder.lossyScale.y / 0.37f;
+
+        /// Meshy modeli: iri kafa, kısa kollar (bardak daha alçakta tutulur).
+        public bool Chibi => meshy;
+
+        /// Meshy kalkış klibi var mı ve süresi (s).
+        public bool HasArise => arise != null;
+        public float AriseLength => arise != null ? arise.length : 0f;
+
+        /// Kalkış klibinin t anı (yerde yatıştan ayağa).
+        public void AriseFrame(float t)
+        {
+            ResetPose();
+            arise.SampleAnimation(model, Mathf.Clamp(t, 0f, arise.length));
+            posed = true;
+        }
+
+        /// Ayakta sevinç klibi (döngü). Klip yoksa false: çağıran eski poz yoluna döner.
+        public bool CheerFrame(float t)
+        {
+            if (cheer == null) return false;
+            ResetPose();
+            cheer.SampleAnimation(model, Mathf.Repeat(t, cheer.length));
+            posed = true;
+            return true;
+        }
+
+        /// Meshy modeli: klipler, dokulu malzeme ve yön. Model önü (göğsün baktığı yön) tutucunun +Z'sine çevrilir.
+        void SetupMeshy(string modelName, System.Func<string, Transform> B)
+        {
+            arise = Resources.Load<AnimationClip>("Avatars/" + modelName + "_Arise");
+            cheer = Resources.Load<AnimationClip>("Avatars/" + modelName + "_Cheer");
+            walk = Resources.Load<AnimationClip>("Avatars/" + modelName + "_Walk");
+            if (arise == null || cheer == null) Debug.LogWarning("[AVATAR] Meshy klibi eksik: " + modelName);
+            var tex = Resources.Load<Texture2D>("Avatars/" + modelName + "_tex");
+            foreach (var r in model.GetComponentsInChildren<Renderer>())
+            {
+                var mats = r.sharedMaterials;
+                for (int i = 0; i < mats.Length; i++)
+                {
+                    var m = Mats.Solid(Color.white, 0.12f);
+                    if (tex != null) m.mainTexture = tex;
+                    else if (mats[i] != null && mats[i].mainTexture != null) m.mainTexture = mats[i].mainTexture;
+                    mats[i] = m;
+                }
+                r.sharedMaterials = mats;
+                if (r is SkinnedMeshRenderer smr) smr.updateWhenOffscreen = true;   // kalkarken sınırlar doğru kalsın
+            }
+            var l = B("UpperArm.L");
+            var rr = B("UpperArm.R");
+            if (l != null && rr != null)
+            {
+                Vector3 right = holder.InverseTransformDirection(rr.position - l.position);
+                Vector3 fwd = Vector3.Cross(right, Vector3.up);
+                fwd.y = 0f;
+                if (fwd.sqrMagnitude > 1e-6f)
+                    model.transform.localRotation = Quaternion.FromToRotation(fwd.normalized, Vector3.forward) * model.transform.localRotation;
+            }
+            bind.Clear();
+            foreach (var t in model.GetComponentsInChildren<Transform>(true)) bind[t] = (t.localRotation, t.localPosition);
+        }
+
+        readonly Dictionary<Transform, (Quaternion rot, Vector3 pos)> bind = new Dictionary<Transform, (Quaternion, Vector3)>();
+
+        /// Örnekleme sonrası modeli T-poza (bağlama pozu) döndürür.
+        void RestoreBind()
+        {
+            foreach (var kv in bind) { kv.Key.localRotation = kv.Value.rot; kv.Key.localPosition = kv.Value.pos; }
+        }
 
         static float Lowest(Transform[] bones)
         {
@@ -274,13 +408,91 @@ namespace SledSurfers
         /// Gövdenin en alçak noktası (kemiklerin en alçağı eksi kalınlık payı): yuvarlanırken yere değme.
         public float LowestPoint() => Lowest(allBones) - 0.09f;
 
+        /// Gövdenin zemine en derin girdiği miktar (m; eksi = zeminin üstünde boşluk). Her kemik kendi altındaki zemine göre
+        /// (kalınlık payıyla) ölçülür: yalnız kalçanın altındaki zemine göre oturtunca yamaçta ve tümsekte baş/omuz zemine
+        /// gömülüyordu (kullanıcı 2026-10-24).
+        public float Penetration(System.Func<float, float, float> ground)
+        {
+            float worst = float.MinValue;
+            foreach (var b in allBones)
+            {
+                var p = b.position;
+                worst = Mathf.Max(worst, ground(p.x, p.z) + BodyPad - p.y);
+            }
+            return worst;
+        }
+
+        const float BodyPad = 0.1f;
+
+        /// Kalkıştan sonra kollar başın üstünde birleşmesin: yana-yukarı açık "merhaba" duruşu, bir el hafifçe sallanır
+        /// (kullanıcı 2026-10-24). k 0..1; t: sallanma zamanı. Klip örneklendikten sonra çağrılır.
+        public void OpenArms(float k, float t)
+        {
+            if (k <= 0f || torso == null) return;
+            Vector3 up = holder.up;
+            for (int s = 0; s < 2; s++)
+            {
+                if (upper[s] == null || fist[s] == null) continue;
+                Vector3 shoulder = upper[s].position;
+                Vector3 side = Vector3.ProjectOnPlane(shoulder - torso.position, up);
+                if (side.sqrMagnitude < 1e-6f) continue;
+                side.Normalize();
+                Vector3 now = fist[s].position - shoulder;
+                Vector3 want = (side * 0.85f + up * 0.55f).normalized;
+                // Sağ el selam sallar
+                if (s == 1) want = Quaternion.AngleAxis(14f * Mathf.Sin(t * 9f), holder.forward) * want;
+                var turn = Quaternion.FromToRotation(now.normalized, want);
+                upper[s].rotation = Quaternion.Slerp(Quaternion.identity, turn, k) * upper[s].rotation;
+            }
+        }
+
         /// Oturur dururken gerçek oturma yüzeyi (kızaktaki oturuşla aynı payla).
         public float SeatBottom() => Lowest(contact) - seatGap;
+
+        readonly Dictionary<Transform, (Quaternion rot, Vector3 pos)> standPose = new Dictionary<Transform, (Quaternion, Vector3)>();
+        readonly Dictionary<Transform, Quaternion> cheerArms = new Dictionary<Transform, Quaternion>();
+        readonly Dictionary<Transform, Vector3> basePos = new Dictionary<Transform, Vector3>();
+        bool posed;   // StandPose kemik konumlarını değiştirdi: ResetPose geri alır
+
+        /// Oturma pozundan ayakta durma pozuna geçiş (k 0..1). Ayakta durma pozu yoksa oturma pozunda kalır.
+        public void StandPose(float k)
+        {
+            ResetPose();
+            if (standPose.Count == 0) return;
+            foreach (var kv in standPose)
+            {
+                var t = kv.Key;
+                if (!basePose.TryGetValue(t, out var r0)) continue;
+                t.localRotation = Quaternion.Slerp(r0, kv.Value.rot, k);
+                t.localPosition = Vector3.Lerp(basePos[t], kv.Value.pos, k);
+            }
+            posed = true;
+        }
+
+        /// Ayaktayken kolları sevinçle kaldırma (Victory pozuna doğru, k 0..1).
+        public void CheerArms(float k)
+        {
+            foreach (var kv in cheerArms)
+                if (standPose.TryGetValue(kv.Key, out var s)) kv.Key.localRotation = Quaternion.Slerp(s.rot, kv.Value, k);
+        }
+
+        /// Ayaktayken hafif nefes alma ve kafa sallama (canlı dursun).
+        public void Breathe(float t)
+        {
+            Vector3 rt = holder.right, fw = holder.forward;
+            if (torso != null) torso.rotation = Quaternion.AngleAxis(2.5f * Mathf.Sin(t * 2.4f), rt) * torso.rotation;
+            if (head != null) head.rotation = Quaternion.AngleAxis(6f * Mathf.Sin(t * 1.7f), fw) * Quaternion.AngleAxis(4f * Mathf.Sin(t * 2.4f + 1f), rt) * head.rotation;
+        }
 
         /// Temel oturma pozuna döner (kollar, bacaklar ve ayaklar dahil).
         public void ResetPose()
         {
             foreach (var kv in basePose) kv.Key.localRotation = kv.Value;
+            if (posed)
+            {
+                foreach (var kv in basePos) kv.Key.localPosition = kv.Value;
+                posed = false;
+            }
             for (int s = 0; s < 2; s++) if (foot[s] != null) foot[s].localPosition = footHome[s];
         }
 

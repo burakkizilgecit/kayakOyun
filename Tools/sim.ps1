@@ -1,4 +1,4 @@
-param([string]$method = "SledSurfers.EditorTools.SimTests.RunAll", [string]$extra = "")
+param([string]$method = "SlingRiders.EditorTools.SimTests.RunAll", [string]$extra = "")
 $sp = "C:\Users\burak\UnityProjects\SledRunner\Tools\out"
 $src = "C:\Users\burak\UnityProjects\SledRunner"
 $dst = "C:\Users\burak\UnityProjects\SledRunner_ci"

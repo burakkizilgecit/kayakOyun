@@ -1,12 +1,13 @@
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Kızak, sürücü, elde bardak ve bardağı yakından gösteren küçük kamera.
     /// Bardak ve sıvı, oyunda okunabilsin diye gerçek boyutun GlassScale katı çizilir.
     public class RiderView
     {
         public const float GlassScale = 2.4f;
+        public const float GlassSceneScale = 0.75f;
 
         public readonly Transform root;
         public readonly Camera glassCam;
@@ -14,8 +15,16 @@ namespace SledSurfers
         readonly Transform hand, handBall, glassPivot, glassShell, liquidBody, liquidSurface;
         readonly Transform torso, glassArm, ropeArm;
         readonly Transform leftWing, rightWing, rope;
+        readonly GripRope gripRope;
+        float wingFold;   // 0 açık, 1 katlı
         // Aşama görünümleri
         readonly SledModel.Parts sledParts;
+        // Araçlar (pist başına): kızak hep kurulu; kum sörfü, bobsled ve hover gerektiğinde kurulur.
+        readonly Transform sledRoot;
+        readonly PartAddons addons;   // kalıcı parçalar (aero kuyruk, pervaneler, jet)
+        readonly System.Collections.Generic.Dictionary<VehicleKind, (Transform root, VehicleModels.Parts parts)> vehicles =
+            new System.Collections.Generic.Dictionary<VehicleKind, (Transform, VehicleModels.Parts)>();
+        VehicleKind shownVehicle = VehicleKind.Sled;
         readonly Material wingMat, wingletMat, rocketBodyMat, rocketTrimMat;
         public static readonly Color[] RunnerColors = { new Color(0.25f, 0.27f, 0.3f), new Color(0.78f, 0.8f, 0.85f), new Color(0.12f, 0.13f, 0.18f), new Color(1f, 0.76f, 0.18f) };
         public static readonly Color[] WingColors = { new Color(0.95f, 0.95f, 0.98f), new Color(0.35f, 0.7f, 1f), new Color(1f, 0.8f, 0.25f) };
@@ -25,6 +34,7 @@ namespace SledSurfers
         readonly Transform lid, glassDeco;
         int builtGlass = -1;
         float builtSide;
+        MeshFilter[] glassFrameParts;
         readonly Material glassMat;
         readonly Transform[] rockets = new Transform[2], flames = new Transform[2];
         // Roket efektleri: alev ve duman izi; son yakıt bitince roketler kızaktan kopup düşer.
@@ -41,6 +51,8 @@ namespace SledSurfers
             new Color(0.85f, 0.95f, 1f, 0.28f), new Color(1f, 0.92f, 0.75f, 0.4f), new Color(0.75f, 0.8f, 0.88f, 0.45f),
             new Color(0.75f, 1f, 0.82f, 0.32f), new Color(0.88f, 0.78f, 1f, 0.38f),
         };
+        /// 20. kademe: son bardağın altın sürümü.
+        public static readonly Color GoldGlassTint = new Color(1f, 0.82f, 0.35f, 0.5f);
         float lidClock = -1f;   // < 0: kapak bardakta; >= 0: fırlayıp düşüyor
         static readonly Vector3 TorsoPivot = new Vector3(0f, 0.42f, -0.2f);   // kalça
         readonly Material steel;
@@ -81,8 +93,12 @@ namespace SledSurfers
             var wing = wingMat;
 
             // Kızak: sörf tahtası + raylar; burundan sürücünün eline ip
-            sledParts = SledModel.Build(root, steel);
-            rope = Mats.Prim(PrimitiveType.Cylinder, "Rope", root, Vector3.zero, Vector3.one, Mats.Solid(new Color(1f, 0.76f, 0.2f), 0.2f));
+            sledRoot = new GameObject("Vehicle Sled").transform;
+            sledRoot.SetParent(root, false);
+            sledParts = SledModel.Build(sledRoot, steel);
+            addons = new PartAddons(root);
+            gripRope = new GripRope(root);
+            rope = gripRope.Root;
 
             // Kanatlar: mesh Apply'da kanat boyuna göre üretilir; uçta turuncu dikey kanatçık.
             wingletMat = Mats.Solid(new Color(1f, 0.5f, 0.15f), 0.35f);
@@ -132,7 +148,8 @@ namespace SledSurfers
                 r.localPosition = new Vector3(x, 0.33f, -0.42f);
                 var look = new GameObject("Look").transform;   // seviyeye göre yeniden kurulur (PartVisuals.BuildRocket)
                 look.SetParent(r, false);
-                flames[s] = Mats.Prim(PrimitiveType.Sphere, "Flame", r, new Vector3(0f, 0f, -0.36f), new Vector3(0.1f, 0.1f, 0.3f), flameMat);
+                flames[s] = EquipmentStyle.Surface(r, "Flame", EquipmentStyle.PlumeMesh(), flameMat, new Vector3(0f, 0f, -.36f), Quaternion.identity);
+                flames[s].localScale = new Vector3(.1f, .1f, .3f);
                 rockets[s] = r;
                 rocketHome[s] = r.localPosition;
                 fire[s] = Trail(r, new Color(1f, 0.62f, 0.12f), true, 0.09f, 0.22f, 0.25f, 150);
@@ -203,7 +220,7 @@ namespace SledSurfers
                 main.loop = false;
                 main.startLifetime = new ParticleSystem.MinMaxCurve(0.5f, 0.9f);
                 main.startSpeed = new ParticleSystem.MinMaxCurve(0.6f, 2.2f);
-                main.startSize = new ParticleSystem.MinMaxCurve(0.05f, 0.14f);
+                main.startSize = new ParticleSystem.MinMaxCurve(0.03f, 0.075f);   // küçük toprak serpintisi (yakın kamerada iri top olmasın)
                 main.startRotation3D = true;
                 main.gravityModifier = -0.05f;
                 main.simulationSpace = ParticleSystemSimulationSpace.World;
@@ -215,7 +232,7 @@ namespace SledSurfers
                 shape.radius = 0.25f;
                 var size = ps.sizeOverLifetime;
                 size.enabled = true;
-                size.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 0.6f, 1f, 1.4f));
+                size.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 1f, 1f, 0f));   // küçülerek kaybolur
                 var pr = go.GetComponent<ParticleSystemRenderer>();
                 pr.renderMode = ParticleSystemRenderMode.Mesh;
                 pr.mesh = Mats.PrimitiveMesh(PrimitiveType.Sphere);
@@ -225,9 +242,11 @@ namespace SledSurfers
                 dust = ps;
             }
 
-            var milk = Mats.Solid(new Color(0.98f, 0.97f, 0.92f), 0.5f);
+            // Süt gövdesi kremsi, yüzeyi daha beyaz ve parlak (kaymak): yüzeyin eğimi okunsun.
+            var milk = Mats.Solid(new Color(0.97f, 0.94f, 0.86f), 0.45f);
+            var cream = Mats.Glow(new Color(1f, 1f, 0.98f), new Color(0.22f, 0.22f, 0.2f), 0.85f);
             liquidBody = Mats.Prim(PrimitiveType.Cylinder, "Milk", glassPivot, Vector3.zero, Vector3.one, milk, null, Mats.GlassLayer);
-            liquidSurface = Mats.Prim(PrimitiveType.Cylinder, "Milk Surface", glassPivot, Vector3.zero, Vector3.one, milk, null, Mats.GlassLayer);
+            liquidSurface = Mats.Prim(PrimitiveType.Cylinder, "Milk Surface", glassPivot, Vector3.zero, Vector3.one, cream, null, Mats.GlassLayer);
             lid = Mats.Prim(PrimitiveType.Cylinder, "Lid", glassPivot, Vector3.zero, Vector3.one,
                             Mats.Solid(new Color(1f, 0.55f, 0.12f), 0.5f), null, Mats.GlassLayer);
 
@@ -235,13 +254,99 @@ namespace SledSurfers
             var camGo = new GameObject("Glass Camera");
             camGo.transform.SetParent(root, false);
             glassCam = camGo.AddComponent<Camera>();
-            glassCam.cullingMask = 1 << Mats.GlassLayer;
+            glassCam.cullingMask = (1 << Mats.GlassLayer) | (1 << Mats.InsetLayer);
             glassCam.clearFlags = CameraClearFlags.SolidColor;
             glassCam.backgroundColor = new Color(1f, 0.95f, 0.86f);
             glassCam.fieldOfView = 32f;
             glassCam.nearClipPlane = 0.05f;
             glassCam.farClipPlane = 5f;
             glassCam.depth = 1f;
+            // Pencerenin arka planı (kullanıcı 2026-10-18: düz krem zemin çok basitti): yukarıda gök mavisi, aşağıda sıcak
+            // krem, bardağın arkasında yumuşak ışık halesi. Kameraya bağlı, kendi ışığını veren düzlem.
+            var backdropMat = Mats.Glow(Color.black, Color.white);
+            backdropMat.SetTexture("_EmissionMap", InsetBackdrop());
+            insetBackdrop = Mats.Prim(PrimitiveType.Quad, "Inset Backdrop", glassCam.transform, new Vector3(0f, 0f, 4.6f), Vector3.one,
+                                      backdropMat, null, Mats.InsetLayer);
+            insetBackdrop.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        }
+
+        readonly Transform insetBackdrop;
+
+        static Texture2D InsetBackdrop()
+        {
+            const int W = 96, H = 128;
+            var tex = new Texture2D(W, H, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, name = "Inset Backdrop" };
+            var px = new Color[W * H];
+            Color top = new Color(0.5f, 0.76f, 0.97f), bottom = new Color(0.99f, 0.88f, 0.72f), halo = new Color(1f, 0.99f, 0.94f);
+            for (int y = 0; y < H; y++)
+                for (int x = 0; x < W; x++)
+                {
+                    float u = (x + 0.5f) / W, v = (y + 0.5f) / H;
+                    var c = Color.Lerp(bottom, top, Mathf.SmoothStep(0f, 1f, v));
+                    float dx = (u - 0.5f) * 1.3f, dy = v - 0.55f, r = Mathf.Sqrt(dx * dx + dy * dy);
+                    c = Color.Lerp(c, halo, Mathf.Clamp01(1f - r / 0.42f) * 0.45f);
+                    // Hafif kenar gölgesi: pencerenin içi derin dursun
+                    float edge = Mathf.Min(Mathf.Min(u, 1f - u), Mathf.Min(v, 1f - v));
+                    c *= Mathf.Lerp(0.86f, 1f, Mathf.Clamp01(edge / 0.16f));
+                    c.a = 1f;
+                    px[y * W + x] = c;
+                }
+            tex.SetPixels(px);
+            tex.Apply(false);
+            return tex;
+        }
+
+        /// Çizgi film eldiveni (kullanıcı 2026-10-18: karakter bardağı elinde tutamıyor gibiydi; bardağın yanında ten
+        /// rengi bir top vardı): avuç bardağın gövdeye bakan yanında, dört kıvrık parmak bardağı kameraya bakan arka
+        /// yüzden sarar, başparmak öbür yanda, bilekte beyaz bant.
+        static void BuildGlove(Transform parent, Mesh shell, float d, float h, float side, int layer)
+        {
+            // Gövdenin o yükseklikteki gerçek dış yarıçapı: kabuk ve süs parçaları (kılıf, bant) dahil. Termos/şişe gövdede
+            // ağızdan geniş, kılıflı modellerde kılıf kabuktan geniş: parmaklar içinde kalıp görünmüyordu.
+            var verts = new System.Collections.Generic.List<Vector3>(shell.vertices);
+            foreach (var mfp in parent.GetComponentsInChildren<MeshFilter>())
+                if (mfp.sharedMesh != null)
+                    foreach (var v in mfp.sharedMesh.vertices) verts.Add(parent.InverseTransformPoint(mfp.transform.TransformPoint(v)));
+            float RadiusAt(float y)
+            {
+                float best = d * 0.5f;
+                foreach (var v in verts)
+                    if (Mathf.Abs(v.y - y) < h * 0.2f) best = Mathf.Max(best, new Vector2(v.x, v.z).magnitude);   // köşe noktaları seyrek: geniş pencere
+                return best;
+            }
+            // Kırmızı örgü eldiven, beyaz bilek: beyaz eldiven beyaz sütün önünde kayboluyordu.
+            var glove = Mats.Solid(new Color(0.88f, 0.2f, 0.22f), 0.25f);
+            var cuff = Mats.Solid(new Color(0.97f, 0.96f, 0.93f), 0.2f);
+            float t = Mathf.Clamp(d * 0.2f, 0.026f, 0.05f);   // küçük kupada eldiven bardağı örtüyordu
+            var root = new GameObject("Glove") { layer = layer }.transform;
+            root.SetParent(parent, false);
+            void P(PrimitiveType type, string name, Vector3 pos, Vector3 scale, Material m, Quaternion rot)
+                => Mats.Prim(type, name, root, pos, scale, m, rot, layer);
+            float palmX = -side * (RadiusAt(h * 0.42f) + t * 0.45f);
+            P(PrimitiveType.Sphere, "Palm", new Vector3(palmX, h * 0.6f - t * 1.5f, -t * 0.15f), new Vector3(t * 1.3f, t * 4.4f, t * 2.2f), glove, Quaternion.identity);
+            // Parmaklar: avuçtan (açı 0, -side·x yönü) arkaya (-z) doğru bardağın çevresinde; alttakiler biraz kısa.
+            for (int k = 0; k < 4; k++)
+            {
+                float y = h * 0.6f - k * t * 1.02f;   // parmaklar birbirine değer
+                float ring = RadiusAt(y) + t * 0.5f;
+                float sweep = Mathf.Deg2Rad * (78f - 8f * k);
+                const int seg = 3;
+                for (int s = 0; s < seg; s++)
+                {
+                    float a = Mathf.Deg2Rad * 22f + sweep * (s + 0.5f) / seg;
+                    var dir = new Vector3(-side * Mathf.Cos(a), 0f, -Mathf.Sin(a));
+                    var tangent = new Vector3(side * Mathf.Sin(a), 0f, -Mathf.Cos(a));
+                    P(PrimitiveType.Capsule, "Finger", dir * ring + Vector3.up * y,
+                      new Vector3(t * 1.12f, sweep / seg * ring * 0.9f + t * 0.3f, t * 1.12f), glove, Quaternion.FromToRotation(Vector3.up, tangent));
+                }
+            }
+            // Başparmak: avucun önünde (kameradan uzak yanda), yukarı ve öne doğru
+            var thumbDir = new Vector3(-side * Mathf.Cos(0.75f), 0f, Mathf.Sin(0.75f));
+            P(PrimitiveType.Capsule, "Thumb", thumbDir * (RadiusAt(h * 0.62f) + t * 0.4f) + Vector3.up * h * 0.62f, new Vector3(t * 0.85f, t * 0.95f, t * 0.85f), glove,
+              Quaternion.Euler(0f, 0f, side * 25f));
+            // Bilek bandı: avucun dışında, kola doğru
+            P(PrimitiveType.Cylinder, "Cuff", new Vector3(palmX - side * t * 0.95f, h * 0.6f - t * 1.5f, -t * 0.1f), new Vector3(t * 2f, t * 0.5f, t * 2f), cuff,
+              Quaternion.Euler(0f, 0f, 90f));
         }
 
         /// 6 aşamayı (0..5) 4 renk takımına eşler.
@@ -266,6 +371,7 @@ namespace SledSurfers
             var tip = w.GetChild(0);
             tip.localPosition = new Vector3(span * s, 0.08f * span + 0.06f, -0.04f * chord);
             tip.localScale = new Vector3(0.025f, 0.14f, 0.42f * chord);
+            EquipmentStyle.WingDetails(w, span, chord, s, tip.GetComponent<Renderer>().sharedMaterial);
         }
 
         /// Kızaktaki karakteri değiştirir (AvatarLibrary model adı).
@@ -286,9 +392,10 @@ namespace SledSurfers
         }
 
         /// Su birikintisinde: intensity 0..1 (hız), enter: suya ilk giriş anı (büyük sıçrama).
-        public void Splash(float intensity, bool enter, bool mud = false)
+        /// dust: su/çamur değil, kızağın arkasından kalkan toz/kar (zeminin açık tonu); yoğunluk düşük tutulur.
+        public void Splash(float intensity, bool enter, bool mud = false, Color? dust = null)
         {
-            if (intensity > 0f) dropMat.color = mud ? new Color(0.42f, 0.29f, 0.17f) : new Color(0.84f, 0.92f, 1f);
+            if (intensity > 0f) dropMat.color = dust ?? (mud ? new Color(0.42f, 0.29f, 0.17f) : new Color(0.84f, 0.92f, 1f));
             foreach (var ps in spray)
             {
                 var em = ps.emission;
@@ -329,8 +436,16 @@ namespace SledSurfers
             glassPivot.gameObject.SetActive(true);
         }
 
-        /// groundHeight(x, z): zemin yüksekliği. 0) savrularak uçar, seker, yuvarlanır; 1) kameraya dönüp doğrulur
-        /// ve oturur; 2) kahkaha atar ("HA HA!" yazıları yükselir).
+        /// Ayağa kalkmış, kameraya dönük: "Let's try again!" baloncuğu bu sırada gösterilir.
+        public bool CrashStanding => crashing && crashPhase == 2;
+        const float AriseSpeed = 1.3f;   // Meshy kalkış klibi biraz hızlı oynatılır (sahne kısa kalsın)
+        public Vector3 CrashHeadTop => avatar != null ? avatar.HeadTop : root.position;
+        /// Ayaktaki karakterin tabanından omzuna (suya gömülme derinliği): ayakta ölçülür, öncesinde son ölçüm.
+        public float ShoulderDepth => 0.8f * standHeight;
+        float standHeight = 0.9f;
+
+        /// groundHeight(x, z): zemin yüksekliği. 0) savrularak uçar, seker, yuvarlanır; 1) kameraya dönerek ayağa
+        /// kalkar; 2) ayakta durur, gülümser, bir kez sevinçle kollarını kaldırır ("Let's try again!").
         public void TickCrash(float dt, System.Func<float, float, float> groundHeight, Vector3 cameraPos)
         {
             TickHaTexts(dt, cameraPos);
@@ -349,10 +464,10 @@ namespace SledSurfers
                 h.position += crashVel * dt;
                 h.RotateAround(c, spinAxis, spinRate * dt);
                 avatar.FlailPose(crashClock, Mathf.Clamp01(1.2f - crashClock * 0.35f));
-                float low = avatar.LowestPoint();
-                if (low < ground)
+                float pen = avatar.Penetration(groundHeight);
+                if (pen > 0f)
                 {
-                    h.position += Vector3.up * (ground - low);
+                    h.position += Vector3.up * pen;
                     if (crashVel.y < -1.2f) Dust(c, Mathf.Clamp01(-crashVel.y / 8f));
                     if (crashVel.y < 0f) crashVel.y = -crashVel.y * 0.38f;
                     crashVel.x *= 0.72f;
@@ -362,7 +477,7 @@ namespace SledSurfers
                     if (hv.sqrMagnitude > 0.2f) spinAxis = Vector3.Cross(Vector3.up, hv.normalized);
                     spinRate = Mathf.Min(spinRate * 0.8f, hv.magnitude / 0.35f * Mathf.Rad2Deg);
                 }
-                bool slow = crashVel.magnitude < 1.6f && low <= ground + 0.08f;
+                bool slow = crashVel.magnitude < 1.6f && pen > -0.08f;
                 if ((crashClock > 1.0f && slow) || crashClock > 2.2f)
                 {
                     crashPhase = 1;
@@ -370,37 +485,60 @@ namespace SledSurfers
                     fromRot = h.rotation;
                 }
             }
-            else if (crashPhase == 1)
+            else if (crashPhase == 1 && avatar.HasArise)
             {
-                // Doğrulma: yattığı yerden kameraya dönerek oturur (pozdaki savrulma söner).
+                // Meshy: gerçek kalkış klibi (sırt üstü yatıştan ayağa). Gövde hemen kameraya döner;
+                // yatış pozunu klip verir.
                 phaseClock += dt;
-                float k = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(phaseClock / 0.5f));
-                h.rotation = Quaternion.Slerp(fromRot, face, k);
-                avatar.FlailPose(crashClock, 0.25f * (1f - k));
-                float bottom = Mathf.Lerp(avatar.LowestPoint(), avatar.SeatBottom(), k);
-                h.position += Vector3.up * (ground - bottom);
-                if (k >= 1f)
+                float clipT = phaseClock * AriseSpeed;
+                h.rotation = Quaternion.Slerp(fromRot, face, Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(phaseClock / 0.15f)));
+                avatar.AriseFrame(clipT);
+                h.position += Vector3.up * avatar.Penetration(groundHeight);
+                if (clipT >= avatar.AriseLength)
                 {
                     crashPhase = 2;
                     phaseClock = 0f;
-                    Dust(c, 0.4f);
+                    avatar.Smile(true);
+                }
+            }
+            else if (crashPhase == 1)
+            {
+                // Kalkış: yattığı yerden kameraya dönerek doğrulur, oturma pozundan ayakta durma pozuna geçer.
+                phaseClock += dt;
+                float turn = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(phaseClock / 0.6f));
+                float rise = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((phaseClock - 0.2f) / 0.8f));
+                h.rotation = Quaternion.Slerp(fromRot, face, turn);
+                avatar.FlailPose(crashClock, 0.2f * (1f - turn));
+                if (rise > 0f) avatar.StandPose(rise);
+                h.position += Vector3.up * avatar.Penetration(groundHeight);
+                if (phaseClock >= 1.0f)
+                {
+                    crashPhase = 2;
+                    phaseClock = 0f;
+                    avatar.Smile(true);
+                    Dust(c, 0.3f);
                 }
             }
             else
             {
+                // Ayakta: gülümser, bir kez kollarını sevinçle kaldırır, hafifçe nefes alır.
                 phaseClock += dt;
                 h.rotation = Quaternion.Slerp(h.rotation, face, 3f * dt);
-                avatar.LaughPose(phaseClock);
-                avatar.Laugh(Mathf.Abs(Mathf.Sin(phaseClock * 15f)));
-                // Oturur: kahkahayla gövde hafifçe zıplar.
-                float hop = 0.025f * Mathf.Abs(Mathf.Sin(phaseClock * 7.5f));
-                h.position += Vector3.up * (ground + hop - avatar.SeatBottom());
-                haTimer -= dt;
-                if (haTimer <= 0f)
+                if (phaseClock < 0.1f) standHeight = Mathf.Clamp(avatar.HeadTop.y - avatar.LowestPoint(), 0.4f, 2.5f);
+                if (avatar.CheerFrame(phaseClock))
                 {
-                    haTimer = 0.5f;
-                    SpawnHa(avatar.HeadTop, cameraPos);
+                    // Meshy: sevinç klibi döngüde, üstüne hafif kafa sallama; kollar açık selam
+                    avatar.OpenArms(Mathf.Clamp01(phaseClock / 0.35f), phaseClock);
+                    avatar.Breathe(phaseClock);
+                    h.position += Vector3.up * avatar.Penetration(groundHeight);
+                    return;
                 }
+                avatar.StandPose(1f);
+                float pump = phaseClock < 1.4f ? Mathf.Sin(Mathf.Clamp01(phaseClock / 1.4f) * Mathf.PI) : 0f;
+                avatar.CheerArms(0.85f * pump);
+                avatar.Breathe(phaseClock);
+                float hop = 0.06f * pump * Mathf.Abs(Mathf.Sin(phaseClock * 6f));
+                h.position += Vector3.up * (ground + hop - avatar.LowestPoint());
             }
         }
 
@@ -453,7 +591,7 @@ namespace SledSurfers
         {
             if (dust == null) return;
             dust.transform.position = at;
-            dust.Emit(Mathf.RoundToInt(6 + 22 * amount));
+            dust.Emit(Mathf.RoundToInt(4 + 12 * amount));
         }
 
         /// Roket arkasında iz: dünya uzayında kalan, sönen/büyüyen küçük küreler (ateş parlak, duman gri).
@@ -538,7 +676,7 @@ namespace SledSurfers
             for (int s = 0; s < 2; s++)
             {
                 var e1 = fire[s].emission;
-                e1.rateOverTime = firing ? 260f : 0f;
+                e1.rateOverTime = firing ? 140f : 0f;
                 var e2 = smoke[s].emission;
                 e2.rateOverTime = firing ? 70f : 0f;
             }
@@ -589,8 +727,8 @@ namespace SledSurfers
             rightWing.gameObject.SetActive(wings);
             if (wings)
             {
-                const float chord = 0.55f;
-                float span = cfg.wingArea / (2f * chord);
+                float span = cfg.wingSpan;
+                float chord = 0.3f + 0.21f * span;   // minik kanat dar, büyük kanat 0.55 m (görünüş; fizikteki alan ayrı)
                 if (!Mathf.Approximately(span, wingSpan))
                 {
                     wingSpan = span;
@@ -601,10 +739,13 @@ namespace SledSurfers
 
             // Kızak altı yükseldikçe raylar çelikten parlak altına döner.
             // Aşama görünümü: her 4 seviyede kızak boyanır (2. aşamada spoiler), raylar çelik → gümüş → siyah krom → altın.
-            // Kızak seviyeleri: 1 tutma ipi, 2 gümüş kayaklar, 3 arka tampon kanadı (spoiler), 4 küçük kanat, 5 büyük kanat.
+            // Kızak: 4. seviyede tutma ipi, 5. seviyeden itibaren kanat (alanı seviyeyle büyür), 8 gümüş kayaklar, 12 spoiler,
+            // 16 mavi kanat, 20 jet kanat.
             int rs = Mathf.Clamp(cfg.runnerStage, 0, 5);
             sledParts.SetStage(rs);
-            rope.gameObject.SetActive(rs >= 1);
+            ShowVehicle(cfg.vehicle, cfg.runnerStage);
+            addons.Show(cfg.parts);
+            rope.gameObject.SetActive(rs >= 1 && (cfg.vehicle == VehicleKind.Sled || cfg.vehicle == VehicleKind.Sandboard));
             int metal = rs >= 5 ? 3 : rs >= 4 ? 2 : rs >= 2 ? 1 : 0;
             steel.color = RunnerColors[metal];
             steel.SetFloat("_Glossiness", metal == 0 ? 0.6f : 0.9f);
@@ -622,12 +763,28 @@ namespace SledSurfers
                     for (int i = look.childCount - 1; i >= 0; i--) Object.Destroy(look.GetChild(i).gameObject);
                     var tail = PartVisuals.BuildRocket(look, ks, rocketMesh);
                     r.Find("Flame").localPosition = tail - new Vector3(0f, 0f, 0.04f);
+                    r.Find("Fire Trail").localPosition = tail;
+                    r.Find("Smoke Trail").localPosition = tail;
+                }
+                Color exhaust = EquipmentStyle.Exhaust[ks];
+                for (int s = 0; s < flames.Length; s++)
+                {
+                    var material = flames[s].GetComponent<Renderer>().sharedMaterial;
+                    material.color = exhaust;
+                    material.SetColor("_EmissionColor", exhaust * 1.8f);
+                    var fireMaterial = fire[s].GetComponent<ParticleSystemRenderer>().sharedMaterial;
+                    fireMaterial.color = exhaust;
+                    fireMaterial.SetColor("_EmissionColor", exhaust * 1.4f);
+                    var gradient = new Gradient();
+                    gradient.SetKeys(new[] { new GradientColorKey(Color.Lerp(exhaust, Color.white, .65f), 0), new GradientColorKey(exhaust, .45f), new GradientColorKey(exhaust * .4f, 1) },
+                        new[] { new GradientAlphaKey(1, 0), new GradientAlphaKey(0, 1) });
+                    var color = fire[s].colorOverLifetime; color.color = gradient;
                 }
                 flameSize = 1f + 0.18f * ks;
             }
 
             bool hasRockets = cfg.rocketCharges > 0;
-            float rocketSize = 0.9f + 0.025f * Mathf.Clamp(cfg.rocketCharges > 0 ? (cfg.rocketThrust - 80f) / 12f % 4f : 0f, 0f, 4f);
+            float rocketSize = 0.9f + 0.025f * Mathf.Clamp(cfg.rocketCharges > 0 ? (cfg.rocketThrust - 150f) / 20f % 4f : 0f, 0f, 4f);
             foreach (var r in rockets)
             {
                 if (!rocketsDetached) r.gameObject.SetActive(hasRockets);
@@ -638,39 +795,188 @@ namespace SledSurfers
             if (avatar != null && avatar.Valid)
             {
                 var shoulder = avatar.ShoulderLocal(side, root, out float armLength);
-                hand.localPosition = shoulder + new Vector3(0.1f * side, -0.02f, armLength * 0.78f);
+                // Meshy (iri kafalı, kısa kollu) karakterlerde bardak göğüs hizasında ve yanda: el yüzü örtmesin.
+                hand.localPosition = avatar.Chibi
+                    // 2026-10-18: bardak omza yapışık, başın yanında duruyordu (tutulduğu okunmuyordu): biraz aşağıda ve
+                    // dışarıda, kol uzanmış görünsün.
+                    ? shoulder + new Vector3(armLength * 0.42f * side, -armLength * 0.5f, armLength * 0.62f)
+                    : shoulder + new Vector3(0.1f * side, -0.02f, armLength * 0.78f);
             }
             else hand.localPosition = new Vector3(0.45f * side, 0.86f, 0.32f);
             float d = cfg.glassRadius * 2f * GlassScale;
             float h = cfg.glassHeight * GlassScale;
-            glassMat.color = GlassTints[Mathf.Clamp(cfg.glassModel, 0, GlassTints.Length - 1)];
+            glassMat.color = cfg.glassGold ? GoldGlassTint : GlassTints[Mathf.Clamp(cfg.glassModel, 0, GlassTints.Length - 1)];
             if (cfg.glassModel != builtGlass || side != builtSide)
             {
                 builtGlass = cfg.glassModel;
                 builtSide = side;
-                for (int i = glassDeco.childCount - 1; i >= 0; i--) Object.Destroy(glassDeco.GetChild(i).gameObject);
+                for (int i = glassDeco.childCount - 1; i >= 0; i--)
+                {
+                    var old = glassDeco.GetChild(i);
+                    old.gameObject.SetActive(false);
+                    old.SetParent(null, false);
+                    Object.Destroy(old.gameObject);
+                }
                 var mf = glassShell.GetComponent<MeshFilter>();
                 if (mf.sharedMesh != null && mf.sharedMesh.name == "Lathe") Object.Destroy(mf.sharedMesh);
                 mf.sharedMesh = GlassModels.Build(cfg.glassModel, d, h, side, glassDeco, glassMat, Mats.GlassLayer);
+                BuildGlove(glassDeco, mf.sharedMesh, d, h, side, Mats.GlassLayer);
                 glassShell.localScale = Vector3.one;
                 glassShell.localPosition = Vector3.zero;
+                var frame = new System.Collections.Generic.List<MeshFilter>
+                {
+                    glassShell.GetComponent<MeshFilter>(), handBall.GetComponent<MeshFilter>(), lid.GetComponent<MeshFilter>()
+                };
+                frame.AddRange(glassDeco.GetComponentsInChildren<MeshFilter>(true));
+                glassFrameParts = frame.ToArray();
             }
 
-            // Yumruk bardağı gövdeye bakan yandan kavrar.
+            // Bardak sahnede %75 boyda (kullanıcı: bardak çok büyük, karakteri kapatıyor; uzun şişe kafadan uzundu).
+            // Köşe penceresi kamerayı bardağa sığdırdığı için orada boyut değişmez; sıvı ve fizik bardağın içinde ölçeklenir.
+            glassPivot.localScale = Vector3.one * GlassSceneScale;
+            // Yumruk bardağı gövdeye bakan yandan kavrar (görünen el eldiven: BuildGlove; bu nokta kolun hedefi).
             handBall.localPosition = new Vector3(-side * (d * 0.5f + 0.04f), h * 0.4f, 0f);
+            handBall.GetComponent<MeshRenderer>().enabled = false;
 
-            float camSide = side;
-            // Uzun bardaklarda kamera geri çekilir, bardak köşe görüntüsüne sığar.
-            float camDist = Mathf.Max(1f, h / 0.33f);
-            glassCam.transform.localPosition = hand.localPosition + new Vector3(0.32f * camSide, 0.3f, -0.62f) * camDist;
             glassCam.rect = side > 0f ? new Rect(0.68f, 0.03f, 0.29f, 0.2f) : new Rect(0.03f, 0.03f, 0.29f, 0.2f);
+            PositionGlassCamera();
+        }
+
+        // Look down into the rim, including tall thermoses. Frame both width and height in the inset.
+        // The camera stays in the rider frame so the player's glass tilt remains visible.
+        void PositionGlassCamera()
+        {
+            float h = cfg.glassHeight * GlassScale;
+            Vector3 target = glassPivot.TransformPoint(Vector3.up * h * 0.5f);
+            Vector3 direction = root.TransformDirection(new Vector3(0.22f * side, 0.67f, -0.71f).normalized);
+            Quaternion rotation = Quaternion.LookRotation(-direction, root.up);
+            Quaternion inverse = Quaternion.Inverse(rotation);
+            Rect pixels = glassCam.pixelRect;
+            float aspect = Mathf.Max(0.1f, pixels.width / Mathf.Max(1f, pixels.height));
+            glassCam.aspect = aspect;
+            const float frameFill = 0.84f;   // leave 8% at each edge for the inset border and motion
+            float tanY = Mathf.Tan(glassCam.fieldOfView * Mathf.Deg2Rad * 0.5f) * frameFill;
+            float tanX = tanY * aspect;
+            float distance = glassCam.nearClipPlane + 0.1f;
+            if (glassFrameParts != null)
+                foreach (var part in glassFrameParts)
+                {
+                    if (!FramePartVisible(part)) continue;
+                    Bounds bounds = part.sharedMesh.bounds;
+                    for (int corner = 0; corner < 8; corner++)
+                    {
+                        Vector3 point = inverse * (part.transform.TransformPoint(BoundsCorner(bounds, corner)) - target);
+                        // Include the corner's depth: fitting only projected width/height clips a near rim.
+                        distance = Mathf.Max(distance, Mathf.Abs(point.x) / tanX - point.z);
+                        distance = Mathf.Max(distance, Mathf.Abs(point.y) / tanY - point.z);
+                        distance = Mathf.Max(distance, glassCam.nearClipPlane + 0.05f - point.z);
+                    }
+                }
+            glassCam.transform.SetPositionAndRotation(target + direction * distance, rotation);
+            if (insetBackdrop != null)
+            {
+                float far = insetBackdrop.localPosition.z, hh = 2f * far * Mathf.Tan(glassCam.fieldOfView * Mathf.Deg2Rad * 0.5f) * 1.04f;
+                insetBackdrop.localScale = new Vector3(hh * aspect, hh, 1f);
+            }
+        }
+
+        bool FramePartVisible(MeshFilter part) => part != null && part.sharedMesh != null
+            && part.gameObject.activeInHierarchy && (part.transform != lid || lidClock < 0f);
+
+        static Vector3 BoundsCorner(Bounds bounds, int corner) => new Vector3(
+            (corner & 1) == 0 ? bounds.min.x : bounds.max.x,
+            (corner & 2) == 0 ? bounds.min.y : bounds.max.y,
+            (corner & 4) == 0 ? bounds.min.z : bounds.max.z);
+
+        /// Screenshot QA: checks the actual projection, including handles, straw, fist and the attached lid.
+        public bool DebugGlassFits(out string detail)
+        {
+            if (glassFrameParts == null) { detail = "Glass has not been built."; return false; }
+            Vector2 min = Vector2.one, max = Vector2.zero;
+            foreach (var part in glassFrameParts)
+            {
+                if (!FramePartVisible(part)) continue;
+                for (int corner = 0; corner < 8; corner++)
+                {
+                    Vector3 p = glassCam.WorldToViewportPoint(part.transform.TransformPoint(BoundsCorner(part.sharedMesh.bounds, corner)));
+                    min = Vector2.Min(min, new Vector2(p.x, p.y));
+                    max = Vector2.Max(max, new Vector2(p.x, p.y));
+                    if (p.z < glassCam.nearClipPlane || p.z > glassCam.farClipPlane || p.x < -0.02f || p.x > 1.02f || p.y < -0.02f || p.y > 1.02f)
+                    {
+                        detail = $"{part.name} corner {corner} outside frame: {p:F3}, aspect={glassCam.aspect:F3}";
+                        return false;
+                    }
+                }
+            }
+            detail = $"viewport {min:F3}..{max:F3}, aspect={glassCam.aspect:F3}";
+            return true;
         }
 
         /// torsoPitch: + = öne eğilme (derece), torsoRoll: + = sağa yatma, shake: gerilim titremesi (m)
-        public void Sync(SledPhysics sled, LiquidSim liquid, float glassPitch, float glassRoll,
-                         float torsoPitch, float torsoRoll, Vector3 shake)
+        /// Pistin aracını gösterir (son üç haritada araç tamamen değişir) ve aşamasını uygular.
+        void ShowVehicle(VehicleKind kind, int stage)
         {
-            root.SetPositionAndRotation(sled.position + shake, sled.Orientation);
+            if (kind != VehicleKind.Sled && !vehicles.ContainsKey(kind))
+            {
+                var t = new GameObject("Vehicle " + kind).transform;
+                t.SetParent(root, false);
+                vehicles[kind] = (t, VehicleModels.Build(kind, t));
+            }
+            shownVehicle = kind;
+            sledRoot.gameObject.SetActive(kind == VehicleKind.Sled);
+            foreach (var kv in vehicles)
+            {
+                kv.Value.root.gameObject.SetActive(kv.Key == kind);
+                if (kv.Key == kind) kv.Value.parts.SetStage(stage);
+            }
+        }
+
+        /// Hava numaraları (kullanıcı 2026-10-23): rampadan ya da uçuşa hızlı geçişte takla, fıçı dönüşü ya da kendi
+        /// etrafında 360°. Yalnız görünüş: fizik ve bardak (sled.Orientation) etkilenmez. Gövdenin ortası (TrickPivot)
+        /// etrafında döner; erken inişte kalan dönüş hızla tamamlanır.
+        public enum Trick { Backflip, Frontflip, BarrelRoll, Spin }
+        public const float TrickDuration = 0.95f;
+        static readonly Vector3 TrickPivot = new Vector3(0f, 0.55f, 0f);
+        float trickT = -1f;
+        Trick trick;
+        public bool Tricking => trickT >= 0f;
+
+        public void StartTrick(Trick kind)
+        {
+            trick = kind;
+            trickT = 0f;
+        }
+
+        Quaternion TrickRotation(bool grounded, float dt)
+        {
+            if (trickT < 0f) return Quaternion.identity;
+            trickT += dt / TrickDuration * (grounded ? 4f : 1f);
+            if (trickT >= 1f) { trickT = -1f; return Quaternion.identity; }
+            float a = 360f * Mathf.SmoothStep(0f, 1f, trickT);
+            switch (trick)
+            {
+                case Trick.Backflip: return Quaternion.Euler(-a, 0f, 0f);
+                case Trick.Frontflip: return Quaternion.Euler(a, 0f, 0f);
+                case Trick.BarrelRoll: return Quaternion.Euler(0f, 0f, a);
+                default: return Quaternion.Euler(0f, a, 0f);
+            }
+        }
+
+        public void Sync(SledPhysics sled, LiquidSim liquid, float glassPitch, float glassRoll,
+                         float torsoPitch, float torsoRoll, Vector3 shake, Quaternion? bodyRot = null)
+        {
+            var trickRot = TrickRotation(sled.grounded, Time.deltaTime);
+            var baseRot = bodyRot ?? sled.Orientation;   // çizim ara değerlemesi (GameController.SledRenderRot)
+            var rot = baseRot * trickRot;
+            root.SetPositionAndRotation(sled.position + shake + baseRot * TrickPivot - rot * TrickPivot, rot);
+            // Hover aracı yerin biraz üstünde hafifçe salınır.
+            if (shownVehicle == VehicleKind.Hover && vehicles.TryGetValue(VehicleKind.Hover, out var hv))
+                hv.root.localPosition = new Vector3(0f, 0.05f + 0.02f * Mathf.Sin(Time.time * 4f), 0f);
+            // Süzülme süresi dolunca kanatlar kısmen yukarı katlanır (taşıma azalır), yere inince açılır.
+            wingFold = Mathf.MoveTowards(wingFold, 1f - sled.WingLift, Time.deltaTime * 3f);   // taşıma %50'ye inince kanatlar yarı katlı
+            leftWing.localRotation = Quaternion.Euler(0f, 0f, -80f * wingFold);
+            rightWing.localRotation = Quaternion.Euler(0f, 0f, 80f * wingFold);
+            addons.Tick(sled.Speed, Time.deltaTime);
             bool firing = sled.RocketFiring;
             UpdateRockets(sled, firing, Time.deltaTime);
             foreach (var flame in flames)
@@ -738,9 +1044,9 @@ namespace SledSurfers
                 avatar.Pose(torsoPitch, torsoRoll, side, glassPivot.TransformPoint(handBall.localPosition), root.TransformPoint(ropeHand), root);
                 ropeHand = root.InverseTransformPoint(avatar.RopeFist(side));
             }
-            Mats.PlaceBetween(rope, SledModel.NoseEye, ropeHand, 0.022f);
+            if (rope.gameObject.activeSelf) gripRope.Update(SledModel.NoseEye, ropeHand);
 
-            glassCam.transform.LookAt(glassPivot.position + glassPivot.up * cfg.glassHeight * GlassScale * 0.5f, root.up);
+            PositionGlassCamera();
         }
     }
 }

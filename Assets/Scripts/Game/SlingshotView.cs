@@ -1,9 +1,9 @@
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Halatlı sapan: metal başlıklı yuvarlak ahşap direkler, aralarında örgü desenli kalın lastik halat
-    /// ve kızağın arkasını saran deri cep. Halat her karede yeniden bükülür: gevşekken sarkar, gerilince düzleşip incelir.
+    /// bulunur. Halat her karede yeniden bükülür: gevşekken sarkar, gerilince düzleşip incelir.
     public class SlingshotView
     {
         const int Sides = 8, Segments = 14;
@@ -27,19 +27,28 @@ namespace SledSurfers
             for (int s = 0; s < 2; s++)
             {
                 for (int i = decor[s].childCount - 1; i >= 0; i--) Object.Destroy(decor[s].GetChild(i).gameObject);
-                PartVisuals.BuildSlingDecor(decor[s], stage, postHeight, s == 0 ? -1f : 1f);
+                var look = new GameObject("Stage " + stage).transform;
+                look.SetParent(decor[s], false);
+                PartVisuals.BuildSlingDecor(look, stage, postHeight, s == 0 ? -1f : 1f);
+                // This builder creates fresh materials and one procedural spring; primitive meshes are shared.
+                var assets = RuntimeResources.For(look);
+                foreach (var renderer in look.GetComponentsInChildren<MeshRenderer>())
+                    foreach (var material in renderer.sharedMaterials) assets.Own(material);
+                var spring = look.Find("Spring");
+                if (spring != null) assets.Own(spring.GetComponent<MeshFilter>().sharedMesh);
             }
         }
         readonly Band left, right;
-        readonly Transform pouch;
         public readonly Vector3 leftTop, rightTop;
 
         public SlingshotView(Transform parent, float postX, float postZ, float groundY, float height)
         {
-            var wood = woodMat = Mats.Solid(new Color(0.6f, 0.38f, 0.2f), 0.2f);
-            var metal = metalMat = Mats.Solid(new Color(0.62f, 0.66f, 0.72f), 0.75f);
-            var stone = Mats.Solid(new Color(0.62f, 0.6f, 0.58f), 0.1f);
-            var postMesh = PostMesh(height);
+            var resources = RuntimeResources.For(parent);
+            var wood = woodMat = resources.Solid(new Color(0.6f, 0.38f, 0.2f), 0.2f);
+            var metal = metalMat = resources.Solid(new Color(0.62f, 0.66f, 0.72f), 0.75f);
+            var stone = resources.Solid(new Color(0.62f, 0.6f, 0.58f), 0.1f);
+            float k = Mathf.Clamp(height / 1.75f, 0.5f, 1f);   // direk kalınlığı boyla orantılı (kartlardaki önizleme 1.75 m)
+            var postMesh = resources.Own(PostMesh(height, k));
             postHeight = height;
             for (int s = -1; s <= 1; s += 2)
             {
@@ -48,23 +57,21 @@ namespace SledSurfers
                 post.localPosition = new Vector3(postX * s, groundY, postZ);
                 post.gameObject.AddComponent<MeshFilter>().sharedMesh = postMesh;
                 post.gameObject.AddComponent<MeshRenderer>().sharedMaterials = new[] { wood, metal };
-                Mats.Prim(PrimitiveType.Cube, "Footing", post, new Vector3(0f, 0.08f, 0f), new Vector3(0.52f, 0.22f, 0.52f), stone);
+                Mats.Prim(PrimitiveType.Cube, "Footing", post, new Vector3(0f, 0.08f * k, 0f), new Vector3(0.52f, 0.22f, 0.52f) * k, stone);
                 var d = new GameObject("Decor").transform;
                 d.SetParent(post, false);
                 decor[s < 0 ? 0 : 1] = d;
             }
             // Halat direğin başlığının hemen altından, içe bakan yandan çıkar.
-            float attachY = groundY + height - 0.3f;
+            float attachY = groundY + height - 0.3f * k;
             leftTop = new Vector3(-postX + 0.1f, attachY, postZ);
             rightTop = new Vector3(postX - 0.1f, attachY, postZ);
 
-            bandMat = Mats.Solid(Color.white, 0.25f);
-            bandMat.mainTexture = RopeTexture();
+            bandMat = resources.Solid(Color.white, 0.25f);
+            bandMat.mainTexture = resources.Own(RopeTexture());
             left = new Band(parent, bandMat);
             right = new Band(parent, bandMat);
 
-            pouch = Mats.Prim(PrimitiveType.Capsule, "Pouch", parent, Vector3.zero, new Vector3(0.2f, 0.3f, 0.12f),
-                              Mats.Solid(new Color(0.42f, 0.24f, 0.13f), 0.3f));
         }
 
         public Vector3 Rest => (leftTop + rightTop) * 0.5f;
@@ -78,24 +85,21 @@ namespace SledSurfers
             right.Set(rightTop, pouchPos, radius, sag);
             bandMat.color = color;
 
-            pouch.localPosition = pouchPos + Vector3.down * 0.02f;   // yerel: önizleme sahnesinde de doğru yerde
-            Vector3 toRest = Rest - pouchPos;
-            Vector3 fwd = toRest.sqrMagnitude > 0.01f ? toRest.normalized : Vector3.forward;
-            // Kapsül yatay uzanır (yerel y ekseni iki direğe doğru), cebin açık yüzü sapana bakar.
-            pouch.localRotation = Quaternion.LookRotation(fwd, Vector3.up) * Quaternion.Euler(0f, 0f, 90f);
         }
 
         /// Ahşap direk (alt mesh 0) + metal halkalar ve kubbeli başlık (alt mesh 1), y ekseni etrafında döndürülmüş profil.
-        static Mesh PostMesh(float h)
+        static Mesh PostMesh(float h, float thin = 1f)
         {
             // (yarıçap, yükseklik, metal mi)
-            var profile = new (float r, float y, bool metal)[]
+            var raw = new (float r, float y, bool metal)[]
             {
                 (0.001f, 0f, false), (0.15f, 0f, false), (0.15f, 0.2f, false), (0.168f, 0.2f, true), (0.168f, 0.3f, true),
                 (0.148f, 0.3f, false), (0.138f, h - 0.4f, false), (0.162f, h - 0.4f, true), (0.162f, h - 0.32f, true),
                 (0.136f, h - 0.32f, false), (0.134f, h - 0.16f, false), (0.175f, h - 0.16f, true), (0.175f, h - 0.08f, true),
                 (0.15f, h - 0.03f, true), (0.1f, h + 0.02f, true), (0.001f, h + 0.04f, true),
             };
+            // İnce sapan: yarıçaplar ve tepedeki halka aralıkları k ile; tepe yine h'de.
+            var profile = System.Array.ConvertAll(raw, q => (r: q.r * thin, y: q.y > h * 0.5f ? h - (h - q.y) * thin : q.y * thin, metal: q.metal));
             const int sides = 16;
             var verts = new System.Collections.Generic.List<Vector3>();
             var woodTris = new System.Collections.Generic.List<int>();
@@ -160,7 +164,7 @@ namespace SledSurfers
             {
                 var go = new GameObject("Band");
                 go.transform.SetParent(parent, false);
-                mesh = new Mesh { name = "Band" };
+                mesh = RuntimeResources.For(parent).Own(new Mesh { name = "Band" });
                 mesh.MarkDynamic();
                 mesh.vertices = verts;
                 var tris = new int[Segments * Sides * 6];

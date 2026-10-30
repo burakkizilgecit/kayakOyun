@@ -1,12 +1,14 @@
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Basit malzeme ve primitif yardımcıları. Malzemeler Resources'taki şablonlardan
     /// kopyalanır, böylece Standard shader build'e dahil olur.
     public static class Mats
     {
         public const int GlassLayer = 4;   // Unity'nin hazır "Water" katmanı
+        /// Yalnız bardak penceresinin kamerasının gördüğü katman (pencerenin arka planı); ana kamera görmez.
+        public const int InsetLayer = 30;
 
         static Material solidTemplate;
         static Material glassTemplate;
@@ -23,6 +25,33 @@ namespace SledSurfers
             return m;
         }
 
+        static Material detailTemplate, glowTemplate;
+
+        /// Zemin: ana doku + büyük ölçekli açık/koyu lekeler (Standard'ın detay haritası, ×2 çarpım; 0.5 = etkisiz).
+        /// Şablon (BaseMatDetail) anahtar kelimeyi açık tutar: varyant build'den atılmaz.
+        public static Material Ground(Color color, float gloss, Texture2D tex, Texture2D macro, float macroTiling)
+        {
+            if (detailTemplate == null) detailTemplate = Resources.Load<Material>("BaseMatDetail");
+            if (detailTemplate == null) { var s = Solid(color, gloss); s.mainTexture = tex; return s; }
+            var m = new Material(detailTemplate) { color = color, mainTexture = tex };
+            m.SetFloat("_Glossiness", gloss);
+            m.SetTexture("_DetailAlbedoMap", macro);
+            m.SetTextureScale("_DetailAlbedoMap", Vector2.one * macroTiling);
+            return m;
+        }
+
+        /// Kendi ışığını veren yüzey (lav). Şablon (BaseMatEmission) _EMISSION varyantını build'de tutar.
+        public static Material Glow(Color color, Color emission, float gloss = 0.3f)
+        {
+            if (glowTemplate == null) glowTemplate = Resources.Load<Material>("BaseMatEmission");
+            var m = glowTemplate != null ? new Material(glowTemplate) { color = color } : Solid(color, gloss);
+            m.SetFloat("_Glossiness", gloss);
+            m.EnableKeyword("_EMISSION");
+            m.SetColor("_EmissionColor", emission);
+            m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+            return m;
+        }
+
         static Material waterTemplate;
         static Texture2D ripples;
 
@@ -36,7 +65,7 @@ namespace SledSurfers
             if (ripples == null) ripples = RippleNormals();
             m.EnableKeyword("_NORMALMAP");
             m.SetTexture("_BumpMap", ripples);
-            m.SetFloat("_BumpScale", 0.55f);
+            m.SetFloat("_BumpScale", 0.3f);   // sade dünyaya uysun: dalgacıklar yumuşak
             WaterAnimator.Register(m);
             return m;
         }
@@ -86,13 +115,26 @@ namespace SledSurfers
             return glassTemplate != null ? new Material(glassTemplate) : Solid(new Color(0.85f, 0.95f, 1f), 0.9f);
         }
 
+        static readonly System.Collections.Generic.Dictionary<PrimitiveType, Mesh> primMeshes =
+            new System.Collections.Generic.Dictionary<PrimitiveType, Mesh>();
+
+        /// Hazır şekil (küp, küre, silindir...) çarpışma bileşeni olmadan: GameObject.CreatePrimitive her şekle Collider
+        /// ekler, Android (IL2CPP) derlemesinde fizik modülü atıldığı için her çağrıda "class doesn't exist" hatası
+        /// veriyordu (2026-10-10). Oyun fiziği kendi koduyla (SledPhysics) çalışır, Unity fiziği kullanılmaz.
+        public static GameObject Primitive(PrimitiveType type)
+        {
+            var go = new GameObject(type.ToString());
+            go.AddComponent<MeshFilter>().sharedMesh = PrimitiveMesh(type);
+            go.AddComponent<MeshRenderer>();
+            return go;
+        }
+
         public static Transform Prim(PrimitiveType type, string name, Transform parent,
                                      Vector3 localPos, Vector3 localScale, Material mat,
                                      Quaternion? localRot = null, int layer = 0)
         {
-            var go = GameObject.CreatePrimitive(type);
+            var go = Primitive(type);
             go.name = name;
-            Object.Destroy(go.GetComponent<Collider>());
             go.layer = layer;
             var t = go.transform;
             t.SetParent(parent, false);
@@ -114,9 +156,8 @@ namespace SledSurfers
 
         public static Mesh PrimitiveMesh(PrimitiveType type)
         {
-            var go = GameObject.CreatePrimitive(type);
-            var mesh = go.GetComponent<MeshFilter>().sharedMesh;
-            Object.Destroy(go);
+            if (!primMeshes.TryGetValue(type, out var mesh) || mesh == null)
+                primMeshes[type] = mesh = Resources.GetBuiltinResource<Mesh>(type + ".fbx");
             return mesh;
         }
     }

@@ -1,8 +1,8 @@
-namespace SledSurfers
+namespace SlingRiders
 {
     public enum Perk { None, Slosh, Sling, Magnet, Friction, Lid, Chest, Rocket, Armor, Income, Glide }
 
-    /// Seçilebilir karakterler (Quaternius CC0 modelleri) ve küçük avantajları. Fiyatlar pembe elmas.
+    /// Seçilebilir karakterler (Meshy modelleri) ve küçük avantajları. Fiyatlar pembe elmas.
     public static class AvatarLibrary
     {
         public struct Info
@@ -12,20 +12,23 @@ namespace SledSurfers
             public int price;
         }
 
+        /// Kullanıcı kararı (2026-10-09): yalnızca Meshy 3B karakterler; oyun Panda Pofuduk ile başlar, fiyatlar artarak
+        /// sıralanır (ucuzdan pahalıya). Sıra kayıtla eşleşir (avatar2/avatars2 anahtarları): yeni karakter sona eklenir.
         public static readonly Info[] All =
         {
-            new Info { name = "Can", model = "Casual_Male", perkTitle = "Başlangıç", perkText = "Sapanın yeni kahramanı", perk = Perk.None, price = 0 },
-            new Info { name = "Elif", model = "Casual_Female", perkTitle = "Başlangıç", perkText = "Sapanın yeni kahramanı", perk = Perk.None, price = 0 },
-            new Info { name = "Kaptan Mira", model = "Pirate_Female", perkTitle = "Denizci dengesi", perkText = "Süt %10 daha az çalkalanır", perk = Perk.Slosh, price = 10 },
-            new Info { name = "Bjorn", model = "Viking_Male", perkTitle = "Güçlü kollar", perkText = "Sapan çıkışı %4 daha hızlı", perk = Perk.Sling, price = 15 },
-            new Info { name = "Tex", model = "Cowboy_Male", perkTitle = "Kement", perkText = "Coin toplama alanı %40 daha geniş", perk = Perk.Magnet, price = 15 },
-            new Info { name = "Kage", model = "Ninja_Female", perkTitle = "Hafif ayak", perkText = "Kızak sürtünmesi %5 daha az", perk = Perk.Friction, price = 20 },
-            new Info { name = "Şef Ayşe", model = "Chef_Female", perkTitle = "Usta eller", perkText = "Kapak 100 m yerine 130 m'de açılır", perk = Perk.Lid, price = 20 },
-            new Info { name = "Zombi Zeki", model = "Zombie_Male", perkTitle = "Sandık avcısı", perkText = "Sandık ödülleri %25 daha büyük", perk = Perk.Chest, price = 20 },
-            new Info { name = "Çavuş Defne", model = "Soldier_Female", perkTitle = "Yakıt ustası", perkText = "Roket itişi %10 daha güçlü", perk = Perk.Rocket, price = 25 },
-            new Info { name = "Altın Şövalye", model = "Knight_Golden_Male", perkTitle = "Zırh", perkText = "Sert inişlere %15 daha dayanıklı", perk = Perk.Armor, price = 25 },
-            new Info { name = "Bay Kemal", model = "Suit_Male", perkTitle = "Yatırımcı", perkText = "Coin kazancı %10 daha fazla", perk = Perk.Income, price = 30 },
-            new Info { name = "Büyücü Merlin", model = "Wizard", perkTitle = "Büyülü kanat", perkText = "Süzülürken kaldırma %8 daha fazla", perk = Perk.Glide, price = 35 },
+            new Info { name = "Puffy the Panda", model = "Meshy/Panda", perkTitle = "Starter", perkText = "The chubby hero of the slingshot", perk = Perk.None, price = 0 },
+            new Info { name = "Frosty the Penguin", model = "Meshy/Penguin", perkTitle = "Ice balance", perkText = "Milk sloshes 10% less", perk = Perk.Slosh, price = 8 },
+            new Info { name = "Cowboy Dusty", model = "Meshy/Cowboy", perkTitle = "Lasso", perkText = "40% wider coin pickup", perk = Perk.Magnet, price = 12 },
+            new Info { name = "Clank the Robot", model = "Meshy/Robot", perkTitle = "Oiled gears", perkText = "5% less sled friction", perk = Perk.Friction, price = 16 },
+            new Info { name = "Captain Hook", model = "Meshy/Pirate", perkTitle = "Treasure hunter", perkText = "25% bigger chest rewards", perk = Perk.Chest, price = 20 },
+            new Info { name = "Chef Al", model = "Meshy/Chef", perkTitle = "Steady hands", perkText = "Fills the cup carefully: milk spills less", perk = Perk.Lid, price = 25 },
+            new Info { name = "Shadow Ninja", model = "Meshy/Ninja", perkTitle = "Light feet", perkText = "5% less sled friction", perk = Perk.Friction, price = 30 },
+            new Info { name = "Firefighter Blaze", model = "Meshy/Firefighter", perkTitle = "Sturdy helmet", perkText = "15% tougher on hard landings", perk = Perk.Armor, price = 36 },
+            new Info { name = "Sir Arden", model = "Meshy/Knight", perkTitle = "Armor", perkText = "15% tougher on hard landings", perk = Perk.Armor, price = 42 },
+            new Info { name = "Viking Ragnar", model = "Meshy/Viking", perkTitle = "Strong arms", perkText = "4% faster launch", perk = Perk.Sling, price = 50 },
+            new Info { name = "Stripes the Tiger", model = "Meshy/Tiger", perkTitle = "Claw power", perkText = "10% stronger rocket", perk = Perk.Rocket, price = 60 },
+            new Info { name = "Lila the Wizard", model = "Meshy/Wizard", perkTitle = "Magic wings", perkText = "8% more lift while gliding", perk = Perk.Glide, price = 72 },
+            new Info { name = "Astronaut Star", model = "Meshy/Astronaut", perkTitle = "Spacewalk", perkText = "8% more lift while gliding", perk = Perk.Glide, price = 85 },
         };
 
         public static int Count => All.Length;
@@ -38,7 +41,7 @@ namespace SledSurfers
                 case Perk.Slosh: c.sloshDamping *= 1.1f; break;
                 case Perk.Sling: c.bandStiffness *= 1.0816f; break;     // çıkış hızı ∝ √k → +%4
                 case Perk.Friction: c.groundFriction *= 0.95f; break;
-                case Perk.Lid: c.lidDistance = 130f; break;
+                case Perk.Lid: c.milkHeadroom += 0.004f; break;   // bardağı biraz eksik doldurur
                 case Perk.Rocket: c.rocketThrust *= 1.1f; break;
                 case Perk.Armor: c.crashImpact *= 1.15f; break;
                 case Perk.Glide: c.wingArea *= 1.08f; break;

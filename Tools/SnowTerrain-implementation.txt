@@ -1,0 +1,51 @@
+KARLI PARKUR — UYGULAMA VE DOĞRULAMA (2026-10-14)
+
+Yapılanlar
+- İlk kar dudağı gerçek 44 m'de; fizik yaklaşık 41 m'de kaldırıyor (ekranda yaklaşık 148 m).
+- Kademeli rampalar, geniş kar iniş çanakları ve daha belirgin 2 m dalgalar.
+- Ana güzergâhta dönüşümlü, garanti kalkışlar; köprü seçimi bunları iptal etmiyor.
+- Kısa köprü sonrası dalgalar uzunluğuna göre küçülüyor; iniş koridorunda zorunlu çamur/buz şeritleri yok.
+- Sonraki uzun inişler hava/iniş kayıpları için hafif dikleştirildi; başlangıç döngüsü korundu.
+- Kar köprülerinde 60 m yaklaşım / son 40 m sabit eğim; bitişe yakın yeni köprü yok.
+
+Değişen dosyalar
+Assets/Scripts/Core/TrackLibrary.cs — yalnız kar parkuruna özel üretim ve rampa yordamı.
+Assets/Scripts/Game/AutoShot.cs — izole -shots snow görüntü/telemetri testi.
+Assets/Scripts/Game/GameController.cs — yalnız izole Snow çekiminde çalışan kamera/okuma kancaları.
+Assets/Editor/SnowTerrainTests.cs ve .meta — 36 gerçek fizik koşusu ve profil/ uçuş raporları.
+Tools/verify-snow-terrain.py — ölçüm raporları üzerinde kabul kontrolleri.
+Yeni görsel/3D varlık yok. Penguen, kızak, malzemeler, yükseltme/para/kayıt formülleri korunmuştur.
+Korunan 400 dosyanın hash karşılaştırmasında yalnız bilinçli TrackLibrary değişikliği görüldü.
+Diğer altı parkurun üretim yolu değişmedi.
+
+Doğrulama
+36 deterministik koşu: 5 saf arazi seviyesi, 2 oyuncu modeli, 3 tohum; ayrıca 6 roketli ilerleme koşusu.
+36/36 ilk uçuş 120 gerçek metreden önce; ilk uçuşlar başarıyla iniyor.
+28 koşu doğal olarak yavaşlayıp durdu, 8 koşu bitirdi. Kaza/takla/süt bitmesi/zaman aşımı yok.
+Başlangıç uçuşu 1.60–1.69 sn / yaklaşık 30–33 gerçek m. En büyük iniş darbesi 5.31 m/sn.
+En yüksek roket seviyesinde hem uzman hem ortalama model parkuru bitirdi.
+877 mevcut çekirdek regresyon kontrolü geçti. Windows ve Android derlemesi: 0 hata.
+APK v2 imzası doğrulandı; ARM64 geliştirme sürümü.
+
+Koşu mesafesi etkisi — saf arazi, roket kullanılmadan medyan (GERÇEK metre; ekran x3.6)
+Seviye 0: 214.3 -> 207.2 m
+Seviye 5: 378.7 -> 355.2 m
+Seviye 10: 530.0 -> 531.1 m
+Seviye 20: 1116.5 -> 735.8 m
+Seviye 30: 1410.2 -> 1600.0 m
+Arazi ve uçuş kayıpları koşu menzilini etkiliyor; özellikle orta seviyede öncekiyle aynı menzil iddia edilmiyor.
+
+Görsel doğrulama
+22 gerçek Windows oyuncu görüntüsü alındı. 60/200/450/750 m eğik arazi görünümleri; 0/10/20 seviyede gerçek koşular.
+Seviye 0 ve 20 uçuş görüntüleri, 60 ve 750 m arazi görünümleri incelendi.
+İlk uçuş/iniş üç seviyede de görüldü; seviye 20 ikinci uçuş ve inişi de görüntülendi.
+30 saniyelik çekim penceresinde 550 m karesi alınamadı; bu eksik kapsam snow-report.txt'de açıkça kayıtlı.
+Tüm parkurun sayısal koşusu test edildi; tüm parkurun görsel ve fiziksel telefon testi yapılmadı.
+
+Çıktılar
+Builds/Android/SlingRiders-test.apk
+SHA256: 10FF0FA7EDA701499566977E2C64D9E31E56E9665D8DBE9C9413BB7023C2499F
+Tools/out/snow-terrain-comparison.txt — 36 koşunun önce/sonra karşılaştırması.
+Tools/out/snow-terrain-verified.json — ayrıntılı fizik ölçümü.
+Tools/out/snow-visual-verified/snow-report.txt — gerçek görüntü kapsamı ve telemetri.
+Tools/out/snow-verified-windows.log / snow-verified-android.log — derleme ve regresyon günlükleri.

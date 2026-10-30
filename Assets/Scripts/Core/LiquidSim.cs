@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Bardaktaki sıvının basitleştirilmiş fiziği.
     ///
@@ -14,32 +14,58 @@ namespace SledSurfers
         const float ArmDamping = 0.55f;
         const float ArmReach = 0.18f;    // m
         const float MaxAccel = 300f;     // sayısal kararlılık sınırı
+        // Kızak ve kol esner: iniş darbesi süte bir fizik adımında değil ~50 ms'de ulaşır (toplam sarsıntı aynı).
+        const float SuspensionTime = 0.05f;
 
         public float fill;               // ortalama sıvı yüksekliği (m)
         public Vector2 slope;            // yüzey eğimi: x = sağ, y = ileri (bardak ekseninde)
         public bool lidClosed;           // kapalı kapta sıvı dökülmez, yüzey kapağı aşamaz
 
         Vector2 slopeVel;
-        Vector3 armOffset, armVel;
+        Vector3 armOffset, armVel, smoothAccel;
         float initialFill;
         SledConfig cfg;
 
         public Vector3 ArmOffset => armOffset;
+        /// Taşma tehlikesi (0..1): yüzeyin en yüksek noktası bardak ağzına ne kadar yaklaştı (1 = taşıyor).
+        /// Arayüz süt göstergesini buna göre uyarır.
+        public float Danger => cfg == null || lidClosed ? 0f
+            : Mathf.Clamp01(slope.magnitude * cfg.glassRadius / Mathf.Max(cfg.glassHeight - fill, 0.001f));
         public float FillRatio => initialFill > 0f ? fill / initialFill : 0f;
 
         public void Reset(SledConfig config)
         {
             cfg = config;
-            initialFill = fill = config.initialFill;
+            initialFill = fill = config.InitialFill;
             slope = slopeVel = Vector2.zero;
             lidClosed = true;
-            armOffset = armVel = Vector3.zero;
+            armOffset = armVel = smoothAccel = Vector3.zero;
         }
+
+        /// Sıvının "ağırlıksız" sayılma eşikleri Dünya yerçekimine göre: Mars'ta havadaki küçük yanal itişler (direksiyon)
+        /// 0.38 g'ye göre büyük kalıp sütü döküyordu; Dünya'da aynı itiş ağırlıksızlık sayılır.
+        static float GRef => Mathf.Max(SledPhysics.Gravity, SledPhysics.EarthGravity);
+
+        public const float AirBrace = 0.33f;
+
+        public static float HolderPull => Mathf.Max(0f, 0.85f * (SledPhysics.EarthGravity - SledPhysics.Gravity));   // 2026-10-19: 0.65 -> 0.85 (Mars çatalında şerit değiştirmek sütün %50-76sını döküyordu)
 
         /// anchorAccel: elin (kızağın) dünya ivmesi. glassRotation: bardağın dünya yönelimi.
         public void Step(Vector3 anchorAccel, Quaternion glassRotation, float dt)
         {
             anchorAccel = Vector3.ClampMagnitude(anchorAccel, MaxAccel * 10f);
+            // Havada bardağı göğse bastırır (kullanıcı 2026-10-23): "aşağı" hissi azaldıkça (serbest düşüş, az taşıyan uçuş)
+            // yatay ivmenin yalnız üçte biri sıvıya geçer. Yoksa havada ateşlenen roket (aşağı hissi yokken ileri itiş)
+            // sütün %50-80'ini bir anda geri döküyordu. Yerde (aşağı hissi tam) değişmez.
+            float down = (SledPhysics.Gravity + anchorAccel.y) / Mathf.Max(SledPhysics.Gravity, 0.1f);
+            float brace = Mathf.Lerp(AirBrace, 1f, Mathf.Clamp01(down / 0.6f));
+            anchorAccel.x *= brace;
+            anchorAccel.z *= brace;
+            // Ağırlıksızlık ham ivmeyle anlaşılır: kızak havalandığı an sıvı asılı kalır (süspansiyon gecikmesi
+            // yüzünden havada dökülmesin).
+            bool rawWeightless = (new Vector3(0f, -SledPhysics.Gravity, 0f) - anchorAccel).magnitude < 0.35f * GRef;
+            smoothAccel += (anchorAccel - smoothAccel) * Mathf.Min(1f, dt / SuspensionTime);
+            anchorAccel = smoothAccel;
 
             Vector3 prevVel = armVel;
             Vector3 rel = -ArmFrequency * ArmFrequency * armOffset
@@ -57,14 +83,21 @@ namespace SledSurfers
             }
             Vector3 glassAccel = Vector3.ClampMagnitude(anchorAccel + (armVel - prevVel) / dt, MaxAccel);
 
-            Vector3 gEff = new Vector3(0f, -SledPhysics.Gravity, 0f) - glassAccel;
+            // Düşük yerçekiminde (Mars) hover aracının jiroskoplu bardaklığı sütü aşağı bastırır: yanal ivmeye karşı
+            // etkin yerçekimi Dünya'ya yaklaşır (yoksa virajdaki ivme 0.38 g'ye göre çok büyük, süt hep dökülüyordu).
+            Vector3 gEff = new Vector3(0f, -SledPhysics.Gravity - (rawWeightless ? 0f : HolderPull), 0f) - glassAccel;
             Vector3 local = Quaternion.Inverse(glassRotation) * gEff;
             float g = local.magnitude;
             float r = cfg.glassRadius;
 
             Vector2 target = slope;
-            if (local.y < -0.05f * SledPhysics.Gravity)
+            if (local.y < -0.05f * GRef)
                 target = Vector2.ClampMagnitude(new Vector2(local.x, local.z) / -local.y, 4f);
+            // Az yerçekiminde (neredeyse serbest düşüş, ör. kanatla az taşınan uçuş) etkin yerçekiminin yönünü küçük
+            // yanal itişler belirler; gerçek sıvı bu kadar zayıf kuvvetle yavaş kayar. Yüzeyin hedef eğimi g ile
+            // ölçeklenir: 0.35g'de yüzey olduğu yerde kalır, 0.8g'den itibaren tam yönelir.
+            float gw = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.35f, 0.8f, g / GRef));
+            target = Vector2.Lerp(slope, target, gw);
 
             float depth = Mathf.Max(fill, 0.005f);
             float w2 = 1.84f * g / r * (float)System.Math.Tanh(1.84f * depth / r);
@@ -73,8 +106,8 @@ namespace SledSurfers
             float w = Mathf.Sqrt(w2);
             // Ağırlıksızken (havada) sıvı bardakta asılı kalır: yüzey hareketi söner, dökülme olmaz.
             // Asıl sınav inişte: sert iniş sıvıyı çalkalar.
-            bool weightless = g < 0.35f * SledPhysics.Gravity;
-            Vector2 acc = w2 * (target - slope) - (2f * cfg.sloshDamping * w + (weightless ? 6f : 0.5f)) * slopeVel;
+            bool weightless = rawWeightless || g < 0.35f * GRef;
+            Vector2 acc = w2 * (target - slope) - (2f * cfg.sloshDamping * w + (weightless ? 6f : 0.5f + 5.5f * (1f - gw))) * slopeVel;
             slopeVel += acc * dt;
             slope += slopeVel * dt;
 
@@ -96,7 +129,7 @@ namespace SledSurfers
             if (rim > cfg.glassHeight && !weightless)
             {
                 float e = rim - cfg.glassHeight;
-                float q = 0.6f * Mathf.Sqrt(2f * Mathf.Max(g, 0.5f)) * 1.2f * r * e * Mathf.Sqrt(e);
+                float q = 0.6f * Mathf.Sqrt(2f * Mathf.Clamp(g, 0.5f, 4f * SledPhysics.Gravity)) * 1.2f * r * e * Mathf.Sqrt(e);
                 fill -= q / (Mathf.PI * r * r) * dt;
             }
             // Ağız aşağı bakıyorsa (etkin yerçekimi güçlü biçimde bardağın ağzına doğru) sıvı boşalır.
@@ -107,6 +140,67 @@ namespace SledSurfers
                 fill -= 0.6f * Mathf.Sqrt(2f * Mathf.Min(local.y, 2f * SledPhysics.Gravity) * Mathf.Max(fill, 0.002f)) * dt;
 
             fill = Mathf.Max(fill, 0f);
+        }
+    }
+
+    /// Karakterin refleksi: hissettiği savrulmanın (ivme + yerçekimi) bir kısmını kısa bir gecikmeyle kendiliğinden
+    /// dengeler. Oranı bardak yükseltmeleri artırır (SledConfig.glassReflex); oyuncunun eğmesi bunun üstüne eklenir.
+    public class GlassReflex
+    {
+        const float ReactionTime = 0.2f;
+        public const float AirReflex = 0.85f;
+        Vector3 felt;
+        public float pitch, roll;   // derece
+
+        public void Reset()
+        {
+            felt = Vector3.zero;
+            pitch = roll = 0f;
+        }
+
+        public void Step(SledPhysics sled, float strength, float dt)
+        {
+            felt = Vector3.Lerp(felt, sled.acceleration, dt / ReactionTime);
+            // Havada (süzülürken) karakter bardağı daha güçlü dengeler (2026-10-19): kızağın burun hareketi kanadın taşıma
+            // kuvvetiyle bardağı yerdeki gibi eğip, ortalama oyuncuya ilk haritanın ilk rampasında sütün %26-57'sini
+            // döktürüyordu. Yerdeki zorluk aynı kalır.
+            if (!sled.grounded) strength = Mathf.Max(strength, AirReflex);
+            // Ağırlıksızken (havada) karakter son duruşu korur, yavaşça bırakır (90 -> 30°/s): rampadan çıkarken
+            // bardak kızakla birlikte eğilip inişte dökülüyordu.
+            float relaxP = Mathf.MoveTowards(pitch, 0f, 30f * dt), relaxR = Mathf.MoveTowards(roll, 0f, 30f * dt);
+            // Dengeleme ile bırakma arasında yumuşak geçiş, açı değişimi sınırlı (kullanıcı 2026-10-26: "süzülürken karakter
+            // sağa sola yalpalıyor"): kanatlı süzülmede hissedilen ağırlık 0.4 g eşiğinin çevresinde dolaşıyor, refleks her
+            // fizik adımında iki durum arasında atlayıp bardağı (ve onu tutan kolu) karede 20-29° sıçratıyordu.
+            float weight = WeightFactor(sled.Orientation, felt, out float p, out float r);
+            pitch = Mathf.MoveTowards(pitch, Mathf.Lerp(relaxP, strength * p, weight), MaxRate * dt);
+            roll = Mathf.MoveTowards(roll, Mathf.Lerp(relaxR, strength * r, weight), MaxRate * dt);
+        }
+
+        const float MaxRate = 240f;   // °/s; yerde hızlı tepkiyi korur (0.2 s gecikmeli hissedilen ivme zaten yumuşak)
+
+        /// Level'in sürekli hali: hissedilen ağırlık 0.3 g altında 0, 0.5 g üstünde 1 (aradaki geçiş yumuşak).
+        static float WeightFactor(Quaternion orientation, Vector3 felt, out float pitch, out float roll)
+        {
+            Vector3 local = Quaternion.Inverse(orientation) * (new Vector3(0f, -SledPhysics.Gravity, 0f) - felt);
+            pitch = roll = 0f;
+            float g = local.magnitude / SledPhysics.Gravity;
+            if (g < 0.05f) return 0f;
+            Vector3 up = -local.normalized;
+            pitch = Mathf.Clamp(Mathf.Atan2(up.z, up.y) * Mathf.Rad2Deg, -40f, 40f);
+            roll = Mathf.Clamp(Mathf.Atan2(up.x, up.y) * Mathf.Rad2Deg, -40f, 40f);
+            return Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.3f, 0.5f, g));
+        }
+
+        /// Bardağı hissedilen etkin yerçekimine hizalamak için gereken eğim (derece). Ağırlıksızken false.
+        public static bool Level(Quaternion orientation, Vector3 felt, out float pitch, out float roll)
+        {
+            Vector3 local = Quaternion.Inverse(orientation) * (new Vector3(0f, -SledPhysics.Gravity, 0f) - felt);
+            pitch = roll = 0f;
+            if (local.magnitude < 0.4f * SledPhysics.Gravity) return false;
+            Vector3 up = -local.normalized;
+            pitch = Mathf.Clamp(Mathf.Atan2(up.z, up.y) * Mathf.Rad2Deg, -40f, 40f);
+            roll = Mathf.Clamp(Mathf.Atan2(up.x, up.y) * Mathf.Rad2Deg, -40f, 40f);
+            return true;
         }
     }
 }

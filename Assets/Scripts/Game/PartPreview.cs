@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace SledSurfers
+namespace SlingRiders
 {
     /// Yükseltme kartlarındaki 3D önizlemeler: her kart için parçanın o anki seviyedeki görünümü (sapan, kızak,
     /// bardak, para yığını, roket) ayrı bir sahne köşesinde kurulur, kendi kamerasıyla şeffaf zemine çizilir.
@@ -50,7 +50,8 @@ namespace SledSurfers
             for (int i = 0; i < Upgrades.Count; i++)
             {
                 int stage = Mathf.Clamp(Upgrades.Stage(levels[i]), 0, 5);
-                int key = i == (int)UpgradeType.Runners ? levels[i] : stage;   // kızakta kanat boyu her kademede büyür
+                // Kızakta kanat boyu her kademede büyür; pist değişince (araç, aşama sayısı) hepsi yeniden çizilir.
+                int key = (i == (int)UpgradeType.Runners ? levels[i] : stage) + 1000 * Upgrades.Track;
                 if (key == shown[i] && targets[i].IsCreated()) continue;
                 shown[i] = key;
                 Render(i, stage, levels[i]);
@@ -83,7 +84,7 @@ namespace SledSurfers
                     var deco = new GameObject("Deco").transform;
                     deco.SetParent(root, false);
                     var glassMat = Mats.Glass();
-                    glassMat.color = new Color(0.85f, 0.95f, 1f, 0.45f);
+                    glassMat.color = cfg.glassGold ? RiderView.GoldGlassTint : new Color(0.85f, 0.95f, 1f, 0.45f);
                     var shell = new GameObject("Shell");
                     shell.transform.SetParent(root, false);
                     shell.AddComponent<MeshFilter>().sharedMesh = GlassModels.Build(cfg.glassModel, d, h, 1f, deco, glassMat, Layer);
@@ -113,6 +114,64 @@ namespace SledSurfers
                 }
             }
 
+            Shoot(root, view, targets[type]);
+        }
+
+        /// Galeri (inceleme dosyası): bir kartın verilen seviyedeki görünümünü büyük boyutta PNG'ye yazar.
+        public void SaveCard(int type, int level, string path, int width = 900, int height = 700)
+        {
+            var rt = new RenderTexture(width, height, 16, RenderTextureFormat.ARGB32) { antiAliasing = 4, name = "Gallery" };
+            rt.Create();
+            var saved = targets[type];
+            targets[type] = rt;
+            Render(type, Mathf.Clamp(Upgrades.Stage(level), 0, 5), level);
+            targets[type] = saved;
+            shown[type] = -1;
+            WritePng(rt, path);
+            rt.Release();
+            Object.Destroy(rt);
+        }
+
+        /// Galeri: aracın kalıcı parçalarıyla görünüşü.
+        public void SaveUnlock(VehicleKind kind, int parts, string path) => WritePng((RenderTexture)RenderUnlock(kind, parts), path);
+
+        static void WritePng(RenderTexture rt, string path)
+        {
+            var prev = RenderTexture.active;
+            RenderTexture.active = rt;
+            var tex = new Texture2D(rt.width, rt.height, TextureFormat.RGBA32, false);
+            tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
+            tex.Apply();
+            RenderTexture.active = prev;
+            System.IO.File.WriteAllBytes(path, tex.EncodeToPNG());
+            Object.Destroy(tex);
+        }
+
+        RenderTexture unlockTarget;
+
+        /// Parça duyurusu: aracın (kanat ve kalıcı parçalarıyla) arkadan 3/4 görünüşü.
+        public Texture RenderUnlock(VehicleKind kind, int parts)
+        {
+            if (unlockTarget == null)
+            {
+                unlockTarget = new RenderTexture(560, 420, 16, RenderTextureFormat.ARGB32) { antiAliasing = 4, name = "Unlock Preview" };
+                unlockTarget.Create();
+            }
+            var root = new GameObject("Unlock Preview").transform;
+            root.position = Origin;
+            int saved = Upgrades.PartTier;
+            Upgrades.PartTier = parts;
+            if (kind == VehicleKind.Sled) SledModel.Build(root, Mats.Solid(RiderView.RunnerColors[0], 0.6f)).SetStage(0);
+            else VehicleModels.Build(kind, root).SetStage(0);
+            BuildWings(root, 0, 0);
+            new PartAddons(root).Show(parts);
+            Upgrades.PartTier = saved;
+            Shoot(root, new Vector3(0.85f, 0.6f, -1f), unlockTarget, 0.58f);
+            return unlockTarget;
+        }
+
+        void Shoot(Transform root, Vector3 view, RenderTexture target, float fit = 0.82f)
+        {
             // Katman ve gölge: yalnızca önizleme kamerası görür.
             var renderers = root.GetComponentsInChildren<Renderer>();
             foreach (var t in root.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = Layer;
@@ -126,10 +185,10 @@ namespace SledSurfers
             }
             // Kamera: nesneyi kadraja sığdıran uzaklık.
             float radius = b.extents.magnitude;
-            float dist = radius / Mathf.Sin(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) * 0.82f;
+            float dist = radius / Mathf.Sin(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) * fit;
             cam.transform.position = b.center + view.normalized * dist;
             cam.transform.LookAt(b.center);
-            cam.targetTexture = targets[type];
+            cam.targetTexture = target;
             var fog = RenderSettings.fog;
             RenderSettings.fog = false;
             cam.Render();
@@ -141,18 +200,30 @@ namespace SledSurfers
 
         static void BuildSled(Transform root, int stage, int level)
         {
+            var kind = TrackLibrary.Vehicles[Upgrades.Track];
+            if (kind != VehicleKind.Sled)
+            {
+                VehicleModels.Build(kind, root).SetStage(Upgrades.Stage(level));
+                BuildWings(root, stage, level);
+                return;
+            }
             var runner = Mats.Solid(RiderView.RunnerColors[stage >= 5 ? 3 : stage >= 4 ? 2 : stage >= 2 ? 1 : 0], stage >= 2 ? 0.9f : 0.6f);
             var parts = SledModel.Build(root, runner);
             parts.SetStage(stage);
             if (stage >= 1)
-                Mats.PlaceBetween(Mats.Prim(PrimitiveType.Cylinder, "Rope", root, Vector3.zero, Vector3.one, Mats.Solid(new Color(1f, 0.76f, 0.2f), 0.2f)),
-                                  SledModel.NoseEye, new Vector3(0.15f, 0.62f, 0.25f), 0.022f);
+                new GripRope(root).Update(SledModel.NoseEye, new Vector3(.15f, .62f, .25f));
+            BuildWings(root, stage, level);
+        }
+
+        /// Kademedeki kanatlar (her araçta aynı bağlantı noktası).
+        static void BuildWings(Transform root, int stage, int level)
+        {
             var cfg = Upgrades.BuildConfig(new[] { 0, level, 0, 0, 0 });
             if (cfg.wingArea > 0f)
             {
-                const float chord = 0.55f;
-                float span = cfg.wingArea / (2f * chord);
-                int ws = stage >= 5 ? 2 : 1;
+                float span = cfg.wingSpan;
+                float chord = 0.3f + 0.21f * span;
+                int ws = stage >= 5 ? 2 : stage >= 4 ? 1 : 0;   // RiderView ile aynı: beyaz, 16 mavi, 20 altın
                 var body = Mats.Solid(RiderView.WingColors[ws], 0.3f);
                 for (int s = -1; s <= 1; s += 2)
                 {
@@ -161,8 +232,10 @@ namespace SledSurfers
                     w.localPosition = new Vector3(0.3f * s, 0.29f, -0.08f);
                     w.gameObject.AddComponent<MeshFilter>().sharedMesh = SledModel.WingMesh(span, chord, s);
                     w.gameObject.AddComponent<MeshRenderer>().sharedMaterial = body;
+                    var accent = Mats.Solid(RiderView.WingletColors[ws], .35f);
+                    EquipmentStyle.WingDetails(w, span, chord, s, accent);
                     Mats.Prim(PrimitiveType.Cube, "Winglet", w, new Vector3(span * s, 0.08f * span + 0.06f, -0.04f * chord),
-                              new Vector3(0.025f, 0.14f, 0.42f * chord), Mats.Solid(RiderView.WingletColors[ws], 0.35f));
+                              new Vector3(0.025f, 0.14f, 0.42f * chord), accent);
                 }
             }
         }

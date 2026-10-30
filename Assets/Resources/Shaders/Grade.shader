@@ -1,6 +1,6 @@
 // Tek geçişli renk ayarı: kontrast, doygunluk, sıcaklık/renk tonu, yumuşak S eğrisi ve kenar karartma.
 // Resources altında olduğu için build'e girer; GradeEffect kameraya uygular.
-Shader "Hidden/SledSurfers/Grade"
+Shader "Hidden/SlingRiders/Grade"
 {
     Properties
     {
