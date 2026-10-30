@@ -41,6 +41,7 @@ namespace SlingRiders
         public long launchTicks;      // dolum sayacının başladığı an (UTC); haklar doluyken her an güncellenir
         public int hand = 1;   // 1 = sağ el, -1 = sol el
         public bool sound = true;
+        public bool music = true;     // ana ekran müziği (ses efektlerinden ayrı)
         public int steerSens = 1;      // direksiyon hassasiyeti: 0 düşük, 1 orta, 2 yüksek
         public int tutorialCounts;     // aşamalı öğretim: her ipucunun kaç kez gösterildiği (4 bit × ipucu)
 
@@ -166,7 +167,7 @@ namespace SlingRiders
         static System.Collections.Generic.IEnumerable<string> Keys()
         {
             for (int t = 0; t < TrackLibrary.Count; t++) { PlayerPrefs.DeleteKey(K("money_t" + t)); PlayerPrefs.DeleteKey(K("taken_t" + t)); }
-            foreach (var k in new[] { "dealDay", "dealIndex", "dealEnd", "dealSeen", "adGemDay", "adGemCount", "takenDay", "lday", "lstreak", "qday", "qtrack", "qp0", "qp1", "qp2", "qclaim", "money", "gems", "chest", "chestStreak", "chestFront", "launches", "launchTicks", "hand", "sound", "track", "avatar", "avatars", "avatar2", "avatars2", "unlocked",
+            foreach (var k in new[] { "dealDay", "dealIndex", "dealEnd", "dealSeen", "adGemDay", "adGemCount", "takenDay", "lday", "lstreak", "qday", "qtrack", "qp0", "qp1", "qp2", "qclaim", "money", "gems", "chest", "chestStreak", "chestFront", "launches", "launchTicks", "hand", "sound", "music", "track", "avatar", "avatars", "avatar2", "avatars2", "unlocked",
                                       "sens", "tut" })
                 yield return k;
             for (int t = 0; t < TrackLibrary.Count; t++)
@@ -192,6 +193,7 @@ namespace SlingRiders
                 chestStreakFront = PlayerPrefs.GetInt(K("chestFront"), -1),
                 hand = PlayerPrefs.GetInt(K("hand"), 1),
                 sound = PlayerPrefs.GetInt(K("sound"), 1) != 0,
+                music = PlayerPrefs.GetInt(K("music"), 1) != 0,
                 steerSens = Mathf.Clamp(PlayerPrefs.GetInt(K("sens"), 1), 0, 2),
                 tutorialCounts = PlayerPrefs.GetInt(K("tut"), 0),
                 unlocked = Mathf.Clamp(PlayerPrefs.GetInt(K("unlocked"), 0), 0, TrackLibrary.Count - 1),
@@ -263,6 +265,7 @@ namespace SlingRiders
             PlayerPrefs.SetString(K("launchTicks"), launchTicks.ToString());
             PlayerPrefs.SetInt(K("hand"), hand);
             PlayerPrefs.SetInt(K("sound"), sound ? 1 : 0);
+            PlayerPrefs.SetInt(K("music"), music ? 1 : 0);
             PlayerPrefs.SetInt(K("sens"), steerSens);
             PlayerPrefs.SetInt(K("tut"), tutorialCounts);
             PlayerPrefs.SetInt(K("track"), track);

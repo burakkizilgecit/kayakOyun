@@ -1862,6 +1862,10 @@ namespace SlingRiders
         {
             HomeCheck(SaveData.Prefix == "autotest.", "real player save must never be used");
             HomeFixture();
+            yield return new WaitForSeconds(2.5f);
+            // Ana ekran müziği çalıyor (Resources/Audio/menu_music)
+            HomeCheck(game.DebugMusicPlaying, "home music is not playing");
+            Debug.Log("[HOME] music playing " + game.DebugMusicPlaying);
             foreach (int height in new[] { 1170, 960, 1200 })
             {
                 yield return HomeResize(540, height);

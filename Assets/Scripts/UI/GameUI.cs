@@ -17,7 +17,7 @@ namespace SlingRiders
         public float milkStreakProgress;   // sonraki kademeye ilerleme (0..1)
         public bool perfectWindow;  // sapan tam gerildi: şimdi bırakırsa mükemmel atış
         public float progress, bestProgress, speedKmh, fill, pull, runTime, aimAngle;
-        public bool airborne, canGlide, dragging, tiltMode, sound;
+        public bool airborne, canGlide, dragging, tiltMode, sound, music;
         public bool mobileControls, hasWings, rocketNeedsLanding;
         public float wingSecondsLeft;
         public Rect glassRect;   // bardak kamerasının ekran oranı cinsinden alanı (alt-sol orijinli)
@@ -69,7 +69,7 @@ namespace SlingRiders
         public event Action<int> BrowseAvatar, AvatarAction;
         public event Action<int> ClaimChest;   // çarpan: 1 ya da 3 (reklamla)
         public event Action<int> Buy, SetHand, SelectTrack;
-        public event Action<bool> SetSound;
+        public event Action<bool> SetSound, SetMusic;
         public event Action<int> SetSensitivity;
         /// Test düğmeleri (yalnız geliştirme sürümü): geçerli haritanın geliştirmelerini sıfırla, bütün haritaları aç, para ver.
         public event Action TestResetUpgrades, TestUnlockAll, TestMoney;
@@ -220,7 +220,7 @@ namespace SlingRiders
         VisualElement hubTrackFill, settings, settingsCard;
         VisualElement pauseModal, pauseCard;
         bool paused;
-        Button handLeft, handRight, soundOn, soundOff;
+        Button handLeft, handRight, soundOn, soundOff, musicOn, musicOff;
         readonly Button[] sensButtons = new Button[3];
         float hintTime;
 
@@ -1401,6 +1401,8 @@ namespace SlingRiders
             handRight.EnableInClassList("on", h.hand > 0);
             soundOn.EnableInClassList("on", h.sound);
             soundOff.EnableInClassList("on", !h.sound);
+            musicOn.EnableInClassList("on", h.music);
+            musicOff.EnableInClassList("on", !h.music);
             for (int k = 0; k < sensButtons.Length; k++) sensButtons[k]?.EnableInClassList("on", h.sensitivity == k);
         }
 
@@ -1447,6 +1449,14 @@ namespace SlingRiders
             sound.Add(soundOn);
             sound.Add(soundOff);
             settingsCard.Add(sound);
+
+            settingsCard.Add(SettingLabel("Music"));
+            var musicSeg = E("seg");
+            musicOn = Seg("ON", () => SetMusic?.Invoke(true));
+            musicOff = Seg("OFF", () => SetMusic?.Invoke(false));
+            musicSeg.Add(musicOn);
+            musicSeg.Add(musicOff);
+            settingsCard.Add(musicSeg);
 
             // Test düğmeleri (kullanıcı isteği 2026-10-10): yalnızca geliştirme sürümünde görünür; yayın sürümünde yok.
             if (Debug.isDebugBuild)

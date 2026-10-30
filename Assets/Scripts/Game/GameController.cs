@@ -45,6 +45,7 @@ namespace SlingRiders
         SaveData save;
 
         SoundFx sfx;
+        MusicPlayer music;
         GameUI ui;
 
         State state;
@@ -112,6 +113,8 @@ namespace SlingRiders
             rider = new RiderView();
             ShowAvatarModel(save.avatar);
             sfx = new SoundFx(cam.transform);
+            music = new MusicPlayer(cam.transform);
+            music.SetEnabled(save.music);
             SoundFx.SetEnabled(save.sound);
             new PartPreview();   // kart önizlemeleri (arayüzden önce)
             cam.cullingMask &= ~(1 << 31) & ~(1 << Mats.InsetLayer);
@@ -133,6 +136,7 @@ namespace SlingRiders
         public void DebugPause(bool value) => SetPaused(value);
         public bool DebugInResult => state == State.Result;
         public bool DebugInHub => state == State.Hub;
+        public bool DebugMusicPlaying => music.DebugPlaying && music.DebugLevel > 0.5f;
         /// Test (süt becerisi): çarpan, kademe ilerlemesi, taşma tehlikesi, doluluk.
         public string DebugMilkState => string.Format(System.Globalization.CultureInfo.InvariantCulture,
             "x{0:F2} prog {1:F2} danger {2:F2} fill {3:F3} calls {4} breaks {5} d {6:F0}",
@@ -1126,6 +1130,8 @@ namespace SlingRiders
 
         void UpdateSound(float dt)
         {
+            // Müzik: ana ekran ve sonuçta tam, nişanda yarım, koşuda susar (kızak, rüzgâr ve süt sesleri duyulsun).
+            music.Tick(state == State.Run ? 0f : state == State.Aim ? 0.45f : 1f, Time.unscaledDeltaTime);
             float tension = state == State.Aim ? Mathf.Clamp01(Mathf.Abs(pull - lastPull) / Mathf.Max(dt, 0.001f) * 0.8f) : 0f;
             lastPull = pull;
             sfx.Drive(tension, sled.Speed, sled.grounded, state == State.Run, state == State.Run && sled.RocketFiring, dt);
@@ -1713,6 +1719,12 @@ namespace SlingRiders
                 input.sensitivity = v;
                 save.Save();
             };
+            ui.SetMusic += on =>
+            {
+                save.music = on;
+                save.Save();
+                music.SetEnabled(on);
+            };
             ui.SetSound += on =>
             {
                 save.sound = on;
@@ -1831,6 +1843,7 @@ namespace SlingRiders
                 best = save.best,
                 hand = save.hand,
                 sound = save.sound,
+                music = save.music,
                 sensitivity = save.steerSens,
                 distance = Mathf.FloorToInt(sled.maxDistance),
                 progress = Mathf.Clamp01(sled.maxDistance / track.finishZ),
