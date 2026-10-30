@@ -1584,7 +1584,7 @@ namespace SlingRiders
             {
                 ClaimChest?.Invoke(chestMultiplier);
                 chestCard.AddToClassList("off");
-                chestModal.schedule.Execute(() => chestModal.style.display = DisplayStyle.None).StartingIn(180);
+                chestModal.schedule.Execute(() => { chestModal.style.display = DisplayStyle.None; modalClosedAt = Time.unscaledTime; }).StartingIn(180);
             }, "btn", "btn-green", "btn-mid");
             go.name = "home-chest-claim";
             go.text = "CONTINUE";
@@ -1678,7 +1678,7 @@ namespace SlingRiders
             var title = L("SHOP", "outlined");
             title.style.fontSize = 84;
             top.Add(title);
-            var close = B(() => shopModal.style.display = DisplayStyle.None, "btn", "kit-round", "kit-close", "shop-close");
+            var close = B(() => { shopModal.style.display = DisplayStyle.None; modalClosedAt = Time.unscaledTime; }, "btn", "kit-round", "kit-close", "shop-close");
             close.name = "home-shop-close";
             top.Add(close);
             shopModal.Add(top);
@@ -2113,8 +2113,15 @@ namespace SlingRiders
         static void Close(VisualElement modal, VisualElement card)
         {
             card.AddToClassList("off");
-            modal.schedule.Execute(() => modal.style.display = DisplayStyle.None).StartingIn(180);
+            modalClosedAt = Time.unscaledTime;
+            modal.schedule.Execute(() => { modal.style.display = DisplayStyle.None; modalClosedAt = Time.unscaledTime; }).StartingIn(180);
         }
+
+        /// Son açılır pencerenin kapandığı an: hemen ardından gelen dokunuş ana ekranda oyunu başlatmasın
+        /// (kullanıcı 2026-10-30: günlük ödülü alınca PLAY demeden fırlatma ekranına geçiyordu).
+        static float modalClosedAt = -10f;
+        const float ModalTapGuard = 0.7f;
+        public bool ModalJustClosed => Time.unscaledTime - modalClosedAt < ModalTapGuard;
 
         void BuildQuests()
         {
@@ -2987,7 +2994,7 @@ namespace SlingRiders
             {
                 partCard.AddToClassList("off");
                 partClock = -1f;
-                partModal.schedule.Execute(() => partModal.style.display = DisplayStyle.None).StartingIn(180);
+                partModal.schedule.Execute(() => { partModal.style.display = DisplayStyle.None; modalClosedAt = Time.unscaledTime; }).StartingIn(180);
             }, "btn", "btn-green", "btn-big");
             go.text = "CONTINUE";
             go.style.alignSelf = Align.Stretch;
@@ -4456,7 +4463,7 @@ namespace SlingRiders
         public void HideNoLaunches()
         {
             launchCard.AddToClassList("off");
-            launchModal.schedule.Execute(() => launchModal.style.display = DisplayStyle.None).StartingIn(180);
+            launchModal.schedule.Execute(() => { launchModal.style.display = DisplayStyle.None; modalClosedAt = Time.unscaledTime; }).StartingIn(180);
         }
 
         VisualElement GemPill()

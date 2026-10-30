@@ -417,6 +417,8 @@ namespace SlingRiders
                 Debug.Log("[AUTOSHOT] login claim delta=" + (after - before) + " expected=" + DailyRewardConfig.Reward(3)
                           + " streak=" + game.DebugLoginStreak + " pendingAfter=" + game.DebugLoginPending);
                 yield return Shot("login_after");
+                // Alımdan sonra ana ekranda kalınmalı (kullanıcı 2026-10-30: PLAY demeden fırlatma ekranına geçiyordu)
+                Debug.Log(game.DebugInHub ? "[AUTOSHOT] login stays on hub OK" : "[AUTOSHOT] FAIL: login claim left the hub");
                 SaveData.ClearAll();
                 Application.Quit();
                 yield break;

@@ -128,6 +128,7 @@ namespace SlingRiders
         public float DebugSimulationTime => sled.clock;
         public void DebugPause(bool value) => SetPaused(value);
         public bool DebugInResult => state == State.Result;
+        public bool DebugInHub => state == State.Hub;
         /// Test (süt becerisi): çarpan, kademe ilerlemesi, taşma tehlikesi, doluluk.
         public string DebugMilkState => string.Format(System.Globalization.CultureInfo.InvariantCulture,
             "x{0:F2} prog {1:F2} danger {2:F2} fill {3:F3} calls {4} breaks {5} d {6:F0}",
@@ -937,7 +938,7 @@ namespace SlingRiders
                     gains.Tick();
                     ui.SetGains(gains);
                     // Ana ekranda boş bir yere dokunmak oyunu başlatır (düğmeler ve kartlar hariç).
-                    if (ui.Current == GameUI.Page.Hub && input.pointerDown && !ui.BlocksPointer(input.pointerPos)) EnterAim();
+                    if (ui.Current == GameUI.Page.Hub && input.pointerDown && !ui.ModalJustClosed && !ui.BlocksPointer(input.pointerPos)) EnterAim();
                     break;
                 case State.Aim: UpdateAim(dt); break;
                 case State.Run: UpdateRun(dt); break;
