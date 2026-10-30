@@ -1226,8 +1226,8 @@ namespace SlingRiders
             }
         }
 
-        /// İnce tahta köprüler: enine tahtalar, altında iki kiriş, dereye inen direkler; girişte ve çıkışta kısa
-        /// direkler (kızağı hizalamak için işaret). Tablanın üstü fizikteki tabla yüksekliğindedir.
+        /// İnce tahta köprüler: enine tahtalar, altında iki kiriş, dereye inen direkler (çim kıyıda direk yok:
+        /// giriş/çıkış işaret direkleri ve kıyı ayakları 2026-10-30'da kaldırıldı). Tablanın üstü fizikteki tabla yüksekliğindedir.
         void BuildBridges()
         {
             if (track.bridges.Count == 0) return;
@@ -1266,13 +1266,9 @@ namespace SlingRiders
                         Mats.Prim(PrimitiveType.Cube, "Beam", go, (a + c) * 0.5f, new Vector3(0.14f, 0.16f, (c - a).magnitude + 0.04f), beam,
                                   Quaternion.LookRotation(c - a));
                     }
-                    // Giriş ve çıkış direkleri
-                    foreach (float ez in new[] { z0 + 0.1f, z0 + len - 0.1f })
-                        Mats.Prim(PrimitiveType.Cylinder, "EndPost", go, At(ez) + Side(ez) * (s * (hwB + 0.12f)) + Vector3.up * 0.3f,
-                                  new Vector3(0.13f, 0.45f, 0.13f), beam);
                 }
-                // Direkler: kıyı üstünde (tabla yuvarlanan dudağın üstünden geçer), derenin iki duvarında ve ortada
-                foreach (float z in new[] { b.z0 + 1f, b.r0 + 0.4f, (b.r0 + b.r1) * 0.5f, b.r1 - 0.4f, b.z1 - 1f })
+                // Direkler: yalnız derenin iki duvarında ve ortada (kullanıcı 2026-10-30: çim kıyıdaki ayaklar kaldırıldı)
+                foreach (float z in new[] { b.r0 + 0.4f, (b.r0 + b.r1) * 0.5f, b.r1 - 0.4f })
                 {
                     float top = TrackProfile.DeckHeight(b, z) - 0.2f, floor = track.TerrainHeight(b.XAt(z), z) - 0.3f;
                     if (top - floor < 0.3f) continue;
