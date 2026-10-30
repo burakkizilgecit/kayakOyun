@@ -46,6 +46,8 @@ namespace SlingRiders
 
         SoundFx sfx;
         MusicPlayer music;
+        /// Parkurun müzik teması (Resources/Audio/menu_<tema>, aim_<tema>; çayırın menü parçası menu_music).
+        static readonly string[] MusicThemes = { "meadow", "forest", "desert", "winter", "desert", "volcano", "mars", "desert", "winter", "mushroom", "jungle" };
         GameUI ui;
 
         State state;
@@ -137,6 +139,7 @@ namespace SlingRiders
         public bool DebugInResult => state == State.Result;
         public bool DebugInHub => state == State.Hub;
         public bool DebugMusicPlaying => music.DebugPlaying && music.DebugLevel > 0.5f;
+        public string DebugMusicTrack => music.DebugTrack;
         /// Test (süt becerisi): çarpan, kademe ilerlemesi, taşma tehlikesi, doluluk.
         public string DebugMilkState => string.Format(System.Globalization.CultureInfo.InvariantCulture,
             "x{0:F2} prog {1:F2} danger {2:F2} fill {3:F3} calls {4} breaks {5} d {6:F0}",
@@ -1130,8 +1133,12 @@ namespace SlingRiders
 
         void UpdateSound(float dt)
         {
-            // Müzik: ana ekran ve sonuçta tam, nişanda yarım, koşuda susar (kızak, rüzgâr ve süt sesleri duyulsun).
-            music.Tick(state == State.Run ? 0f : state == State.Aim ? 0.45f : 1f, Time.unscaledDeltaTime);
+            // Müzik (kullanıcı 2026-10-30): ana ekran ve sonuçta temanın menü parçası, fırlatma ekranında temanın fırlatma
+            // parçası; koşuda fırlatma parçası çok kısık sürer (kızak, rüzgâr ve süt sesleri önde).
+            string theme = MusicThemes[Mathf.Clamp(save.track, 0, MusicThemes.Length - 1)];
+            bool launchMusic = state == State.Aim || state == State.Run;
+            string musicName = launchMusic ? "aim_" + theme : theme == "meadow" ? MusicPlayer.Fallback : "menu_" + theme;
+            music.Tick(musicName, state == State.Run ? 0.3f : 1f, Time.unscaledDeltaTime);
             float tension = state == State.Aim ? Mathf.Clamp01(Mathf.Abs(pull - lastPull) / Mathf.Max(dt, 0.001f) * 0.8f) : 0f;
             lastPull = pull;
             sfx.Drive(tension, sled.Speed, sled.grounded, state == State.Run, state == State.Run && sled.RocketFiring, dt);

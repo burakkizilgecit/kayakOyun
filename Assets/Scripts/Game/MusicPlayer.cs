@@ -1,23 +1,28 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace SlingRiders
 {
-    /// Ana ekran müziği (kullanıcı 2026-10-30: ElevenLabs ile üretildi, Resources/Audio/menu_music). Döngü iki kaynakla:
-    /// parça bitmeden CrossFade saniye önce baştan başlayan ikinci kopyaya yumuşak geçiş (üretilen parçanın başı ve
-    /// sonu dikişsiz olmayabilir). Koşuda susar, nişanda kısılır; ana ekran ve sonuçta tam ses.
+    /// Müzik (kullanıcı 2026-10-30, ElevenLabs ile üretildi, Resources/Audio): ana ekranda temanın menü parçası, fırlatma
+    /// ekranında temanın fırlatma parçası. Döngü iki kaynakla: parça bitmeden CrossFade saniye önce baştan başlayan ikinci
+    /// kopyaya yumuşak geçiş (üretilen parçaların başı ve sonu dikişsiz olmayabilir). Parça değişince eskisi kısılır,
+    /// yenisi kaldığı yerden açılır. Dosyası olmayan parça yerine Fallback çalar.
     public class MusicPlayer
     {
-        const float Volume = 0.32f, CrossFade = 2.5f, FadeRate = 0.6f;   // FadeRate: saniyede ses payı
+        const float Volume = 0.32f, CrossFade = 2.5f, FadeRate = 0.6f, SwitchRate = 1.6f;   // ses payı / sn
+        public const string Fallback = "menu_music";
 
         readonly AudioSource[] src = new AudioSource[2];
-        readonly AudioClip clip;
+        readonly Dictionary<string, AudioClip> clips = new Dictionary<string, AudioClip>();
+        readonly Dictionary<string, float> resume = new Dictionary<string, float>();
+        AudioClip clip;
+        string playing;
         int cur;
-        float level, fade = 1f;
+        float level;
         bool enabled = true;
 
         public MusicPlayer(Transform parent)
         {
-            clip = Resources.Load<AudioClip>("Audio/menu_music");
             var go = new GameObject("Music");
             go.transform.SetParent(parent, false);
             for (int i = 0; i < 2; i++)
@@ -26,19 +31,49 @@ namespace SlingRiders
                 src[i].playOnAwake = false;
                 src[i].loop = false;
                 src[i].spatialBlend = 0f;
-                src[i].clip = clip;
                 src[i].volume = 0f;
             }
         }
 
         public void SetEnabled(bool on) => enabled = on;
 
-        /// target: 0 (sus) .. 1 (tam ses).
-        public void Tick(float target, float dt)
+        AudioClip Get(string name)
         {
-            if (clip == null) return;
+            if (!clips.TryGetValue(name, out var c))
+            {
+                c = Resources.Load<AudioClip>("Audio/" + name);
+                clips[name] = c;
+            }
+            return c;
+        }
+
+        /// name: istenen parça (Resources/Audio altında); target: 0 (sus) .. 1 (tam ses).
+        public void Tick(string name, float target, float dt)
+        {
+            if (Get(name) == null) name = Fallback;
             if (!enabled) target = 0f;
-            level = Mathf.MoveTowards(level, target, FadeRate * dt);
+            bool switching = playing != null && name != playing;
+            level = Mathf.MoveTowards(level, switching ? 0f : target, (switching ? SwitchRate : FadeRate) * dt);
+            if (switching && level <= 0f)
+            {
+                // Eski parça sustu: kaldığı yer saklanır, yeni parça yüklenir.
+                if (src[cur].isPlaying || src[cur].time > 0f) resume[playing] = src[cur].time;
+                src[0].Stop();
+                src[1].Stop();
+                playing = null;
+            }
+            if (playing == null)
+            {
+                if (target <= 0f || !enabled) return;
+                clip = Get(name);
+                if (clip == null) return;
+                playing = name;
+                cur = 0;
+                src[0].clip = src[1].clip = clip;
+                src[0].time = resume.TryGetValue(name, out float t) && t < clip.length - CrossFade - 0.5f ? t : 0f;
+                src[0].Play();
+            }
+
             var a = src[cur];
             var b = src[1 - cur];
             // Geçiş bitti (ilk kopya sona erdi): ikinci kopya asıl kaynak olur.
@@ -51,7 +86,7 @@ namespace SlingRiders
             }
             if (level <= 0f)
             {
-                // Tamamen susunca durur; yeniden açılınca baştan değil kaldığı yerden devam eder.
+                // Tamamen susunca durur; yeniden açılınca kaldığı yerden devam eder.
                 if (a.isPlaying) a.Pause();
                 b.Stop();
                 return;
@@ -67,12 +102,13 @@ namespace SlingRiders
                 b.time = 0f;
                 b.Play();
             }
-            fade = b.isPlaying ? Mathf.Clamp01(left / CrossFade) : 1f;
+            float fade = b.isPlaying ? Mathf.Clamp01(left / CrossFade) : 1f;
             a.volume = Volume * level * Mathf.Sqrt(fade);
             b.volume = Volume * level * Mathf.Sqrt(1f - fade);
         }
 
-        public bool DebugPlaying => clip != null && (src[0].isPlaying || src[1].isPlaying);
+        public bool DebugPlaying => playing != null && (src[0].isPlaying || src[1].isPlaying);
         public float DebugLevel => level;
+        public string DebugTrack => playing;
     }
 }

@@ -136,6 +136,30 @@ namespace SlingRiders
                 yield break;
             }
 
+            if (mode == "music")
+            {
+                // Tema müzikleri: her parkurda ana ekranda menü, nişanda fırlatma parçası çalar (dosyası yoksa genel menü).
+                game.DebugHideTutorial();
+                bool ok = true;
+                for (int tr = 0; tr < TrackLibrary.Count; tr++)
+                {
+                    game.DebugTrack(tr, tr);
+                    game.DebugHub();
+                    yield return new WaitForSeconds(2.2f);
+                    string hub = game.DebugMusicTrack;
+                    bool hubOk = game.DebugMusicPlaying;
+                    game.DebugAim();
+                    yield return new WaitForSeconds(2.2f);
+                    string aim = game.DebugMusicTrack;
+                    bool aimOk = game.DebugMusicPlaying && aim != null && aim.StartsWith("aim_");
+                    Debug.Log("[MUSIC] " + tr + " " + TrackLibrary.Names[tr] + " hub=" + hub + " aim=" + aim + (hubOk && aimOk ? " OK" : " FAIL"));
+                    ok &= hubOk && aimOk;
+                }
+                Debug.Log(ok ? "[MUSIC] all tracks OK" : "[MUSIC] FAIL: some tracks have no music");
+                SaveData.ClearAll();
+                Application.Quit();
+                yield break;
+            }
             if (mode == "milk")
             {
                 // Süt becerisi: koşu ortasında HUD süt göstergesi (çarpanla) ve sonuç kartındaki süt satırları
